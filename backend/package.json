@@ -14,7 +14,6 @@
     "@fastify/cors": "^11.0.0",
     "@fastify/helmet": "^13.0.0",
     "@fastify/jwt": "^10.0.0",
-    "@fastify/rate-limit": "^10.0.0",
     "@fastify/websocket": "^11.0.0",
     "@supabase/supabase-js": "^2.45.4",
     "dotenv": "^16.4.5",

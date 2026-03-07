@@ -1,7 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
-import rateLimit from '@fastify/rate-limit'
 import websocket from '@fastify/websocket'
 import { config } from './config.js'
 import { authRoutes } from './routes/auth.js'
@@ -32,11 +31,6 @@ export async function buildApp() {
   await app.register(cors, {
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
-  })
-
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
   })
 
   await app.register(websocket)
