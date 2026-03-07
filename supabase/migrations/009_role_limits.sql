@@ -1,0 +1,6 @@
+-- Add per-role squad limits to leagues
+ALTER TABLE leagues
+  ADD COLUMN IF NOT EXISTS max_batsmen        INTEGER NOT NULL DEFAULT 6,
+  ADD COLUMN IF NOT EXISTS max_wicket_keepers INTEGER NOT NULL DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS max_all_rounders   INTEGER NOT NULL DEFAULT 4,
+  ADD COLUMN IF NOT EXISTS max_bowlers        INTEGER NOT NULL DEFAULT 6;
