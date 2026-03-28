@@ -4,8 +4,10 @@ import { SettingsTab } from './SettingsTab'
 import { GamesTab } from './GamesTab'
 import { MatchDetail } from './MatchDetail'
 import { TeamsTab } from './TeamsTab'
+import { LeaguesTab } from './LeaguesTab'
+import { LeagueDetail } from './LeagueDetail'
 
-type Tab = 'settings' | 'games' | 'teams'
+type Tab = 'settings' | 'games' | 'teams' | 'leagues'
 
 export default function App() {
   const [secret, setSecret] = useState(() => localStorage.getItem('admin-secret') ?? '')
@@ -15,6 +17,8 @@ export default function App() {
 
   const [tab, setTab] = useState<Tab>('games')
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
+  const [selectedLeagueName, setSelectedLeagueName] = useState<string>('')
 
   const handleLogin = async () => {
     if (!secret.trim()) return
@@ -36,6 +40,7 @@ export default function App() {
     setAuthenticated(false)
     setSecret('')
     setSelectedMatchId(null)
+    setSelectedLeagueId(null)
   }
 
   if (!authenticated) {
@@ -103,16 +108,19 @@ export default function App() {
 
         {selectedMatchId ? (
           <span style={{ color: '#a5b4fc', fontSize: 14 }}>IPL Games → Match Stats</span>
+        ) : selectedLeagueId ? (
+          <span style={{ color: '#a5b4fc', fontSize: 14 }}>Leagues & Auctions → {selectedLeagueName}</span>
         ) : (
           <nav style={{ display: 'flex', gap: 4 }}>
             {([
                 ['games', 'IPL Games'],
                 ['teams', 'Teams & Players'],
+                ['leagues', 'Leagues & Auctions'],
                 ['settings', 'General Settings'],
               ] as [Tab, string][]).map(([t, label]) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => { setTab(t); setSelectedMatchId(null); setSelectedLeagueId(null) }}
                 style={{
                   padding: '6px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
                   fontWeight: 600, fontSize: 14,
@@ -146,10 +154,19 @@ export default function App() {
             secret={secret}
             onBack={() => setSelectedMatchId(null)}
           />
+        ) : selectedLeagueId ? (
+          <LeagueDetail
+            leagueId={selectedLeagueId}
+            leagueName={selectedLeagueName}
+            secret={secret}
+            onBack={() => setSelectedLeagueId(null)}
+          />
         ) : tab === 'games' ? (
           <GamesTab secret={secret} onSelectMatch={setSelectedMatchId} />
         ) : tab === 'teams' ? (
           <TeamsTab secret={secret} />
+        ) : tab === 'leagues' ? (
+          <LeaguesTab secret={secret} onSelect={(id, name) => { setSelectedLeagueId(id); setSelectedLeagueName(name) }} />
         ) : (
           <SettingsTab secret={secret} />
         )}

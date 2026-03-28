@@ -34,6 +34,14 @@ const roleLabels: Record<string, string> = {
   wicket_keeper: 'WK',
 }
 
+const wishlistRoleChips: { label: string; value: string | null }[] = [
+  { label: 'All', value: null },
+  { label: 'BAT', value: 'batsman' },
+  { label: 'WK', value: 'wicket_keeper' },
+  { label: 'AR', value: 'all_rounder' },
+  { label: 'BOWL', value: 'bowler' },
+]
+
 const roleBadgeColors: Record<string, 'blue' | 'red' | 'green' | 'yellow'> = {
   batsman: 'blue',
   bowler: 'red',
@@ -51,6 +59,8 @@ export default function LeagueScreen() {
   const deleteAuction = useDeleteAuction()
   const deleteLeague = useDeleteLeague()
   const [playerSearch, setPlayerSearch] = useState('')
+  const [playerRoleFilter, setPlayerRoleFilter] = useState<string | null>(null)
+  const [playerTeamFilter, setPlayerTeamFilter] = useState<string | null>(null)
   const [allPlayersCollapsed, setAllPlayersCollapsed] = useState(false)
   const [interestedCollapsed, setInterestedCollapsed] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
@@ -78,12 +88,14 @@ export default function LeagueScreen() {
   const myInterests = new Set(interestData?.myInterests ?? [])
   const interestCounts = interestData?.counts ?? {}
 
-  const filteredPlayers = (playersData ?? []).filter(
-    (p) =>
-      playerSearch.length === 0 ||
-      p.name.toLowerCase().includes(playerSearch.toLowerCase()) ||
-      p.ipl_team.toLowerCase().includes(playerSearch.toLowerCase())
-  )
+  const filteredPlayers = (playersData ?? []).filter(p => {
+    if (playerSearch.length > 0 &&
+        !p.name.toLowerCase().includes(playerSearch.toLowerCase()) &&
+        !p.ipl_team.toLowerCase().includes(playerSearch.toLowerCase())) return false
+    if (playerRoleFilter && p.role !== playerRoleFilter) return false
+    if (playerTeamFilter && p.ipl_team !== playerTeamFilter) return false
+    return true
+  })
 
   const interested = filteredPlayers.filter(p => myInterests.has(p.id))
   const others = filteredPlayers.filter(p => !myInterests.has(p.id))
@@ -305,6 +317,42 @@ export default function LeagueScreen() {
                   placeholderTextColor="#9ca3af"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, borderWidth: 1, borderColor: '#e5e7eb' }}
                 />
+
+                {/* Role filter chips */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row' }}>
+                    {wishlistRoleChips.map(({ label, value }) => (
+                      <TouchableOpacity
+                        key={label}
+                        onPress={() => setPlayerRoleFilter(value)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerRoleFilter === value ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerRoleFilter === value ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerRoleFilter === value ? '#ffffff' : '#6b7280' }}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                {/* Team filter chips */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row' }}>
+                    <TouchableOpacity
+                      onPress={() => setPlayerTeamFilter(null)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === null ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerTeamFilter === null ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === null ? '#ffffff' : '#6b7280' }}>All Teams</Text>
+                    </TouchableOpacity>
+                    {[...new Set((playersData ?? []).map(p => p.ipl_team))].sort().map(team => (
+                      <TouchableOpacity
+                        key={team}
+                        onPress={() => setPlayerTeamFilter(team)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === team ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerTeamFilter === team ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === team ? '#ffffff' : '#6b7280' }}>{team}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
               </View>
 
               {/* Player content */}

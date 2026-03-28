@@ -28,7 +28,7 @@ import { useLeague } from '../../../hooks/useLeague'
 import { useAvailablePlayers } from '../../../hooks/useAuctionInterests'
 import { api } from '../../../lib/api'
 import type { AuctionHistoryEntry } from '../../../stores/auctionStore'
-import { formatCurrency } from '../../../lib/currency'
+import { formatCurrency, playerBasePrice } from '../../../lib/currency'
 
 // ─── Inline dropdown selector ────────────────────────────────────────────────
 
@@ -181,6 +181,8 @@ export default function AuctionScreen() {
   // Nominate modal
   const [showNominateModal, setShowNominateModal] = useState(false)
   const [nominateSearch, setNominateSearch] = useState('')
+  const [nominateRoleFilter, setNominateRoleFilter] = useState<string | null>(null)
+  const [nominateTeamFilter, setNominateTeamFilter] = useState<string | null>(null)
 
   // Pre-bid countdown modal
   const [showPreBidModal, setShowPreBidModal] = useState(false)
@@ -234,7 +236,7 @@ export default function AuctionScreen() {
     .map(p => ({
       id: p.player_id,
       label: p.name,
-      sublabel: `${p.ipl_team} · ${roleLabels[p.role] ?? p.role} · ${formatCurrency(p.base_price, currency)} base`,
+      sublabel: `${p.ipl_team} · ${roleLabels[p.role] ?? p.role} · ${formatCurrency(playerBasePrice(p, currency), currency)} base`,
     }))
 
   const assignedPlayerOptions: SelectOption[] = auctionHistory
@@ -319,6 +321,8 @@ export default function AuctionScreen() {
 
   const handleNominate = () => {
     setNominateSearch('')
+    setNominateRoleFilter(null)
+    setNominateTeamFilter(null)
     setShowNominateModal(true)
   }
 
@@ -437,6 +441,25 @@ export default function AuctionScreen() {
     .map(r => `${r.count} ${roleLabels[r.role]}`)
   const squadSummary = squadSummaryParts.length > 0 ? squadSummaryParts.join(' · ') : 'No players yet'
 
+  // ── Shared chip helpers ──
+  const chipStyle = (active: boolean) => ({
+    paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: active ? '#dc2626' : '#ffffff',
+    borderWidth: 1, borderColor: active ? '#dc2626' : '#e5e7eb',
+    marginRight: 7,
+  })
+  const chipText = (active: boolean) => ({
+    fontSize: 12, fontWeight: '600' as const,
+    color: active ? '#ffffff' : '#374151',
+  })
+  const roleChips: { label: string; value: string | null }[] = [
+    { label: 'All', value: null },
+    { label: 'BAT', value: 'batsman' },
+    { label: 'WK', value: 'wicket_keeper' },
+    { label: 'AR', value: 'all_rounder' },
+    { label: 'BOWL', value: 'bowler' },
+  ]
+
   // ── Render ──
 
   return (
@@ -515,7 +538,7 @@ export default function AuctionScreen() {
               <View>
                 <Text className="text-gray-500 text-xs mb-1">Current Bid</Text>
                 <Text className="text-gray-900 text-3xl font-bold">
-                  {formatCurrency(currentBid ?? currentPlayer.base_price, currency)}
+                  {formatCurrency(currentBid ?? playerBasePrice(currentPlayer, currency), currency)}
                 </Text>
                 {currentBidder && (
                   <Text className="text-gray-400 text-sm mt-0.5">
@@ -573,7 +596,7 @@ export default function AuctionScreen() {
               <View className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                 <BidPanel
                   currentBid={currentBid}
-                  basePrice={currentPlayer.base_price}
+                  basePrice={playerBasePrice(currentPlayer, currency)}
                   remainingBudget={myMember.remainingBudget}
                   onBid={placeBid}
                   disabled={currentBidder?.userId === user?.id}
@@ -784,29 +807,10 @@ export default function AuctionScreen() {
                   !p.ipl_team.toLowerCase().includes(availSearch.toLowerCase())) return false
               if (availRoleFilter && p.role !== availRoleFilter) return false
               if (availTeamFilter && p.ipl_team !== availTeamFilter) return false
-              if (maxPriceNum !== null && !isNaN(maxPriceNum) && p.base_price > maxPriceNum) return false
+              if (maxPriceNum !== null && !isNaN(maxPriceNum) && playerBasePrice(p, currency) > maxPriceNum) return false
               if (availUnsoldOnly && p.status !== 'unsold') return false
               return true
             })
-
-            const chipStyle = (active: boolean) => ({
-              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-              backgroundColor: active ? '#dc2626' : '#ffffff',
-              borderWidth: 1, borderColor: active ? '#dc2626' : '#e5e7eb',
-              marginRight: 6,
-            })
-            const chipText = (active: boolean) => ({
-              fontSize: 12, fontWeight: '600' as const,
-              color: active ? '#ffffff' : '#6b7280',
-            })
-
-            const roleChips: { label: string; value: string | null }[] = [
-              { label: 'All', value: null },
-              { label: 'BAT', value: 'batsman' },
-              { label: 'WK', value: 'wicket_keeper' },
-              { label: 'AR', value: 'all_rounder' },
-              { label: 'BOW', value: 'bowler' },
-            ]
 
             return (
               <FlatList
@@ -934,7 +938,7 @@ export default function AuctionScreen() {
                       </View>
                       {/* Right side */}
                       <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                        <Text style={{ color: '#6b7280', fontSize: 12 }}>{formatCurrency(item.base_price, currency)}</Text>
+                        <Text style={{ color: '#6b7280', fontSize: 12 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
                         {item.status !== 'pending' && <Badge label={item.status.toUpperCase()} color={statusColor} />}
                         {item.status === 'sold' && item.sold_price && (
                           <Text style={{ color: '#16a34a', fontSize: 11, fontWeight: '700' }}>{formatCurrency(item.sold_price, currency)}</Text>
@@ -1029,7 +1033,7 @@ export default function AuctionScreen() {
                     {p.name}
                   </Text>
                   <Text style={{ color: '#6b7280', fontSize: 13, marginBottom: 28 }}>
-                    Base price {formatCurrency(p.base_price, currency)}
+                    Base price {formatCurrency(playerBasePrice(p, currency), currency)}
                   </Text>
                 </>
               )
@@ -1142,17 +1146,50 @@ export default function AuctionScreen() {
               />
             </View>
 
+            {/* Role filter chips */}
+            <View style={{ marginBottom: 8 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, flexDirection: 'row' }}>
+                {roleChips.map(({ label, value }) => (
+                  <TouchableOpacity key={label} onPress={() => setNominateRoleFilter(value)} style={chipStyle(nominateRoleFilter === value)}>
+                    <Text style={chipText(nominateRoleFilter === value)}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Team filter chips */}
+            {(() => {
+              const nomTeams = [...new Set((availableData?.players ?? [])
+                .filter(p => p.status === 'pending' || p.status === 'unsold')
+                .map(p => p.ipl_team))].sort()
+              return (
+                <View style={{ marginBottom: 10 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, flexDirection: 'row' }}>
+                    <TouchableOpacity onPress={() => setNominateTeamFilter(null)} style={chipStyle(nominateTeamFilter === null)}>
+                      <Text style={chipText(nominateTeamFilter === null)}>All Teams</Text>
+                    </TouchableOpacity>
+                    {nomTeams.map(team => (
+                      <TouchableOpacity key={team} onPress={() => setNominateTeamFilter(team)} style={chipStyle(nominateTeamFilter === team)}>
+                        <Text style={chipText(nominateTeamFilter === team)}>{team}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )
+            })()}
+
             {/* Player list */}
             {(() => {
               const nominatePlayers = (availableData?.players ?? []).filter(
                 p => p.status === 'pending' || p.status === 'unsold'
               )
-              const filtered = nominateSearch.trim().length === 0
-                ? nominatePlayers
-                : nominatePlayers.filter(p =>
-                    p.name.toLowerCase().includes(nominateSearch.toLowerCase()) ||
-                    p.ipl_team.toLowerCase().includes(nominateSearch.toLowerCase())
-                  )
+              const filtered = nominatePlayers.filter(p => {
+                if (nominateSearch.trim() && !p.name.toLowerCase().includes(nominateSearch.toLowerCase()) &&
+                    !p.ipl_team.toLowerCase().includes(nominateSearch.toLowerCase())) return false
+                if (nominateRoleFilter && p.role !== nominateRoleFilter) return false
+                if (nominateTeamFilter && p.ipl_team !== nominateTeamFilter) return false
+                return true
+              })
               return (
                 <FlatList
                   data={filtered}
@@ -1180,7 +1217,7 @@ export default function AuctionScreen() {
                           <Text style={{ color: '#9ca3af', fontSize: 12 }}>{item.ipl_team}</Text>
                           <Badge label={roleLabels[item.role] ?? item.role} color={roleBadgeColors[item.role] ?? 'gray'} />
                           {item.nationality !== 'Indian' && <Badge label="OS" color="yellow" />}
-                          <Text style={{ color: '#9ca3af', fontSize: 12 }}>{formatCurrency(item.base_price, currency)}</Text>
+                          <Text style={{ color: '#9ca3af', fontSize: 12 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
                         </View>
                       </View>
                       <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -1283,7 +1320,7 @@ export default function AuctionScreen() {
                 onSelect={id => {
                   setAssignPlayerId(id)
                   const p = availableData?.players.find(pl => pl.player_id === id)
-                  if (p) setAssignPrice(String(p.base_price))
+                  if (p) setAssignPrice(String(playerBasePrice(p, currency)))
                 }}
                 placeholder="Select player…"
               />

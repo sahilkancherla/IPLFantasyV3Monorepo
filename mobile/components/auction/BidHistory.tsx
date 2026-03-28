@@ -9,6 +9,8 @@ interface BidHistoryProps {
 }
 
 export function BidHistory({ history, currency = 'lakhs' }: BidHistoryProps) {
+  const recent = history.slice(-3).reverse()
+
   if (history.length === 0) {
     return (
       <View className="py-3 items-center">
@@ -19,7 +21,7 @@ export function BidHistory({ history, currency = 'lakhs' }: BidHistoryProps) {
 
   return (
     <FlatList
-      data={history}
+      data={recent}
       keyExtractor={(_, i) => String(i)}
       scrollEnabled={false}
       renderItem={({ item, index }) => (
