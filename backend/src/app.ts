@@ -31,6 +31,7 @@ export async function buildApp() {
   await app.register(cors, {
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Secret'],
   })
 
   await app.register(websocket)
