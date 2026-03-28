@@ -5,6 +5,7 @@ import { pool } from '../db/client.js'
 import { config } from '../config.js'
 import { calcFantasyPoints, getWeekForDate } from '../services/scoring.service.js'
 import { getAllWeeks } from '../services/schedule.service.js'
+import { getRoom, getMemberStates, getAllRooms } from '../services/auction.service.js'
 
 function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
   const secret = req.headers['x-admin-secret']
@@ -353,5 +354,80 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     await pool.query(`DELETE FROM players WHERE id = $1`, [req.params.playerId])
     return reply.send({ success: true })
+  })
+
+  // ── Leagues & Auctions ───────────────────────────────────────────────────
+
+  // GET /admin/leagues — list all leagues
+  app.get('/admin/leagues', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const { rows } = await pool.query(`
+      SELECT l.id, l.name, l.status, l.currency, l.starting_budget, l.created_at,
+             COUNT(lm.id)::int AS member_count
+      FROM leagues l
+      LEFT JOIN league_members lm ON lm.league_id = l.id
+      GROUP BY l.id
+      ORDER BY l.created_at DESC
+    `)
+
+    const liveLeagueIds = new Set(getAllRooms().map(r => r.leagueId))
+    return reply.send({ leagues: rows.map(r => ({ ...r, is_live: liveLeagueIds.has(r.id) })) })
+  })
+
+  // GET /admin/leagues/:id — league detail: members + rosters
+  app.get<{ Params: { id: string } }>('/admin/leagues/:id', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+    const { id } = req.params
+
+    const [leagueRes, membersRes, rostersRes] = await Promise.all([
+      pool.query(`SELECT * FROM leagues WHERE id = $1`, [id]),
+      pool.query(`
+        SELECT lm.user_id, lm.remaining_budget, lm.roster_count,
+               p.username, p.display_name
+        FROM league_members lm
+        JOIN profiles p ON p.id = lm.user_id
+        WHERE lm.league_id = $1
+        ORDER BY lm.remaining_budget DESC
+      `, [id]),
+      pool.query(`
+        SELECT tr.user_id, tr.price_paid,
+               pl.id AS player_id, pl.name, pl.role, pl.ipl_team, pl.nationality
+        FROM team_rosters tr
+        JOIN players pl ON pl.id = tr.player_id
+        WHERE tr.league_id = $1
+        ORDER BY
+          CASE pl.role WHEN 'batsman' THEN 1 WHEN 'wicket_keeper' THEN 2
+                       WHEN 'all_rounder' THEN 3 WHEN 'bowler' THEN 4 ELSE 5 END,
+          pl.name
+      `, [id]),
+    ])
+
+    if (leagueRes.rows.length === 0) return reply.code(404).send({ error: 'League not found' })
+
+    return reply.send({
+      league: leagueRes.rows[0],
+      members: membersRes.rows,
+      rosters: rostersRes.rows,
+    })
+  })
+
+  // GET /admin/leagues/:id/live — in-memory auction room state
+  app.get<{ Params: { id: string } }>('/admin/leagues/:id/live', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+    const room = getRoom(req.params.id)
+    if (!room) return reply.send({ live: false })
+
+    return reply.send({
+      live: true,
+      status: room.status,
+      currentPlayer: room.currentPlayer,
+      currentBid: room.currentBid,
+      currentBidderId: room.currentBidderId,
+      timerExpiresAt: room.timerExpiresAt,
+      awaitingConfirmation: room.awaitingConfirmation,
+      queueRemaining: room.queueRemaining,
+      members: getMemberStates(room),
+    })
   })
 }

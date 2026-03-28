@@ -6,6 +6,7 @@ export interface Player {
   ipl_team: string
   role: 'batsman' | 'bowler' | 'all_rounder' | 'wicket_keeper'
   base_price: number
+  base_price_usd: number
   nationality: string
   image_url: string | null
   ipl_season: number
@@ -35,7 +36,7 @@ export async function getAllPlayers(filters: {
   }
 
   const { rows } = await pool.query<Player>(
-    `SELECT id, name, ipl_team, role, base_price, nationality, image_url, ipl_season, is_active
+    `SELECT id, name, ipl_team, role, base_price, base_price_usd, nationality, image_url, ipl_season, is_active
      FROM players
      WHERE ${conditions.join(' AND ')}
      ORDER BY name`,
@@ -46,7 +47,7 @@ export async function getAllPlayers(filters: {
 
 export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
   const { rows } = await pool.query<Player>(
-    `SELECT p.id, p.name, p.ipl_team, p.role, p.base_price, p.nationality, p.image_url, p.ipl_season, p.is_active
+    `SELECT p.id, p.name, p.ipl_team, p.role, p.base_price, p.base_price_usd, p.nationality, p.image_url, p.ipl_season, p.is_active
      FROM players p
      WHERE p.is_active = TRUE
        AND p.id NOT IN (
@@ -61,7 +62,7 @@ export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
 
 export async function getPlayerById(id: string): Promise<Player | null> {
   const { rows } = await pool.query<Player>(
-    `SELECT id, name, ipl_team, role, base_price, nationality, image_url, ipl_season, is_active
+    `SELECT id, name, ipl_team, role, base_price, base_price_usd, nationality, image_url, ipl_season, is_active
      FROM players WHERE id = $1`,
     [id]
   )

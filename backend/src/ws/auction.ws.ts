@@ -6,6 +6,8 @@ import {
   getRoom,
   addConnection,
   removeConnection,
+  addObserver,
+  removeObserver,
   broadcast,
   sendTo,
   handleNominate,
@@ -16,6 +18,7 @@ import {
   buildSessionState,
   hydrateRoomFromDb,
 } from '../services/auction.service.js'
+import { config } from '../config.js'
 import {
   getAuctionSession,
   createAuctionSession,
@@ -28,6 +31,7 @@ export async function registerAuctionWebSocket(app: FastifyInstance): Promise<vo
     let leagueId: string | null = null
     let userId: string | null = null
     let isAdmin = false
+    let isObserver = false
 
     socket.on('message', async (rawData) => {
       let msg: ClientMessage
@@ -49,7 +53,10 @@ export async function registerAuctionWebSocket(app: FastifyInstance): Promise<vo
     socket.on('close', () => {
       if (leagueId) {
         const room = getRoom(leagueId)
-        if (room) removeConnection(room, socket)
+        if (room) {
+          if (isObserver) removeObserver(room, socket)
+          else removeConnection(room, socket)
+        }
       }
     })
 
@@ -64,7 +71,48 @@ export async function registerAuctionWebSocket(app: FastifyInstance): Promise<vo
           return
 
         case 'JOIN': {
-          // Verify JWT
+          // Admin observer path — no JWT needed
+          if (msg.adminSecret) {
+            if (msg.adminSecret !== config.ADMIN_SECRET) {
+              sendTo(socket, { type: 'ERROR', message: 'Invalid admin secret' })
+              socket.close()
+              return
+            }
+            leagueId = msg.leagueId
+            isObserver = true
+
+            const league = await getLeagueById(leagueId)
+            if (!league) {
+              sendTo(socket, { type: 'ERROR', message: 'League not found' })
+              socket.close()
+              return
+            }
+
+            let session = await getAuctionSession(leagueId)
+            if (!session) {
+              session = await createAuctionSession(leagueId)
+            }
+
+            const roleMaxes: Record<string, number> = {
+              batsman: league.max_batsmen,
+              wicket_keeper: league.max_wicket_keepers,
+              all_rounder: league.max_all_rounders,
+              bowler: league.max_bowlers,
+            }
+            const room = await hydrateRoomFromDb(leagueId, session.id, league.bid_timeout_secs, roleMaxes)
+            addObserver(room, socket)
+
+            const state = await buildSessionState(room)
+            sendTo(socket, state as Parameters<typeof sendTo>[1])
+            return
+          }
+
+          // Regular user path — Verify JWT
+          if (!msg.token) {
+            sendTo(socket, { type: 'BID_REJECTED', reason: 'NOT_AUTHENTICATED' })
+            socket.close()
+            return
+          }
           const { data: { user }, error } = await supabaseAnon.auth.getUser(msg.token)
           if (error || !user) {
             sendTo(socket, { type: 'BID_REJECTED', reason: 'NOT_AUTHENTICATED' })

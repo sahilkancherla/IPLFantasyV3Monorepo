@@ -46,6 +46,7 @@ export interface AuctionRoom {
   timer: ReturnType<typeof setTimeout> | null
   members: Map<string, AuctionMember>  // userId → member
   connections: Map<WebSocket, string>  // ws → userId
+  observers: Set<WebSocket>  // admin/read-only connections
   queueRemaining: number
 }
 
@@ -54,6 +55,10 @@ const rooms = new Map<string, AuctionRoom>()
 
 export function getRoom(leagueId: string): AuctionRoom | undefined {
   return rooms.get(leagueId)
+}
+
+export function getAllRooms(): AuctionRoom[] {
+  return Array.from(rooms.values())
 }
 
 export function getOrCreateRoom(leagueId: string, sessionId: string, bidTimeoutSecs: number, roleMaxes: Record<string, number> = {}): AuctionRoom {
@@ -75,6 +80,7 @@ export function getOrCreateRoom(leagueId: string, sessionId: string, bidTimeoutS
     timer: null,
     members: new Map(),
     connections: new Map(),
+    observers: new Set(),
     queueRemaining: 0,
   }
   rooms.set(leagueId, room)
@@ -116,6 +122,15 @@ export function removeConnection(room: AuctionRoom, ws: WebSocket): void {
   }
 }
 
+export function addObserver(room: AuctionRoom, ws: WebSocket): void {
+  if (!room.observers) room.observers = new Set()
+  room.observers.add(ws)
+}
+
+export function removeObserver(room: AuctionRoom, ws: WebSocket): void {
+  room.observers?.delete(ws)
+}
+
 export function getMemberStates(room: AuctionRoom): MemberState[] {
   return Array.from(room.members.values()).map(m => ({
     userId: m.userId,
@@ -136,6 +151,11 @@ export function broadcast(room: AuctionRoom, msg: ServerMessage): void {
   for (const member of room.members.values()) {
     if (member.ws.readyState === 1) {
       member.ws.send(payload)
+    }
+  }
+  for (const ws of (room.observers ?? [])) {
+    if (ws.readyState === 1) {
+      ws.send(payload)
     }
   }
 }

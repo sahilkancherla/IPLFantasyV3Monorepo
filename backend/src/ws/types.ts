@@ -6,7 +6,8 @@ import type { Player } from '../db/queries/players.js'
 export interface JoinMessage {
   type: 'JOIN'
   leagueId: string
-  token: string
+  token?: string
+  adminSecret?: string
 }
 
 export interface BidMessage {
