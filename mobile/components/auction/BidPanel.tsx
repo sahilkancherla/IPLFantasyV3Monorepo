@@ -17,9 +17,11 @@ export function BidPanel({ currentBid, basePrice, remainingBudget, onBid, disabl
   const [bidInput, setBidInput] = useState('')
 
   const minBid = (currentBid ?? basePrice - 1) + 1
-  const quickBids = [minBid, minBid + 50, minBid + 100, minBid + 200].filter(
-    (b) => b <= remainingBudget
-  )
+  const roundTo10 = (n: number) => Math.round(n / 10) * 10
+  const rawQuickBids = currentBid === null
+    ? [basePrice, basePrice + 5, basePrice + 10]
+    : [minBid, roundTo10(minBid + 5), roundTo10(minBid + 10)]
+  const quickBids = [...new Set(rawQuickBids)].filter(b => b >= minBid && b <= remainingBudget)
 
   const handleBid = (amount: number) => {
     if (amount < minBid) {

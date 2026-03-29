@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 10.0.0"
+    "version": ">= 10.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -14,17 +15,24 @@
       }
     },
     "production": {
+      "autoIncrement": true,
       "ios": {
-        "resourceClass": "m1-medium"
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ipl-fantasy-backend-production.up.railway.app",
+        "EXPO_PUBLIC_WS_URL": "wss://ipl-fantasy-backend-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://awgoirofnblbijxuwitb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3Z29pcm9mbmJsYmlqeHV3aXRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjM2NzQsImV4cCI6MjA4Nzg5OTY3NH0.g3ejgpxV6hLbEoYuN8oVVjr1RX3BTD1iXPYa2yQT6us"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+        "appleId": "sahil.kancherla@gmail.com",
+        "ascAppId": "6760379221",
+        "appleTeamId": "94VZJZXAPM"
       }
     }
   }

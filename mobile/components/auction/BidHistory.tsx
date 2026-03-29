@@ -9,7 +9,7 @@ interface BidHistoryProps {
 }
 
 export function BidHistory({ history, currency = 'lakhs' }: BidHistoryProps) {
-  const recent = history.slice(-3).reverse()
+  const recent = history.slice(0, 3)
 
   if (history.length === 0) {
     return (

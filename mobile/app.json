@@ -18,7 +18,8 @@
       "deploymentTarget": "16.0",
       "infoPlist": {
         "NSCameraUsageDescription": "Used for avatar photos",
-        "NSPhotoLibraryUsageDescription": "Used for avatar photos"
+        "NSPhotoLibraryUsageDescription": "Used for avatar photos",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -47,6 +48,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4d7a997e-abab-4fcf-9b46-0d09f46b09dc"
+      }
+    },
+    "owner": "sahilkancherla"
   }
 }
