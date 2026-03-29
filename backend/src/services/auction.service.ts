@@ -536,6 +536,12 @@ export async function hydrateRoomFromDb(
   bidTimeoutSecs: number,
   roleMaxes: Record<string, number> = {}
 ): Promise<AuctionRoom> {
+  // If the room already exists in memory, return it as-is.
+  // Re-running hydration would spawn a duplicate setTimeout on top of the
+  // already-running timer, causing the round to end prematurely.
+  const existing = rooms.get(leagueId)
+  if (existing) return existing
+
   const room = getOrCreateRoom(leagueId, sessionId, bidTimeoutSecs, roleMaxes)
 
   const session = await getAuctionSession(leagueId)
