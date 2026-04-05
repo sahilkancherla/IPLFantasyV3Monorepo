@@ -342,13 +342,15 @@ export default function TeamScreen() {
                     borderBottomWidth: 1, borderBottomColor: '#f9fafb',
                   }}
                 >
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: roleColor, marginRight: 12 }} />
+                  <View style={{
+                    backgroundColor: roleColor + '18', borderRadius: 6,
+                    paddingHorizontal: 8, paddingVertical: 3, marginRight: 12, flexShrink: 0,
+                  }}>
+                    <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: '#111827', fontWeight: '600', fontSize: 15 }}>{item.player_name}</Text>
                     <Text style={{ color: '#9ca3af', fontSize: 13 }}>{item.player_ipl_team}</Text>
-                  </View>
-                  <View style={{ backgroundColor: '#f3f4f6', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginRight: 10 }}>
-                    <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
                   </View>
                   <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '700' }}>Drop</Text>
                 </TouchableOpacity>
