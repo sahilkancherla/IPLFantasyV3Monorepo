@@ -181,6 +181,7 @@ export interface GamePlayer {
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  isInXI: boolean
 }
 
 export interface GameBreakdownData {
@@ -234,7 +235,8 @@ export async function getGameBreakdown(
        COALESCE(ms.stumpings,        0)     AS stumpings,
        COALESCE(ms.run_outs_direct,      0)     AS run_outs_direct,
        COALESCE(ms.run_outs_indirect,    0)     AS run_outs_indirect,
-       COALESCE(ms.lbw_bowled_wickets,   0)     AS lbw_bowled_wickets
+       COALESCE(ms.lbw_bowled_wickets,   0)     AS lbw_bowled_wickets,
+       COALESCE(ms.is_in_xi,             true)  AS is_in_xi
      FROM weekly_lineups wl
      JOIN players p ON p.id = wl.player_id
      JOIN ipl_matches im
@@ -275,6 +277,7 @@ export async function getGameBreakdown(
       runOutsDirect: parseInt(row.run_outs_direct, 10),
       runOutsIndirect: parseInt(row.run_outs_indirect, 10),
       lbwBowledWickets: parseInt(row.lbw_bowled_wickets, 10),
+      isInXI: row.is_in_xi !== false,
     }
     if (row.user_id === userId) g.myPlayers.push(player)
     else g.oppPlayers.push(player)

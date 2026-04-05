@@ -50,4 +50,5 @@ export interface PlayerStats {
   runOutsDirect: number
   runOutsIndirect: number
   dismissalText: string
+  isInXI: boolean
 }

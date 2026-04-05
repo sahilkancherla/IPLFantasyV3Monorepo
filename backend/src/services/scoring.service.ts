@@ -17,10 +17,15 @@ export interface RawMatchStats {
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  /** Whether the player is in the playing XI — defaults to true */
+  isInXI?: boolean
 }
 
 export function calcFantasyPoints(s: RawMatchStats): number {
   let pts = 0
+
+  // ── Playing XI bonus ────────────────────────────────────
+  if (s.isInXI !== false) pts += 4  // +4 for being in the playing XI
 
   // ── Batting ─────────────────────────────────────────────
   pts += s.runs                    // 1 pt per run

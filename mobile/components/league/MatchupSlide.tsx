@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Modal, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { PointsValue } from '../ui/PointsBreakdown'
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useLineup, useUserLineup, useSetLineup, useGameBreakdown } from '../../hooks/useLineup'
 import type { LineupEntry } from '../../hooks/useLineup'
@@ -486,9 +487,14 @@ useEffect(() => {
                                     <Text style={{ flex: 1, color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                                       {p.playerName}
                                     </Text>
-                                    <Text style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                                    <PointsValue
+                                      value={p.points}
+                                      stats={{ ...p, playerRole: p.playerRole }}
+                                      playerName={p.playerName}
+                                      style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+                                    >
                                       {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
-                                    </Text>
+                                    </PointsValue>
                                   </View>
                                   {(matchStatus === 'live' || matchStatus === 'completed') && statLine(p) !== '' && (
                                     <Text style={{ color: '#9ca3af', fontSize: 11 }}>{statLine(p)}</Text>
@@ -633,9 +639,14 @@ useEffect(() => {
                                     {isHome ? 'vs' : '@'} {opp}
                                   </Text>
                                   {playerStats && (m.status === 'completed' || m.status === 'live') ? (
-                                    <Text style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                                    <PointsValue
+                                      value={playerStats.points}
+                                      stats={{ ...playerStats, playerRole: entry.player_role }}
+                                      playerName={entry.player_name}
+                                      style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+                                    >
                                       {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
-                                    </Text>
+                                    </PointsValue>
                                   ) : (
                                     <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
                                   )}
@@ -721,9 +732,14 @@ useEffect(() => {
                                     {isHome ? 'vs' : '@'} {opp}
                                   </Text>
                                   {playerStats && (m.status === 'completed' || m.status === 'live') ? (
-                                    <Text style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                                    <PointsValue
+                                      value={playerStats.points}
+                                      stats={{ ...playerStats, playerRole: entry.player_role }}
+                                      playerName={entry.player_name}
+                                      style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+                                    >
                                       {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
-                                    </Text>
+                                    </PointsValue>
                                   ) : (
                                     <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
                                   )}

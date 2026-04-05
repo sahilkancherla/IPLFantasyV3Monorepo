@@ -111,6 +111,7 @@ export interface MatchPlayer {
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  isInXI: boolean
 }
 
 export interface HomeSummaryEntry {

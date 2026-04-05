@@ -44,6 +44,7 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
          ms.stumpings,
          ms.run_outs_direct,
          ms.run_outs_indirect,
+         COALESCE(ms.is_in_xi, true)             AS is_in_xi,
          COALESCE(im.match_number, ms.ipl_week)  AS match_number,
          im.home_team,
          im.away_team,
@@ -81,6 +82,7 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
       stumpings: parseInt(r.stumpings as string, 10) || 0,
       runOutsDirect: parseInt(r.run_outs_direct as string, 10) || 0,
       runOutsIndirect: parseInt(r.run_outs_indirect as string, 10) || 0,
+      isInXI: r.is_in_xi !== false,
     }))
     return reply.send({ stats })
   })

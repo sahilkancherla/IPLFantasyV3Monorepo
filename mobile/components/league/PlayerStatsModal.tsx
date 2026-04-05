@@ -1,4 +1,5 @@
 import { View, Text, Modal, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
+import { PointsValue } from '../ui/PointsBreakdown'
 import { usePlayerStats } from '../../hooks/useLineup'
 import type { PlayerMatchStat } from '../../hooks/useLineup'
 
@@ -112,9 +113,13 @@ export function PlayerStatsModal({ playerId, playerName, playerRole, playerTeam,
                   {s.status !== 'upcoming' ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#374151', fontSize: 12 }}>{statLine(s, playerRole)}</Text>
-                      <Text style={{ color: s.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 13, fontWeight: '700' }}>
+                      <PointsValue
+                        value={s.points}
+                        stats={{ ...s, playerRole }}
+                        style={{ color: s.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 13, fontWeight: '700' }}
+                      >
                         {s.points > 0 ? `+${parseFloat(s.points.toString()).toFixed(1)}` : '—'}
-                      </Text>
+                      </PointsValue>
                     </View>
                   ) : (
                     <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 8 }}>

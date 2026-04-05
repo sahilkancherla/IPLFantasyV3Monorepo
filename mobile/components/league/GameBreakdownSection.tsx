@@ -1,6 +1,7 @@
 import { View, Text } from 'react-native'
 import { useGameBreakdown } from '../../hooks/useLineup'
 import type { GameBreakdownData, GamePlayer } from '../../hooks/useLineup'
+import { PointsValue } from '../ui/PointsBreakdown'
 
 const ROLE_SHORT: Record<string, string> = {
   batsman: 'BAT', wicket_keeper: 'WK', all_rounder: 'AR', bowler: 'BOW', flex: 'FLX',
@@ -35,13 +36,16 @@ function PlayerRow({ player }: { player: GamePlayer }) {
       <Text style={{ flex: 1, color: '#374151', fontSize: 12, fontWeight: '500' }} numberOfLines={1}>
         {abbrevName(player.playerName)}
       </Text>
-      <Text style={{
-        color: player.points > 0 ? '#111827' : '#d1d5db',
-        fontSize: 12, fontWeight: player.points > 0 ? '700' : '400',
-        marginLeft: 6, minWidth: 32, textAlign: 'right',
-      }}>
-        {player.points > 0 ? player.points.toFixed(1) : '—'}
-      </Text>
+      <PointsValue
+        value={player.points}
+        stats={player}
+        playerName={player.playerName}
+        style={{
+          color: player.points > 0 ? '#111827' : '#d1d5db',
+          fontSize: 12, fontWeight: player.points > 0 ? '700' : '400',
+          marginLeft: 6, minWidth: 32, textAlign: 'right',
+        }}
+      />
     </View>
   )
 }

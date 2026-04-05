@@ -132,7 +132,8 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
                COALESCE(ms.catches,           0)     AS catches,
                COALESCE(ms.stumpings,         0)     AS stumpings,
                COALESCE(ms.run_outs_direct,   0)     AS run_outs_direct,
-               COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect
+               COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect,
+               COALESCE(ms.is_in_xi,          true)  AS is_in_xi
              FROM weekly_lineups wl
              JOIN players p ON p.id = wl.player_id
              LEFT JOIN match_scores ms ON ms.player_id = p.id AND ms.match_id = $1
@@ -164,6 +165,7 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
             stumpings: parseInt(r.stumpings as string, 10) || 0,
             runOutsDirect: parseInt(r.run_outs_direct as string, 10) || 0,
             runOutsIndirect: parseInt(r.run_outs_indirect as string, 10) || 0,
+            isInXI: r.is_in_xi !== false,
           })
 
           myPlayers = playerRows
@@ -296,7 +298,8 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
            COALESCE(ms.catches,           0)     AS catches,
            COALESCE(ms.stumpings,         0)     AS stumpings,
            COALESCE(ms.run_outs_direct,   0)     AS run_outs_direct,
-           COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect
+           COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect,
+           COALESCE(ms.is_in_xi,          true)  AS is_in_xi
          FROM weekly_lineups wl
          JOIN players p ON p.id = wl.player_id
          LEFT JOIN match_scores ms ON ms.player_id = p.id AND ms.match_id = $1
@@ -328,6 +331,7 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
         stumpings: parseInt(r.stumpings as string, 10) || 0,
         runOutsDirect: parseInt(r.run_outs_direct as string, 10) || 0,
         runOutsIndirect: parseInt(r.run_outs_indirect as string, 10) || 0,
+        isInXI: r.is_in_xi !== false,
       })
 
       myPlayers = playerRows

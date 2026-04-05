@@ -6,7 +6,7 @@ const DEFAULT_STATS: PlayerStats = {
   runs: 0, ballsFaced: 0, fours: 0, sixes: 0, isOut: false,
   wickets: 0, ballsBowled: 0, runsConceded: 0, maidens: 0, lbwBowledWickets: 0,
   catches: 0, stumpings: 0, runOutsDirect: 0, runOutsIndirect: 0,
-  dismissalText: '',
+  dismissalText: '', isInXI: true,
 }
 
 interface DbScore {
@@ -26,6 +26,7 @@ interface DbScore {
   run_outs_direct: number
   run_outs_indirect: number
   dismissal_text: string | null
+  is_in_xi: boolean
 }
 
 function dbToStats(row: DbScore): PlayerStats {
@@ -45,6 +46,7 @@ function dbToStats(row: DbScore): PlayerStats {
     runOutsDirect: row.run_outs_direct ?? 0,
     runOutsIndirect: row.run_outs_indirect ?? 0,
     dismissalText: row.dismissal_text ?? '',
+    isInXI: row.is_in_xi ?? true,
   }
 }
 
@@ -54,6 +56,9 @@ const ROLE_ABBREV: Record<string, string> = {
 
 function calcPoints(role: string, s: PlayerStats): number {
   let pts = 0
+
+  // Playing XI bonus
+  if (s.isInXI) pts += 4
 
   // Batting
   pts += s.runs
@@ -123,17 +128,34 @@ function Num({
   playerId, field, value, update,
 }: {
   playerId: string
-  field: keyof Omit<PlayerStats, 'isOut' | 'dismissalText'>
+  field: keyof Omit<PlayerStats, 'isOut' | 'dismissalText' | 'isInXI'>
   value: number
   update: (id: string, f: keyof PlayerStats, v: PlayerStats[keyof PlayerStats]) => void
 }) {
+  const [draft, setDraft] = useState<string>(String(value))
+
+  // Sync draft when an external action changes value (import, clear stats).
+  // When we ourselves call update() on a valid keypress, value changes to what
+  // we just typed, so setDraft gets called with the same string — React bails
+  // out without an extra render, keeping cursor position intact.
+  useEffect(() => { setDraft(String(value)) }, [value])
+
   return (
     <td style={tdBase}>
       <input
-        type="number" min={0} value={value}
+        type="number" min={0} value={draft}
         onChange={e => {
+          setDraft(e.target.value)
+          // Commit valid numbers immediately so the Pts column updates in real-time
           const v = parseInt(e.target.value, 10)
-          update(playerId, field, isNaN(v) ? 0 : Math.max(0, v))
+          if (!isNaN(v) && v >= 0) update(playerId, field, v)
+        }}
+        onBlur={() => {
+          // Clamp on blur to clean up any empty / negative intermediate state
+          const v = parseInt(draft, 10)
+          const clamped = isNaN(v) ? 0 : Math.max(0, v)
+          setDraft(String(clamped))
+          update(playerId, field, clamped)
         }}
         style={numInp}
       />
@@ -196,6 +218,14 @@ function PlayerRow({
       <Num playerId={player.id} field="stumpings" value={s.stumpings} update={update} />
       <Num playerId={player.id} field="runOutsDirect" value={s.runOutsDirect} update={update} />
       <Num playerId={player.id} field="runOutsIndirect" value={s.runOutsIndirect} update={update} />
+      {/* Playing XI */}
+      <td style={{ ...tdBase, textAlign: 'center' }}>
+        <input
+          type="checkbox" checked={s.isInXI}
+          onChange={e => update(player.id, 'isInXI', e.target.checked)}
+          style={{ width: 16, height: 16, cursor: 'pointer', display: 'block', margin: 'auto' }}
+        />
+      </td>
       {/* Points */}
       <td style={{ ...tdBase, textAlign: 'center', fontWeight: 700, fontSize: 13, borderLeft: '2px solid #e5e7eb', paddingLeft: 10, paddingRight: 10, minWidth: 52 }}>
         {calcPoints(player.role, s).toFixed(1)}
@@ -323,12 +353,20 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
       // Merge into stats
       setStats(prev => {
         const next = { ...prev }
+        const importedIds = new Set<string>()
         for (const s of res.stats) {
+          importedIds.add(s.playerId)
           next[s.playerId] = {
             runs: s.runs, ballsFaced: s.ballsFaced, fours: s.fours, sixes: s.sixes, isOut: s.isOut,
             wickets: s.wickets, ballsBowled: s.ballsBowled, runsConceded: s.runsConceded, maidens: s.maidens, lbwBowledWickets: s.lbwBowledWickets,
             catches: s.catches, stumpings: s.stumpings, runOutsDirect: s.runOutsDirect, runOutsIndirect: s.runOutsIndirect,
-            dismissalText: s.dismissalText ?? '',
+            dismissalText: s.dismissalText ?? '', isInXI: true,
+          }
+        }
+        // Players not found in the scorecard are NOT in the playing XI
+        for (const id of Object.keys(next)) {
+          if (!importedIds.has(id)) {
+            next[id] = { ...next[id], isInXI: false }
           }
         }
         return next
@@ -476,6 +514,7 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
               <th colSpan={6} style={{ ...thBase, background: '#fef9c3', borderLeft: '2px solid #fde68a' }}>BATTING</th>
               <th colSpan={5} style={{ ...thBase, background: '#dbeafe', borderLeft: '2px solid #bfdbfe' }}>BOWLING</th>
               <th colSpan={4} style={{ ...thBase, background: '#d1fae5', borderLeft: '2px solid #a7f3d0' }}>FIELDING</th>
+              <th style={{ ...thBase, background: '#f0fdf4', borderLeft: '2px solid #bbf7d0' }}>XI</th>
               <th style={{ ...thBase, borderLeft: '2px solid #e5e7eb' }}>PTS</th>
             </tr>
             {/* Column header row */}
@@ -500,6 +539,8 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
               <th style={{ ...thBase, background: '#ecfdf5' }}>St</th>
               <th style={{ ...thBase, background: '#ecfdf5' }}>RO(D)</th>
               <th style={{ ...thBase, background: '#ecfdf5' }}>RO(I)</th>
+              {/* XI */}
+              <th style={{ ...thBase, borderLeft: '2px solid #bbf7d0', background: '#f0fdf4' }}>XI?</th>
               {/* Points */}
               <th style={{ ...thBase, borderLeft: '2px solid #e5e7eb', minWidth: 52 }}>Pts</th>
             </tr>
@@ -508,7 +549,7 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
             {/* Home team section */}
             <tr>
               <td
-                colSpan={18}
+                colSpan={19}
                 style={{
                   padding: '8px 12px', background: '#fff7ed', fontWeight: 700,
                   fontSize: 12, color: '#c2410c', borderTop: '2px solid #fed7aa',
@@ -528,12 +569,12 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
             ))}
 
             {/* Spacer row */}
-            <tr><td colSpan={18} style={{ height: 4, background: '#e5e7eb' }} /></tr>
+            <tr><td colSpan={19} style={{ height: 4, background: '#e5e7eb' }} /></tr>
 
             {/* Away team section */}
             <tr>
               <td
-                colSpan={18}
+                colSpan={19}
                 style={{
                   padding: '8px 12px', background: '#eff6ff', fontWeight: 700,
                   fontSize: 12, color: '#1d4ed8', borderTop: '2px solid #bfdbfe',

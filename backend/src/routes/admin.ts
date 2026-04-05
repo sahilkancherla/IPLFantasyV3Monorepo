@@ -413,6 +413,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       runOutsDirect: z.number().int().min(0).default(0),
       runOutsIndirect: z.number().int().min(0).default(0),
       dismissalText: z.string().default(''),
+      isInXI: z.boolean().default(true),
     })
 
     const body = z.object({ playerStats: z.array(statSchema) }).safeParse(req.body)
@@ -455,6 +456,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         stumpings: s.stumpings,
         runOutsDirect: s.runOutsDirect,
         runOutsIndirect: s.runOutsIndirect,
+        isInXI: s.isInXI,
       })
 
       await pool.query(
@@ -463,8 +465,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
            runs_scored, balls_faced, fours, sixes, is_out,
            wickets_taken, balls_bowled, runs_conceded, maidens, lbw_bowled_wickets,
            catches, stumpings, run_outs_direct, run_outs_indirect,
-           fantasy_points, dismissal_text
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+           fantasy_points, dismissal_text, is_in_xi
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
          ON CONFLICT (player_id, match_id) DO UPDATE SET
            ipl_week             = EXCLUDED.ipl_week,
            runs_scored          = EXCLUDED.runs_scored,
@@ -482,13 +484,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
            run_outs_direct      = EXCLUDED.run_outs_direct,
            run_outs_indirect    = EXCLUDED.run_outs_indirect,
            fantasy_points       = EXCLUDED.fantasy_points,
-           dismissal_text       = EXCLUDED.dismissal_text`,
+           dismissal_text       = EXCLUDED.dismissal_text,
+           is_in_xi             = EXCLUDED.is_in_xi`,
         [
           s.playerId, match.match_id, match.match_date, iplWeek,
           s.runs, s.ballsFaced, s.fours, s.sixes, s.isOut,
           s.wickets, s.ballsBowled, s.runsConceded, s.maidens, s.lbwBowledWickets,
           s.catches, s.stumpings, s.runOutsDirect, s.runOutsIndirect,
-          fantasyPoints, s.dismissalText || null,
+          fantasyPoints, s.dismissalText || null, s.isInXI,
         ]
       )
 
@@ -700,40 +703,65 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     // Call Claude to parse the scorecard
     const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
 
-    const itemSchema = {
+    // Player schema — no fielding fields (computed server-side from dismissals array)
+    const playerSchema = {
       type: 'object',
       properties: {
-        playerId:        { type: 'string' },
-        scorecardName:   { type: 'string' },
-        runs:            { type: 'integer' },
-        ballsFaced:      { type: 'integer' },
-        fours:           { type: 'integer' },
-        sixes:           { type: 'integer' },
-        isOut:           { type: 'boolean' },
-        wickets:            { type: 'integer' },
-        ballsBowled:        { type: 'integer' },
-        runsConceded:       { type: 'integer' },
-        maidens:            { type: 'integer' },
-        lbwBowledWickets:   { type: 'integer' },
-        catches:            { type: 'integer' },
-        stumpings:       { type: 'integer' },
-        runOutsDirect:   { type: 'integer' },
-        runOutsIndirect: { type: 'integer' },
-        dismissalText:   { type: 'string' },
+        playerId:         { type: 'string' },
+        scorecardName:    { type: 'string' },
+        runs:             { type: 'integer' },
+        ballsFaced:       { type: 'integer' },
+        fours:            { type: 'integer' },
+        sixes:            { type: 'integer' },
+        isOut:            { type: 'boolean' },
+        wickets:          { type: 'integer' },
+        ballsBowled:      { type: 'integer' },
+        runsConceded:     { type: 'integer' },
+        maidens:          { type: 'integer' },
+        lbwBowledWickets: { type: 'integer' },
+        dismissalText:    { type: 'string' },
       },
       required: ['playerId','scorecardName','runs','ballsFaced','fours','sixes','isOut',
-                 'wickets','ballsBowled','runsConceded','maidens','lbwBowledWickets',
-                 'catches','stumpings','runOutsDirect','runOutsIndirect','dismissalText'],
+                 'wickets','ballsBowled','runsConceded','maidens','lbwBowledWickets','dismissalText'],
+      additionalProperties: false,
+    }
+
+    // One dismissal event per batter — Claude resolves names to UUIDs here,
+    // server counts them (no aggregation risk).
+    const dismissalSchema = {
+      type: 'object',
+      properties: {
+        batterPlayerId: { type: 'string' },
+        // caught | caught_and_bowled | bowled | lbw | stumped |
+        // runout_direct | runout_indirect | not_out | did_not_bat | other
+        type:            { type: 'string' },
+        // UUID of the catcher / keeper / run-out fielder (null when not applicable)
+        fielder1PlayerId: { type: ['string', 'null'] },
+        // UUID of second fielder for runout_indirect only (null otherwise)
+        fielder2PlayerId: { type: ['string', 'null'] },
+      },
+      required: ['batterPlayerId','type','fielder1PlayerId','fielder2PlayerId'],
+      additionalProperties: false,
+    }
+
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        matched:    { type: 'array', items: playerSchema },
+        dismissals: { type: 'array', items: dismissalSchema },
+        unmatched:  { type: 'array', items: { type: 'string' } },
+      },
+      required: ['matched','dismissals','unmatched'],
       additionalProperties: false,
     }
 
     const aiResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 4096,
-      output_config: { format: { type: 'json_schema', schema: { type: 'object', properties: { matched: { type: 'array', items: itemSchema }, unmatched: { type: 'array', items: { type: 'string' } } }, required: ['matched','unmatched'], additionalProperties: false } } },
+      model: 'claude-sonnet-4-5',
+      max_tokens: 8192,
+      output_config: { format: { type: 'json_schema', schema: outputSchema } },
       messages: [{
         role: 'user',
-        content: `Parse this cricket scorecard and match players to our database.
+        content: `You are a cricket scorecard parser. Parse the scorecard below and produce structured output.
 
 SCORECARD:
 ${scorecardText}
@@ -741,20 +769,61 @@ ${scorecardText}
 OUR PLAYER DATABASE (UUID: Name (Team)):
 ${playerList}
 
-INSTRUCTIONS:
-- Batting table format: Name | Dismissal | Runs | Balls | Minutes | 4s | 6s | SR
-- Bowling table format: Name | Overs | Maidens | Runs | Wickets | Economy | Dots | Wides | NoBalls
-- isOut = false ONLY if dismissal is "not out" or "retired not out"
-- ballsBowled: convert overs to balls (e.g. 4 overs=24, 2.4 overs=16, 3.0 overs=18)
-- catches: scan batting dismissals for "c NAME b BOWLER" — count times each player appears as the catcher
-- stumpings: scan for "st NAME b BOWLER" — count times each player appears as the keeper
-- runOutsDirect/runOutsIndirect: 0 unless a run out explicitly credits a specific fielder
-- lbwBowledWickets: for each bowler, count their wickets where the dismissal mode is "lbw" or "bowled"
-- dismissalText: for each BATSMAN, copy the exact dismissal text from the scorecard (e.g. "c Dhoni b Bumrah", "lbw b Shami", "run out (Kohli)", "not out", "bowled Bumrah"). Leave empty string "" for non-batsmen/did-not-bat.
-- For fielding attribution from dismissalText: "c NAME b BOWLER" → catcher gets +1 catch; "st NAME b BOWLER" → keeper gets +1 stumping; "run out (NAME)" → direct RO for the named fielder (runOutsDirect); "run out (NAME1/NAME2)" → both get indirect RO (runOutsIndirect). Apply these to the correct players.
-- Match names with fuzzy matching; ignore "(c)", "†", abbreviated prefixes
-- Only include players present in both scorecard and database
-- Put unmatched scorecard names in "unmatched"`,
+════════════════════════════════════════
+STEP 1 — READ THE BATTING TABLE
+════════════════════════════════════════
+Columns: Name | Dismissal | Runs | Balls | 4s | 6s | SR
+
+For EVERY row (including DNB rows):
+• runs, ballsFaced, fours, sixes → read from columns
+• isOut = false only if dismissal is "not out", "retired not out", "retired hurt", or "did not bat"
+• dismissalText → copy the dismissal column exactly, stripping "(c)" and "†" markers only
+
+════════════════════════════════════════
+STEP 2 — READ THE BOWLING TABLE
+════════════════════════════════════════
+Columns: Name | Overs | Maidens | Runs | Wickets | Economy
+
+• ballsBowled = whole overs × 6 + remainder  (e.g. 3.2 overs = 20 balls)
+• lbwBowledWickets = count of THIS bowler's wickets where the batsman's dismissal
+  starts with "b NAME" (bowled) or "lbw b NAME" — look through all batting rows
+
+════════════════════════════════════════
+STEP 3 — BUILD THE DISMISSALS ARRAY
+════════════════════════════════════════
+For EVERY batter, produce exactly ONE entry in "dismissals":
+  batterPlayerId  — UUID of the batter
+  type            — one of the values below
+  fielder1PlayerId — UUID of the relevant fielder, or null
+  fielder2PlayerId — UUID of second fielder (runout_indirect only), or null
+
+Dismissal types and how to fill fielder fields:
+
+  DISMISSAL TEXT                  | type               | fielder1          | fielder2
+  --------------------------------|--------------------|-------------------|----------
+  "c FIELDER b BOWLER"            | caught             | FIELDER uuid      | null
+  "c & b BOWLER"                  | caught_and_bowled  | BOWLER uuid       | null
+  "b BOWLER"                      | bowled             | null              | null
+  "lbw b BOWLER"                  | lbw                | null              | null
+  "st KEEPER b BOWLER"            | stumped            | KEEPER uuid       | null
+  "run out (FIELDER)"             | runout_direct      | FIELDER uuid      | null
+  "run out (F1/F2)"               | runout_indirect    | F1 uuid           | F2 uuid
+  "not out"                       | not_out            | null              | null
+  "did not bat"                   | did_not_bat        | null              | null
+  anything else                   | other              | null              | null
+
+HOW TO RESOLVE A FIELDER NAME → UUID:
+The fielder name in the dismissal (e.g. "Dhoni", "MS Dhoni", "de Kock") refers to
+one of the players already in your matched list. Match on surname first; if multiple
+players share a surname use the initials to disambiguate. Use the player's UUID.
+If you cannot confidently resolve a name, use null.
+
+════════════════════════════════════════
+STEP 4 — MATCH NAMES TO DATABASE
+════════════════════════════════════════
+• Fuzzy-match scorecard names to UUIDs (ignore "(c)", "†", spacing, abbreviated first names)
+• All players appearing in batting OR bowling tables should be in "matched"
+• Unresolved scorecard names go in "unmatched"`,
       }],
     })
 
@@ -762,14 +831,55 @@ INSTRUCTIONS:
     if (!textBlock || textBlock.type !== 'text') {
       return reply.code(500).send({ error: 'Claude did not return a text response' })
     }
-    let parsed: { matched: unknown[]; unmatched: string[] }
+    let parsed: {
+      matched: Array<{
+        playerId: string; scorecardName: string
+        runs: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean
+        wickets: number; ballsBowled: number; runsConceded: number; maidens: number
+        lbwBowledWickets: number; dismissalText: string
+      }>
+      dismissals: Array<{
+        batterPlayerId: string; type: string
+        fielder1PlayerId: string | null; fielder2PlayerId: string | null
+      }>
+      unmatched: string[]
+    }
     try {
       parsed = JSON.parse(textBlock.text)
     } catch {
       return reply.code(500).send({ error: 'Claude returned invalid JSON' })
     }
 
-    return reply.send({ stats: parsed.matched, unmatched: parsed.unmatched })
+    // ── Count fielding credits from dismissals (deterministic — no Claude math) ──
+    const catches       = new Map<string, number>()
+    const stumpings     = new Map<string, number>()
+    const runOutsDirect = new Map<string, number>()
+    const runOutsIndir  = new Map<string, number>()
+
+    for (const d of parsed.dismissals) {
+      const f1 = d.fielder1PlayerId
+      const f2 = d.fielder2PlayerId
+      if (d.type === 'caught' || d.type === 'caught_and_bowled') {
+        if (f1) catches.set(f1, (catches.get(f1) ?? 0) + 1)
+      } else if (d.type === 'stumped') {
+        if (f1) stumpings.set(f1, (stumpings.get(f1) ?? 0) + 1)
+      } else if (d.type === 'runout_direct') {
+        if (f1) runOutsDirect.set(f1, (runOutsDirect.get(f1) ?? 0) + 1)
+      } else if (d.type === 'runout_indirect') {
+        if (f1) runOutsIndir.set(f1, (runOutsIndir.get(f1) ?? 0) + 1)
+        if (f2) runOutsIndir.set(f2, (runOutsIndir.get(f2) ?? 0) + 1)
+      }
+    }
+
+    const finalStats = parsed.matched.map(p => ({
+      ...p,
+      catches:         catches.get(p.playerId)       ?? 0,
+      stumpings:       stumpings.get(p.playerId)     ?? 0,
+      runOutsDirect:   runOutsDirect.get(p.playerId) ?? 0,
+      runOutsIndirect: runOutsIndir.get(p.playerId)  ?? 0,
+    }))
+
+    return reply.send({ stats: finalStats, unmatched: parsed.unmatched })
   })
 
   // GET /admin/leagues/:leagueId/lineups/:userId — fetch a user's lineup for a week

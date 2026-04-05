@@ -109,6 +109,7 @@ export interface GamePlayer {
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  isInXI: boolean
 }
 
 export interface GameBreakdownData {
@@ -161,6 +162,7 @@ export interface PlayerMatchStat {
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  isInXI: boolean
 }
 
 export function usePlayerStats(playerId: string | null) {

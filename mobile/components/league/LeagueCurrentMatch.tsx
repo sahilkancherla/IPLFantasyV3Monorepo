@@ -1,4 +1,5 @@
 import { View, Text } from 'react-native'
+import { PointsValue } from '../ui/PointsBreakdown'
 import type { MatchPlayer, CurrentMatchInfo, Matchup } from '../../hooks/useMatchup'
 
 interface Props {
@@ -43,9 +44,14 @@ function PlayerRow({ p, isLiveOrDone }: { p: MatchPlayer; isLiveOrDone: boolean 
         <Text style={{ flex: 1, color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
           {p.playerName}
         </Text>
-        <Text style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+        <PointsValue
+          value={p.points}
+          stats={{ ...p, playerRole: p.playerRole }}
+          playerName={p.playerName}
+          style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+        >
           {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
-        </Text>
+        </PointsValue>
       </View>
       {stats ? (
         <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 28 }}>{stats}</Text>
