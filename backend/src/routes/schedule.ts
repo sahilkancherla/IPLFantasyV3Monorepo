@@ -409,24 +409,20 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({ error: 'Cannot edit a finalized week' })
       }
 
-      // Update all matchups in a single transaction. Sequential UPDATEs can
-      // temporarily violate the (league_id, week_num, away_user) unique constraint
-      // when swapping users between rows, so we null-out then re-apply.
+      // Delete and re-insert within a transaction to avoid interim unique
+      // constraint violations on (league_id, week_num, away_user) when swapping users.
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
-        // Step 1: clear away_user on all affected rows to avoid interim conflicts
+        await client.query(
+          `DELETE FROM weekly_matchups WHERE league_id = $1 AND week_num = $2`,
+          [leagueId, week]
+        )
         for (const m of matchups) {
           await client.query(
-            `UPDATE weekly_matchups SET away_user = NULL WHERE id = $1 AND league_id = $2 AND week_num = $3`,
-            [m.id, leagueId, week]
-          )
-        }
-        // Step 2: write final values
-        for (const m of matchups) {
-          await client.query(
-            `UPDATE weekly_matchups SET home_user = $1, away_user = $2 WHERE id = $3 AND league_id = $4 AND week_num = $5`,
-            [m.home_user, m.away_user, m.id, leagueId, week]
+            `INSERT INTO weekly_matchups (id, league_id, week_num, home_user, away_user)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [m.id, leagueId, week, m.home_user, m.away_user]
           )
         }
         await client.query('COMMIT')
