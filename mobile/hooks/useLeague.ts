@@ -113,3 +113,33 @@ export function useDeleteAuction() {
     },
   })
 }
+
+export function useGenerateSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (leagueId: string) =>
+      api.post<{ matchups: unknown[] }>(`/schedule/${leagueId}/generate`, {}),
+    onSuccess: (_data, leagueId) => {
+      queryClient.invalidateQueries({ queryKey: ['schedule', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['league-home', leagueId] })
+    },
+  })
+}
+
+export function useUpdateWeekMatchups() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ leagueId, weekNum, matchups }: {
+      leagueId: string
+      weekNum: number
+      matchups: Array<{ id: string; home_user: string; away_user: string }>
+    }) =>
+      api.put<{ matchups: unknown[] }>(`/schedule/${leagueId}/week/${weekNum}/matchups`, { matchups }),
+    onSuccess: (_data, { leagueId }) => {
+      queryClient.invalidateQueries({ queryKey: ['schedule', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['league-home', leagueId] })
+    },
+  })
+}

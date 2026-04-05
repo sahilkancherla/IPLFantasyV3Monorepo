@@ -1,52 +1,126 @@
-import { View, Text, FlatList } from 'react-native'
-import { Badge } from '../ui/Badge'
+import { useState } from 'react'
+import { View, Text, TouchableOpacity } from 'react-native'
 import type { RosterEntry } from '../../hooks/useTeam'
 import { formatCurrency, type Currency } from '../../lib/currency'
+import { PlayerDetailModal } from '../league/PlayerDetailModal'
 
 interface SquadGridProps {
   roster: RosterEntry[]
   currency?: Currency
+  onDrop?: (player: RosterEntry) => void
 }
 
-const roleColors: Record<string, 'green' | 'blue' | 'yellow' | 'red'> = {
-  batsman: 'blue',
-  bowler: 'red',
-  all_rounder: 'green',
-  wicket_keeper: 'yellow',
+const ROLE_SHORT: Record<string, string> = {
+  batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
+}
+const ROLE_COLORS: Record<string, string> = {
+  batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706',
+}
+const ROLE_ORDER = ['batsman', 'wicket_keeper', 'all_rounder', 'bowler']
+const ROLE_GROUP_LABELS: Record<string, string> = {
+  batsman: 'Batsmen', bowler: 'Bowlers', all_rounder: 'All-Rounders', wicket_keeper: 'Wicket Keepers',
 }
 
-export function SquadGrid({ roster, currency = 'lakhs' }: SquadGridProps) {
+export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps) {
+  const [selectedPlayer, setSelectedPlayer] = useState<RosterEntry | null>(null)
+
   if (roster.length === 0) {
     return (
-      <View className="py-12 items-center">
-        <Text className="text-gray-400 text-base">No players acquired yet</Text>
+      <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+        <Text style={{ color: '#9ca3af', fontSize: 15 }}>No players acquired yet</Text>
       </View>
     )
   }
 
+  const byRole = ROLE_ORDER.reduce<Record<string, RosterEntry[]>>((acc, role) => {
+    acc[role] = roster.filter(r => r.player_role === role)
+    return acc
+  }, {})
+
+  const otherRoles = [...new Set(roster.map(r => r.player_role).filter(r => !ROLE_ORDER.includes(r)))]
+  const allGroups = [...ROLE_ORDER, ...otherRoles].filter(role => {
+    const group = byRole[role] ?? roster.filter(r => r.player_role === role)
+    return group.length > 0
+  })
+
   return (
-    <FlatList
-      data={roster}
-      keyExtractor={(item) => item.id}
-      numColumns={2}
-      columnWrapperStyle={{ gap: 12 }}
-      contentContainerStyle={{ gap: 12 }}
-      scrollEnabled={false}
-      renderItem={({ item }) => (
-        <View className="bg-white rounded-2xl p-3 flex-1 gap-2 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-semibold text-sm" numberOfLines={1}>
-            {item.player_name}
+    <>
+      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+        {/* Dark header */}
+        <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10 }}>
+          <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
+            My Squad · {roster.length} player{roster.length !== 1 ? 's' : ''}
           </Text>
-          <Text className="text-gray-400 text-xs" numberOfLines={1}>
-            {item.player_ipl_team}
-          </Text>
-          <Badge
-            label={item.player_role.replace('_', ' ')}
-            color={roleColors[item.player_role] ?? 'gray'}
-          />
-          <Text className="text-green-600 text-xs font-bold">{formatCurrency(item.price_paid, currency)}</Text>
         </View>
-      )}
-    />
+
+        {allGroups.map((role, groupIdx) => {
+          const group = byRole[role] ?? roster.filter(r => r.player_role === role)
+          const roleColor = ROLE_COLORS[role] ?? '#6b7280'
+          const roleShort = ROLE_SHORT[role] ?? role.toUpperCase()
+          const groupLabel = ROLE_GROUP_LABELS[role] ?? role
+
+          return (
+            <View key={role}>
+              {/* Role group header */}
+              <View style={{
+                backgroundColor: '#f9fafb',
+                paddingHorizontal: 16, paddingVertical: 7,
+                borderTopWidth: 1, borderTopColor: '#f3f4f6',
+                flexDirection: 'row', alignItems: 'center', gap: 8,
+              }}>
+                <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{roleShort}</Text>
+                </View>
+                <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
+                <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>
+                  {group.length}
+                </Text>
+              </View>
+
+              {group.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => setSelectedPlayer(item)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    paddingLeft: 16, paddingRight: 8,
+                    borderTopWidth: 1, borderTopColor: '#f3f4f6',
+                  }}
+                >
+                  <View style={{ flex: 1, paddingVertical: 11 }}>
+                    <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                      {item.player_name}
+                    </Text>
+                    <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
+                  </View>
+                  <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginRight: 10 }}>
+                    {formatCurrency(item.price_paid, currency)}
+                  </Text>
+                  <Text style={{ color: '#d1d5db', fontSize: 16, paddingVertical: 11, paddingHorizontal: 6 }}>›</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
+        })}
+      </View>
+
+      <PlayerDetailModal
+        visible={selectedPlayer !== null}
+        player={selectedPlayer ? {
+          name: selectedPlayer.player_name,
+          ipl_team: selectedPlayer.player_ipl_team,
+          role: selectedPlayer.player_role,
+          price_paid: selectedPlayer.price_paid,
+        } : null}
+        playerId={selectedPlayer?.player_id}
+        currency={currency}
+        onClose={() => setSelectedPlayer(null)}
+        onDrop={onDrop && selectedPlayer ? () => {
+          const p = selectedPlayer
+          setSelectedPlayer(null)
+          setTimeout(() => onDrop(p), 300)
+        } : undefined}
+      />
+    </>
   )
 }

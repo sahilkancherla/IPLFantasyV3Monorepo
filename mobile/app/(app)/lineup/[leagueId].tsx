@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { View, Text, ScrollView, Alert, RefreshControl, Modal, TouchableOpacity, FlatList } from 'react-native'
+import { LoadingScreen } from '../../../components/ui/Loading'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { FormationGrid } from '../../../components/lineup/FormationGrid'
 import { Button } from '../../../components/ui/Button'
@@ -9,13 +10,14 @@ import { useAuthStore } from '../../../stores/authStore'
 import { useLeague } from '../../../hooks/useLeague'
 import { formatCurrency } from '../../../lib/currency'
 
-type SlotRole = 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler'
+type SlotRole = 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler' | 'flex'
 
 const ROLE_MAP: Record<string, SlotRole> = {
   batsman:       'batsman',
   wicket_keeper: 'wicket_keeper',
   all_rounder:   'all_rounder',
   bowler:        'bowler',
+  flex:          'flex',
 }
 
 export default function LineupScreen() {
@@ -76,7 +78,7 @@ export default function LineupScreen() {
 
     // Count how many of this role we already have
     const roleSlots = base.filter((e) => e.slotRole === pickerRole)
-    const ROLE_COUNTS: Record<SlotRole, number> = { batsman: 5, wicket_keeper: 1, all_rounder: 2, bowler: 3 }
+    const ROLE_COUNTS: Record<SlotRole, number> = { batsman: 3, wicket_keeper: 1, all_rounder: 1, bowler: 3, flex: 3 }
 
     // Remove existing assignment if player already in lineup
     const filtered = base.filter((e) => e.playerId !== playerId)
@@ -129,11 +131,7 @@ export default function LineupScreen() {
   })
 
   if (isLoading) {
-    return (
-      <View className="flex-1 bg-gray-50 items-center justify-center">
-        <Text className="text-gray-500">Loading...</Text>
-      </View>
-    )
+    return <LoadingScreen message="Loading lineup…" />
   }
 
   return (

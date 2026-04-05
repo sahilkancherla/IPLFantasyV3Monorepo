@@ -1,11 +1,18 @@
 import { useEffect } from 'react'
+import { AppState } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
 import * as SplashScreen from 'expo-splash-screen'
 import { useAuthStore } from '../stores/authStore'
 import '../global.css'
+
+// Refetch stale queries when the app comes back to the foreground
+focusManager.setEventListener(onFocus => {
+  const sub = AppState.addEventListener('change', state => onFocus(state === 'active'))
+  return () => sub.remove()
+})
 
 // Keep splash visible until auth is restored
 SplashScreen.preventAutoHideAsync()

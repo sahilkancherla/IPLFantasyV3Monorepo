@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/Button'
 import { useFreeAgents, useMyClaims, useSubmitClaim, useCancelClaim, type FreeAgent } from '../../../hooks/useWaivers'
 import { useTeam } from '../../../hooks/useTeam'
 import { useLeague } from '../../../hooks/useLeague'
+import { LoadingScreen } from '../../../components/ui/Loading'
 
 export default function WaiversScreen() {
   const { leagueId } = useLocalSearchParams<{ leagueId: string }>()
@@ -51,11 +52,7 @@ export default function WaiversScreen() {
   }
 
   if (isLoading) {
-    return (
-      <View className="flex-1 bg-gray-50 items-center justify-center">
-        <Text className="text-gray-500">Loading...</Text>
-      </View>
-    )
+    return <LoadingScreen message="Loading waivers…" />
   }
 
   return (

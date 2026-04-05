@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 
 export interface RosterEntry {
@@ -31,6 +31,34 @@ export function useAllTeams(leagueId: string) {
     queryFn: () => api.get<{ rosters: RosterEntry[] }>(`/teams/${leagueId}/all`),
     select: (data) => data.rosters,
     enabled: !!leagueId,
+  })
+}
+
+export function useDropPlayer(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (playerId: string) =>
+      api.delete(`/teams/${leagueId}/players/${playerId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+    },
+  })
+}
+
+export function useAddPlayer(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { playerId: string; dropPlayerId?: string }) =>
+      api.post(`/teams/${leagueId}/players`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+    },
   })
 }
 

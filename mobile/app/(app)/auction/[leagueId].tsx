@@ -284,6 +284,15 @@ export default function AuctionScreen() {
     if (preCountdownRef.current) clearInterval(preCountdownRef.current)
   }, [])
 
+  // Auto-navigate to league page when auction completes
+  useEffect(() => {
+    if (sessionStatus !== 'completed') return
+    const timer = setTimeout(() => {
+      router.replace(`/(app)/league/${leagueId}`)
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [sessionStatus])
+
   useEffect(() => {
     if (lastSoldPlayer || lastUnsoldPlayer) {
       refetchAvailable()

@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { Avatar } from '../../../components/ui/Avatar'
 import { useLeaderboard } from '../../../hooks/useTeam'
 import { useAuthStore } from '../../../stores/authStore'
+import { LoadingScreen } from '../../../components/ui/Loading'
 
 const medals = ['🥇', '🥈', '🥉']
 
@@ -12,11 +13,7 @@ export default function LeaderboardScreen() {
   const { data: leaderboard, isLoading, refetch, isRefetching } = useLeaderboard(leagueId!)
 
   if (isLoading) {
-    return (
-      <View className="flex-1 bg-gray-50 items-center justify-center">
-        <Text className="text-gray-500">Loading...</Text>
-      </View>
-    )
+    return <LoadingScreen message="Loading leaderboard…" />
   }
 
   return (

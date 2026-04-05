@@ -3,10 +3,13 @@ import { useRouter } from 'expo-router'
 import { LeagueCard } from '../../components/league/LeagueCard'
 import { useLeagues } from '../../hooks/useLeague'
 import { useAuth } from '../../hooks/useAuth'
+import { useAuthStore } from '../../stores/authStore'
+import { LoadingSpinner } from '../../components/ui/Loading'
 
 export default function HomeScreen() {
   const router = useRouter()
-  const { user, logout, deleteAccount } = useAuth()
+  const { logout, deleteAccount } = useAuth()
+  const { user } = useAuthStore()
   const { data: leagues, isLoading, refetch, isRefetching } = useLeagues()
 
   const handleDeleteAccount = () => {
@@ -31,7 +34,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
       <FlatList
         data={leagues ?? []}
         keyExtractor={(l) => l.id}
@@ -41,35 +44,43 @@ export default function HomeScreen() {
         }
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
         ListHeaderComponent={
-          <View className="py-2 mb-2 gap-3">
-            <View className="flex-row items-center justify-between">
+          <View style={{ gap: 16, paddingTop: 8, paddingBottom: 4 }}>
+            {/* Greeting */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View>
-                <Text className="text-gray-500 text-sm">Welcome back,</Text>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text style={{ color: '#6b7280', fontSize: 13 }}>Welcome back,</Text>
+                <Text style={{ color: '#111827', fontSize: 20, fontWeight: '700' }}>
                   {user?.display_name ?? user?.username ?? 'Player'}
                 </Text>
               </View>
-              <View className="flex-row gap-4">
+              <View style={{ flexDirection: 'row', gap: 16 }}>
                 <TouchableOpacity onPress={logout}>
-                  <Text className="text-gray-400 text-sm">Sign out</Text>
+                  <Text style={{ color: '#9ca3af', fontSize: 13 }}>Sign out</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleDeleteAccount}>
-                  <Text className="text-red-400 text-sm">Delete account</Text>
+                  <Text style={{ color: '#f87171', fontSize: 13 }}>Delete account</Text>
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Section label for leagues list */}
+            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 16, marginBottom: -4 }}>
+              My Leagues
+            </Text>
           </View>
         }
         ListEmptyComponent={
-          !isLoading ? (
-            <View className="py-16 items-center gap-4">
-              <Text className="text-4xl">🏏</Text>
-              <Text className="text-gray-900 text-lg font-bold">No leagues yet</Text>
-              <Text className="text-gray-500 text-center">
+          isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <View style={{ paddingTop: 48, alignItems: 'center', gap: 12 }}>
+              <Text style={{ fontSize: 40 }}>🏏</Text>
+              <Text style={{ color: '#111827', fontSize: 17, fontWeight: '700' }}>No leagues yet</Text>
+              <Text style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>
                 Create a new league or join one with an invite code
               </Text>
             </View>
-          ) : null
+          )
         }
         renderItem={({ item }) => (
           <LeagueCard
@@ -80,18 +91,18 @@ export default function HomeScreen() {
       />
 
       {/* FAB buttons */}
-      <View className="absolute bottom-8 right-6 gap-3">
+      <View style={{ position: 'absolute', bottom: 32, right: 24, gap: 12 }}>
         <TouchableOpacity
-          className="bg-gray-800 rounded-full px-5 py-3 flex-row items-center justify-center shadow-lg"
+          style={{ backgroundColor: '#1f2937', borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12 }}
           onPress={() => router.push('/(app)/league/join')}
         >
-          <Text className="text-white font-semibold text-center">Join League</Text>
+          <Text style={{ color: 'white', fontWeight: '600' }}>Join League</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          className="bg-red-600 rounded-full px-5 py-3 flex-row items-center justify-center shadow-lg"
+          style={{ backgroundColor: '#dc2626', borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12 }}
           onPress={() => router.push('/(app)/league/create')}
         >
-          <Text className="text-white font-bold text-center">+ Create League</Text>
+          <Text style={{ color: 'white', fontWeight: '700' }}>+ Create League</Text>
         </TouchableOpacity>
       </View>
     </View>

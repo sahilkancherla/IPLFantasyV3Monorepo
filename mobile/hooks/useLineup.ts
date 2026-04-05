@@ -7,7 +7,7 @@ export interface LineupEntry {
   user_id: string
   week_num: number
   player_id: string
-  slot_role: 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler'
+  slot_role: 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler' | 'flex'
   is_locked: boolean
   set_at: string
   // joined
@@ -40,11 +40,113 @@ export function useSetLineup(leagueId: string) {
   return useMutation({
     mutationFn: (data: {
       weekNum: number
-      entries: Array<{ playerId: string; slotRole: 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler' }>
+      entries: Array<{ playerId: string; slotRole: 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler' | 'flex' }>
     }) => api.put<{ lineup: LineupEntry[] }>(`/lineups/${leagueId}`, data),
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
+      // Immediately populate the cache so the UI updates before the background refetch
+      queryClient.setQueryData(
+        ['lineup', leagueId, vars.weekNum],
+        { lineup: data.lineup, weekNum: vars.weekNum, locked: false }
+      )
       queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['game-breakdown', leagueId] })
     },
+  })
+}
+
+export function useUserLineup(leagueId: string, userId: string, weekNum: number) {
+  return useQuery({
+    queryKey: ['lineup', leagueId, userId, weekNum],
+    queryFn: () =>
+      api.get<LineupResponse>(`/lineups/${leagueId}/user/${userId}?week=${weekNum}`),
+    enabled: !!leagueId && !!userId && !!weekNum,
+  })
+}
+
+export interface GamePlayer {
+  playerId: string
+  playerName: string
+  playerTeam: string
+  playerRole: string
+  slotRole: string
+  points: number
+  // batting
+  runsScored: number
+  ballsFaced: number
+  fours: number
+  sixes: number
+  isOut: boolean
+  // bowling
+  ballsBowled: number
+  runsConceded: number
+  wicketsTaken: number
+  maidens: number
+  // fielding
+  catches: number
+  stumpings: number
+  runOutsDirect: number
+  runOutsIndirect: number
+}
+
+export interface GameBreakdownData {
+  matchId: string
+  homeTeam: string
+  awayTeam: string
+  matchDate: string
+  startTimeUtc: string | null
+  isCompleted: boolean
+  matchNumber: number | null
+  myPoints: number
+  oppPoints: number
+  myPlayers: GamePlayer[]
+  oppPlayers: GamePlayer[]
+}
+
+export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: string | null) {
+  return useQuery({
+    queryKey: ['game-breakdown', leagueId, weekNum, opponentId],
+    queryFn: () =>
+      api.get<{ games: GameBreakdownData[] }>(
+        `/lineups/${leagueId}/game-breakdown?week=${weekNum}&opponentId=${opponentId}`
+      ),
+    enabled: !!leagueId && !!weekNum && !!opponentId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
+}
+
+export interface PlayerMatchStat {
+  matchId: string
+  matchNumber: number | null
+  homeTeam: string
+  awayTeam: string
+  matchDate: string
+  startTimeUtc: string | null
+  status: string
+  playerIplTeam: string
+  points: number
+  runsScored: number
+  ballsFaced: number
+  fours: number
+  sixes: number
+  isOut: boolean
+  ballsBowled: number
+  runsConceded: number
+  wicketsTaken: number
+  maidens: number
+  catches: number
+  stumpings: number
+  runOutsDirect: number
+  runOutsIndirect: number
+}
+
+export function usePlayerStats(playerId: string | null) {
+  return useQuery({
+    queryKey: ['player-stats', playerId],
+    queryFn: () => api.get<{ stats: PlayerMatchStat[] }>(`/players/${playerId}/stats`),
+    enabled: !!playerId,
+    select: (data) => data.stats,
+    staleTime: 5 * 60_000,
   })
 }
 

@@ -1,5 +1,4 @@
 import { TouchableOpacity, View, Text } from 'react-native'
-import { Badge } from '../ui/Badge'
 import type { League } from '../../stores/leagueStore'
 import { formatCurrency } from '../../lib/currency'
 
@@ -8,38 +7,58 @@ interface LeagueCardProps {
   onPress: () => void
 }
 
-const statusConfig: Record<string, { label: string; color: 'green' | 'yellow' | 'blue' | 'red' | 'gray' }> = {
-  draft_pending:   { label: 'Draft Pending', color: 'gray' },
-  draft_active:    { label: 'DRAFT LIVE', color: 'red' },
-  league_active:   { label: 'Season Active', color: 'green' },
-  league_complete: { label: 'Complete', color: 'blue' },
+const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  draft_pending:   { label: 'Draft Pending', bg: '#f3f4f6', color: '#6b7280' },
+  draft_active:    { label: 'DRAFT LIVE',    bg: '#fee2e2', color: '#dc2626' },
+  league_active:   { label: 'Season Active', bg: '#f0fdf4', color: '#16a34a' },
+  league_complete: { label: 'Complete',      bg: '#eff6ff', color: '#2563eb' },
 }
 
 export function LeagueCard({ league, onPress }: LeagueCardProps) {
-  const statusInfo = statusConfig[league.status] ?? { label: league.status, color: 'gray' }
+  const s = STATUS_CONFIG[league.status] ?? { label: league.status, bg: '#f3f4f6', color: '#6b7280' }
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="bg-white rounded-2xl p-4 gap-3 active:opacity-80 border border-gray-100 shadow-sm"
+      activeOpacity={0.8}
+      style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}
     >
-      <View className="flex-row items-start justify-between">
-        <Text className="text-gray-900 text-lg font-bold flex-1 mr-3">{league.name}</Text>
-        <Badge label={statusInfo.label} color={statusInfo.color} />
+      {/* Dark header */}
+      <View style={{
+        backgroundColor: '#1f2937',
+        paddingHorizontal: 16, paddingVertical: 12,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <Text style={{ color: 'white', fontWeight: '700', fontSize: 15, flex: 1, marginRight: 10 }} numberOfLines={1}>
+          {league.name}
+        </Text>
+        <View style={{ backgroundColor: s.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <Text style={{ color: s.color, fontSize: 11, fontWeight: '700' }}>{s.label}</Text>
+        </View>
       </View>
 
-      <View className="flex-row gap-4">
+      {/* Body stats */}
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
         <View>
-          <Text className="text-gray-400 text-xs">Budget</Text>
-          <Text className="text-gray-900 text-sm font-medium">{formatCurrency(league.starting_budget, league.currency)}</Text>
+          <Text style={{ color: '#9ca3af', fontSize: 11 }}>Budget</Text>
+          <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600', marginTop: 2 }}>
+            {formatCurrency(league.starting_budget, league.currency)}
+          </Text>
         </View>
         <View>
-          <Text className="text-gray-400 text-xs">Squad Size</Text>
-          <Text className="text-gray-900 text-sm font-medium">{league.max_squad_size}</Text>
+          <Text style={{ color: '#9ca3af', fontSize: 11 }}>Squad</Text>
+          <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600', marginTop: 2 }}>
+            {league.max_squad_size} players
+          </Text>
         </View>
-        <View>
-          <Text className="text-gray-400 text-xs">Invite Code</Text>
-          <Text className="text-red-600 text-sm font-mono font-bold">{league.invite_code}</Text>
+        <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View>
+            <Text style={{ color: '#9ca3af', fontSize: 11 }}>Invite Code</Text>
+            <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 2 }}>
+              {league.invite_code}
+            </Text>
+          </View>
+          <Text style={{ color: '#d1d5db', fontSize: 18, fontWeight: '300' }}>›</Text>
         </View>
       </View>
     </TouchableOpacity>
