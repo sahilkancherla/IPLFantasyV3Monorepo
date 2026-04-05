@@ -170,7 +170,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await withTransaction(async (client: pg.PoolClient) => {
-        if ((rosterFull || roleFull) && dropPlayerId) {
+        if (dropPlayerId) {
           const { rows: dropResult } = await client.query(
             `DELETE FROM team_rosters WHERE league_id = $1 AND user_id = $2 AND player_id = $3 RETURNING id`,
             [leagueId, userId, dropPlayerId]
@@ -178,6 +178,11 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
           if (dropResult.length === 0) {
             throw Object.assign(new Error('Drop player not on your roster'), { statusCode: 404 })
           }
+          // Decrement roster_count for the dropped player
+          await client.query(
+            `UPDATE league_members SET roster_count = roster_count - 1 WHERE league_id = $1 AND user_id = $2`,
+            [leagueId, userId]
+          )
         }
 
         await client.query(
@@ -186,13 +191,10 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
           [leagueId, userId, playerId]
         )
 
-        // roster_count: +0 if a player was dropped (swap), +1 if just adding
-        if (!dropPlayerId) {
-          await client.query(
-            `UPDATE league_members SET roster_count = roster_count + 1 WHERE league_id = $1 AND user_id = $2`,
-            [leagueId, userId]
-          )
-        }
+        await client.query(
+          `UPDATE league_members SET roster_count = roster_count + 1 WHERE league_id = $1 AND user_id = $2`,
+          [leagueId, userId]
+        )
 
         // Clear lineups for all non-finalized weeks so the user must re-set
         // their lineup with the updated roster. Completed week lineups are preserved.
