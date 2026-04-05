@@ -54,6 +54,28 @@ export function useSetLineup(leagueId: string) {
   })
 }
 
+export function useAdminSetLineup(leagueId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      userId: string
+      weekNum: number
+      entries: Array<{ playerId: string; slotRole: 'batsman' | 'wicket_keeper' | 'all_rounder' | 'bowler' | 'flex' }>
+    }) => api.put<{ lineup: LineupEntry[] }>(`/lineups/${leagueId}/user/${data.userId}`, {
+      weekNum: data.weekNum,
+      entries: data.entries,
+    }),
+    onSuccess: (data, vars) => {
+      queryClient.setQueryData(
+        ['lineup', leagueId, vars.userId, vars.weekNum],
+        { lineup: data.lineup, weekNum: vars.weekNum, locked: false }
+      )
+      queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
+    },
+  })
+}
+
 export function useUserLineup(leagueId: string, userId: string, weekNum: number) {
   return useQuery({
     queryKey: ['lineup', leagueId, userId, weekNum],

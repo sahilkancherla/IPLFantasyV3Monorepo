@@ -189,7 +189,7 @@ function LiveBanner({ live, currency }: { live: LiveState; currency: string }) {
 
 // ── Team Column ────────────────────────────────────────────────────────────
 
-function TeamColumn({ member, rosters, currency, memberCount }: { member: Member; rosters: RosterEntry[]; currency: string; memberCount: number }) {
+function TeamColumn({ member, rosters, currency, memberCount, onSetLineup }: { member: Member; rosters: RosterEntry[]; currency: string; memberCount: number; onSetLineup: () => void }) {
   const roleCounts = { batsman: 0, wicket_keeper: 0, all_rounder: 0, bowler: 0 }
   rosters.forEach(r => { if (r.role in roleCounts) roleCounts[r.role as keyof typeof roleCounts]++ })
 
@@ -205,8 +205,21 @@ function TeamColumn({ member, rosters, currency, memberCount }: { member: Member
         <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 2 }}>
           {member.display_name ?? member.username}
         </div>
-        <div style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
-          {fmt(member.remaining_budget, currency)} remaining
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 13, color: '#16a34a', fontWeight: 600, flex: 1 }}>
+            {fmt(member.remaining_budget, currency)} remaining
+          </div>
+          <button
+            onClick={onSetLineup}
+            style={{
+              padding: '3px 10px', fontSize: 11, fontWeight: 700,
+              background: '#eff6ff', color: '#2563eb',
+              border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Set Lineup
+          </button>
         </div>
         {/* Role counts */}
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -344,6 +357,95 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
   // per-matchup edit state: { [matchupId]: { homeUserId, awayUserId, saving, saved } }
   const [matchupEdits, setMatchupEdits] = useState<Record<string, { homeUserId: string; awayUserId: string; saving: boolean; saved: boolean }>>({})
   const [regenerating, setRegenerating] = useState(false)
+
+  // Lineup modal
+  const [lineupModal, setLineupModal] = useState<{ userId: string; displayName: string } | null>(null)
+  const [lineupWeek, setLineupWeek] = useState(1)
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>([])
+  const [lineupDraft, setLineupDraft] = useState<Array<{ slotRole: string; playerId: string }>>([])
+  const [lineupLoading, setLineupLoading] = useState(false)
+  const [lineupSaving, setLineupSaving] = useState(false)
+  const [lineupSaved, setLineupSaved] = useState(false)
+
+  const SLOT_DEFS = [
+    { slotRole: 'batsman',       count: 3 },
+    { slotRole: 'wicket_keeper', count: 1 },
+    { slotRole: 'all_rounder',   count: 1 },
+    { slotRole: 'bowler',        count: 3 },
+    { slotRole: 'flex',          count: 3 },
+  ]
+  const SLOTS = SLOT_DEFS.flatMap(({ slotRole, count }) =>
+    Array.from({ length: count }, (_, i) => ({ slotRole, nth: i }))
+  )
+
+  const initDraft = (lineup: Array<{ player_id: string; slot_role: string }>) => {
+    const byRole: Record<string, string[]> = {}
+    for (const e of lineup) {
+      if (!byRole[e.slot_role]) byRole[e.slot_role] = []
+      byRole[e.slot_role].push(e.player_id)
+    }
+    const counters: Record<string, number> = {}
+    return SLOTS.map(slot => {
+      const idx = counters[slot.slotRole] ?? 0
+      counters[slot.slotRole] = idx + 1
+      return { slotRole: slot.slotRole, playerId: byRole[slot.slotRole]?.[idx] ?? '' }
+    })
+  }
+
+  const loadLineupForWeek = async (userId: string, weekNum: number) => {
+    setLineupLoading(true)
+    try {
+      const res = await api.get(`/admin/leagues/${leagueId}/lineups/${userId}?week=${weekNum}`, secret) as {
+        lineup: Array<{ player_id: string; slot_role: string }>
+      }
+      setLineupDraft(initDraft(res.lineup))
+    } catch {
+      setLineupDraft(SLOTS.map(s => ({ slotRole: s.slotRole, playerId: '' })))
+    } finally {
+      setLineupLoading(false)
+    }
+  }
+
+  const openLineupModal = async (member: Member) => {
+    setLineupModal({ userId: member.user_id, displayName: member.display_name ?? member.username })
+    setLineupSaved(false)
+    setLineupDraft(SLOTS.map(s => ({ slotRole: s.slotRole, playerId: '' })))
+    try {
+      const settings = await api.get('/admin/settings', secret) as { weeks: Array<{ week_num: number }> }
+      const weekNums = settings.weeks.map(w => w.week_num).sort((a, b) => a - b)
+      setAvailableWeeks(weekNums)
+      const first = weekNums[0] ?? 1
+      setLineupWeek(first)
+      await loadLineupForWeek(member.user_id, first)
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  const handleLineupWeekChange = async (weekNum: number) => {
+    setLineupWeek(weekNum)
+    if (lineupModal) await loadLineupForWeek(lineupModal.userId, weekNum)
+  }
+
+  const handleSaveLineup = async () => {
+    if (!lineupModal) return
+    const filled = lineupDraft.filter(e => e.playerId)
+    if (filled.length !== 11) { alert(`Select all 11 players (${filled.length}/11 filled)`); return }
+    setLineupSaving(true)
+    setLineupSaved(false)
+    try {
+      await api.put(`/admin/leagues/${leagueId}/lineups/${lineupModal.userId}`, secret, {
+        weekNum: lineupWeek,
+        entries: filled.map(e => ({ playerId: e.playerId, slotRole: e.slotRole })),
+      })
+      setLineupSaved(true)
+      setTimeout(() => setLineupSaved(false), 2500)
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setLineupSaving(false)
+    }
+  }
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -611,6 +713,7 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
                 rosters={rostersByMember(m.user_id)}
                 currency={currency}
                 memberCount={members.length}
+                onSetLineup={() => openLineupModal(m)}
               />
             ))}
             {members.length === 0 && (
@@ -746,6 +849,138 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
           )}
         </div>
       )}
+
+      {/* ── Lineup Modal ── */}
+      {lineupModal && (() => {
+        const userRoster = rostersByMember(lineupModal.userId)
+        const inp: React.CSSProperties = {
+          padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 8,
+          fontSize: 13, background: 'white', width: '100%', boxSizing: 'border-box',
+        }
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          }}>
+            <div style={{
+              background: 'white', borderRadius: 16, width: 520, maxHeight: '90vh',
+              display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              overflow: 'hidden',
+            }}>
+              {/* Header */}
+              <div style={{ padding: '18px 22px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: '#111827' }}>Set Lineup</div>
+                  <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{lineupModal.displayName}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>Week</label>
+                  <select
+                    value={lineupWeek}
+                    onChange={e => handleLineupWeekChange(parseInt(e.target.value, 10))}
+                    style={{ ...inp, width: 90 }}
+                  >
+                    {availableWeeks.map(w => <option key={w} value={w}>Week {w}</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={() => setLineupModal(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '0 4px' }}
+                >✕</button>
+              </div>
+
+              {/* Slot rows */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px' }}>
+                {lineupLoading ? (
+                  <div style={{ textAlign: 'center', padding: 32, color: '#9ca3af', fontSize: 13 }}>Loading…</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 700, fontSize: 11, color: '#9ca3af', borderBottom: '1px solid #f3f4f6' }}>#</th>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 700, fontSize: 11, color: '#9ca3af', borderBottom: '1px solid #f3f4f6' }}>SLOT</th>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 700, fontSize: 11, color: '#9ca3af', borderBottom: '1px solid #f3f4f6' }}>PLAYER</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SLOTS.map((slot, idx) => {
+                        const color = ROLE_COLORS[slot.slotRole] ?? '#7c3aed'
+                        const label = ROLE_LABELS[slot.slotRole] ?? slot.slotRole
+                        const current = lineupDraft[idx]?.playerId ?? ''
+
+                        // Eligible players: right role (or any for flex), not used in another slot
+                        const usedElsewhere = new Set(
+                          lineupDraft.filter((_, i) => i !== idx).map(e => e.playerId).filter(Boolean)
+                        )
+                        const eligible = userRoster.filter(r => {
+                          if (usedElsewhere.has(r.player_id)) return false
+                          if (slot.slotRole === 'flex') return true
+                          return r.role === slot.slotRole
+                        })
+
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f9fafb' }}>
+                            <td style={{ padding: '8px', color: '#9ca3af', fontSize: 11, fontWeight: 600 }}>{idx + 1}</td>
+                            <td style={{ padding: '8px' }}>
+                              <span style={{
+                                fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                                background: `${color}20`, color,
+                              }}>{label}</span>
+                            </td>
+                            <td style={{ padding: '8px', minWidth: 240 }}>
+                              <select
+                                value={current}
+                                onChange={e => setLineupDraft(prev => {
+                                  const next = [...prev]
+                                  next[idx] = { slotRole: slot.slotRole, playerId: e.target.value }
+                                  return next
+                                })}
+                                style={{ ...inp }}
+                              >
+                                <option value="">— select —</option>
+                                {eligible.map(r => (
+                                  <option key={r.player_id} value={r.player_id}>
+                                    {r.name} ({r.ipl_team})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '14px 22px', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: '#9ca3af' }}>
+                  {lineupDraft.filter(e => e.playerId).length} / 11 filled
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setLineupModal(null)}
+                    style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer', color: '#374151' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveLineup}
+                    disabled={lineupSaving}
+                    style={{
+                      padding: '9px 22px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: 'white',
+                      background: lineupSaved ? '#16a34a' : lineupSaving ? '#9ca3af' : '#2563eb',
+                    }}
+                  >
+                    {lineupSaving ? 'Saving…' : lineupSaved ? '✓ Saved' : 'Save Lineup'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

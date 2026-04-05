@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   View, Text, ScrollView, Alert, RefreshControl, TouchableOpacity,
   TextInput, FlatList, KeyboardAvoidingView, Platform, Modal, ActivityIndicator,
@@ -22,6 +22,7 @@ import { Avatar } from '../../../components/ui/Avatar'
 import { useAuthStore } from '../../../stores/authStore'
 import { api } from '../../../lib/api'
 import { useQuery } from '@tanstack/react-query'
+import { useAdminSetLineup, useUserLineup } from '../../../hooks/useLineup'
 
 
 interface PlayerRow {
@@ -106,6 +107,12 @@ export default function LeagueScreen() {
     nationality: string; base_price: number; sold_price?: number | null; status: string
   } | null>(null)
 
+  // Admin Set Lineup state
+  const [adminLineupOpen, setAdminLineupOpen] = useState(false)
+  const [adminLineupUserId, setAdminLineupUserId] = useState<string | null>(null)
+  const [adminLineupWeek, setAdminLineupWeek] = useState<number | null>(null)
+  const [adminLineupDraft, setAdminLineupDraft] = useState<Array<{ playerId: string; slotRole: string }>>([])
+
   // Players tab filters (active league state)
   const [lpSearch, setLpSearch] = useState('')
   const [lpRoleFilter, setLpRoleFilter] = useState<string | null>(null)
@@ -138,6 +145,64 @@ export default function LeagueScreen() {
   const { data: freeAgents, isLoading: faLoading } = useFreeAgents(id!)
   const dropPlayerMutation = useDropPlayer(id!)
   const addPlayerMutation = useAddPlayer(id!)
+  const adminSetLineup = useAdminSetLineup(id!)
+  const { data: adminLineupData, isLoading: adminLineupLoading } = useUserLineup(
+    id!, adminLineupUserId ?? '', adminLineupWeek ?? 0
+  )
+
+  // Sync admin lineup data into draft when user/week changes
+  useEffect(() => {
+    if (adminLineupData?.lineup) {
+      setAdminLineupDraft(adminLineupData.lineup.map((e: any) => ({ playerId: e.player_id, slotRole: e.slot_role })))
+    } else {
+      setAdminLineupDraft([])
+    }
+  }, [adminLineupData])
+
+  const ADMIN_SLOT_DEFS = [
+    { role: 'batsman', label: 'BAT', count: 3 },
+    { role: 'wicket_keeper', label: 'WK', count: 1 },
+    { role: 'all_rounder', label: 'AR', count: 1 },
+    { role: 'bowler', label: 'BOW', count: 3 },
+    { role: 'flex', label: 'FLEX', count: 3 },
+  ]
+
+  const handleAdminTogglePlayer = (player: RosterEntry) => {
+    const inLineup = adminLineupDraft.some(e => e.playerId === player.player_id)
+    if (inLineup) {
+      setAdminLineupDraft(prev => prev.filter(e => e.playerId !== player.player_id))
+      return
+    }
+    if (adminLineupDraft.length >= 11) return
+    const roleCount = adminLineupDraft.filter(e => e.slotRole === player.player_role).length
+    const roleDef = ADMIN_SLOT_DEFS.find(d => d.role === player.player_role)
+    const flexCount = adminLineupDraft.filter(e => e.slotRole === 'flex').length
+    let slotRole: string
+    if (roleCount < (roleDef?.count ?? 0)) {
+      slotRole = player.player_role
+    } else if (flexCount < 3) {
+      slotRole = 'flex'
+    } else {
+      Alert.alert('No Open Slots', `No ${player.player_role.replace(/_/g, ' ')} or FLEX slots available`)
+      return
+    }
+    setAdminLineupDraft(prev => [...prev, { playerId: player.player_id, slotRole }])
+  }
+
+  const handleAdminSaveLineup = async () => {
+    if (!adminLineupUserId || !adminLineupWeek) return
+    if (adminLineupDraft.length === 0) return
+    try {
+      await adminSetLineup.mutateAsync({
+        userId: adminLineupUserId,
+        weekNum: adminLineupWeek,
+        entries: adminLineupDraft as any,
+      })
+      Alert.alert('Saved', 'Lineup saved successfully')
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save lineup')
+    }
+  }
 
   const myInterests = new Set(interestData?.myInterests ?? [])
   const interestCounts = interestData?.counts ?? {}
@@ -261,17 +326,32 @@ export default function LeagueScreen() {
     p.ipl_team.toLowerCase().includes(faSearch.toLowerCase())
   )
 
-  const handleDropPlayer = (player: RosterEntry) => {
-    Alert.alert('Drop Player', `Drop ${player.player_name} from your squad?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Drop', style: 'destructive', onPress: async () => {
-        try {
-          await dropPlayerMutation.mutateAsync(player.player_id)
-        } catch (e: any) {
-          Alert.alert('Error', e?.message ?? 'Failed to drop player')
-        }
-      }},
-    ])
+  const handleDropPlayer = async (player: RosterEntry) => {
+    let warningLine = ''
+    try {
+      const impact = await api.get<{ affectedWeeks: number[] }>(
+        `/teams/${id}/players/${player.player_id}/drop-impact`
+      )
+      if (impact.affectedWeeks.length > 0) {
+        const weeks = impact.affectedWeeks.map(w => `Week ${w}`).join(', ')
+        warningLine = `\n\nThis will also remove them from your lineup for: ${weeks}.`
+      }
+    } catch {}
+
+    Alert.alert(
+      'Drop Player',
+      `Drop ${player.player_name} from your squad?${warningLine}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Drop', style: 'destructive', onPress: async () => {
+          try {
+            await dropPlayerMutation.mutateAsync(player.player_id)
+          } catch (e: any) {
+            Alert.alert('Error', e?.message ?? 'Failed to drop player')
+          }
+        }},
+      ]
+    )
   }
 
   const handleSelectFreeAgent = (player: FreeAgent) => {
@@ -1159,6 +1239,24 @@ export default function LeagueScreen() {
                 </View>
               )}
 
+              {(isActive || isComplete) && (
+                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
+                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Member Lineups</Text>
+                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Set a lineup for any league member.</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAdminLineupUserId(null)
+                      setAdminLineupWeek(null)
+                      setAdminLineupDraft([])
+                      setAdminLineupOpen(true)
+                    }}
+                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Set Lineup</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#fee2e2', gap: 8 }}>
                 <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 15 }}>Danger Zone</Text>
                 <Button
@@ -1354,6 +1452,148 @@ export default function LeagueScreen() {
                   )
                 })
               })()}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Admin Set Lineup Modal */}
+        <Modal visible={adminLineupOpen} animationType="slide" presentationStyle="pageSheet">
+          <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
+              <View>
+                <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Set Member Lineup</Text>
+                {adminLineupUserId && adminLineupWeek && (
+                  <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>{adminLineupDraft.length} selected</Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setAdminLineupOpen(false)}>
+                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+              {/* Member picker */}
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {members.map(m => {
+                    const name = m.display_name || m.username
+                    const selected = adminLineupUserId === m.user_id
+                    return (
+                      <TouchableOpacity
+                        key={m.user_id}
+                        onPress={() => { setAdminLineupUserId(m.user_id); setAdminLineupDraft([]) }}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                      >
+                        <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>{name}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+
+              {/* Week picker */}
+              {adminLineupUserId && (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT WEEK</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {Array.from(new Set((scheduleMatchups ?? []).map(m => m.week_num))).sort((a, b) => a - b).map(wn => {
+                        const selected = adminLineupWeek === wn
+                        return (
+                          <TouchableOpacity
+                            key={wn}
+                            onPress={() => setAdminLineupWeek(wn)}
+                            style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                          >
+                            <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>Week {wn}</Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Player toggle list */}
+              {adminLineupUserId && adminLineupWeek && (
+                adminLineupLoading ? (
+                  <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                    <ActivityIndicator color="#111827" />
+                  </View>
+                ) : (() => {
+                  const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminLineupUserId)
+                  const adRoleColors2: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
+                  const adRoleLabels2: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                  return (
+                    <View style={{ gap: 10 }}>
+                      <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        TAP TO ADD / REMOVE  •  {adminLineupDraft.length}/11
+                      </Text>
+                      <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                        {memberRoster.map((player, idx) => {
+                          const inLineup = adminLineupDraft.some(e => e.playerId === player.player_id)
+                          const entry = adminLineupDraft.find(e => e.playerId === player.player_id)
+                          const roleColor = adRoleColors2[player.player_role] ?? '#6b7280'
+                          const roleLabel = adRoleLabels2[player.player_role] ?? player.player_role
+                          return (
+                            <TouchableOpacity
+                              key={player.player_id}
+                              onPress={() => handleAdminTogglePlayer(player)}
+                              activeOpacity={0.7}
+                              style={{
+                                flexDirection: 'row', alignItems: 'center',
+                                paddingHorizontal: 14, paddingVertical: 13,
+                                borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                                opacity: (!inLineup && adminLineupDraft.length >= 11) ? 0.35 : 1,
+                              }}
+                            >
+                              <View style={{
+                                width: 24, height: 24, borderRadius: 12, borderWidth: 2,
+                                borderColor: inLineup ? '#16a34a' : '#d1d5db',
+                                backgroundColor: inLineup ? '#16a34a' : 'transparent',
+                                alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                              }}>
+                                {inLineup && <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>✓</Text>}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
+                                <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.player_ipl_team}</Text>
+                              </View>
+                              {inLineup && entry?.slotRole === 'flex' && (
+                                <View style={{ backgroundColor: '#6b728018', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3, marginRight: 8 }}>
+                                  <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>FLEX</Text>
+                                </View>
+                              )}
+                              <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
+                                <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          )
+                        })}
+                        {memberRoster.length === 0 && (
+                          <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                            <Text style={{ color: '#9ca3af', fontSize: 14 }}>No players on this member's roster</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={handleAdminSaveLineup}
+                        disabled={adminSetLineup.isPending || adminLineupDraft.length === 0}
+                        style={{ backgroundColor: adminLineupDraft.length > 0 ? '#dc2626' : '#e5e7eb', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                      >
+                        {adminSetLineup.isPending ? (
+                          <ActivityIndicator color="white" />
+                        ) : (
+                          <Text style={{ color: adminLineupDraft.length > 0 ? 'white' : '#9ca3af', fontWeight: '700', fontSize: 15 }}>
+                            {`Save Lineup (${adminLineupDraft.length}/11)`}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )
+                })()
+              )}
             </ScrollView>
           </View>
         </Modal>

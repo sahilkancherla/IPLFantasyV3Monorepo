@@ -7,6 +7,7 @@ import { useFreeAgents, type FreeAgent } from '../../../hooks/useWaivers'
 import { useLeague } from '../../../hooks/useLeague'
 import { useAuthStore } from '../../../stores/authStore'
 import { formatCurrency } from '../../../lib/currency'
+import { api } from '../../../lib/api'
 
 type Tab = 'my' | 'all'
 
@@ -60,10 +61,21 @@ export default function TeamScreen() {
     p.ipl_team.toLowerCase().includes(searchText.toLowerCase())
   )
 
-  const handleDropPlayer = (player: RosterEntry) => {
+  const handleDropPlayer = async (player: RosterEntry) => {
+    let warningLine = ''
+    try {
+      const impact = await api.get<{ affectedWeeks: number[] }>(
+        `/teams/${leagueId}/players/${player.player_id}/drop-impact`
+      )
+      if (impact.affectedWeeks.length > 0) {
+        const weeks = impact.affectedWeeks.map(w => `Week ${w}`).join(', ')
+        warningLine = `\n\nThis will also remove them from your lineup for: ${weeks}.`
+      }
+    } catch {}
+
     Alert.alert(
       'Drop Player',
-      `Drop ${player.player_name} from your squad?`,
+      `Drop ${player.player_name} from your squad?${warningLine}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

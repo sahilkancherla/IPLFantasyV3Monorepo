@@ -21,6 +21,8 @@ export const api = {
     apiFetch(path, secret),
   post:   (path: string, secret: string, body: unknown) =>
     apiFetch(path, secret, { method: 'POST', body: JSON.stringify(body) }),
+  put:    (path: string, secret: string, body: unknown) =>
+    apiFetch(path, secret, { method: 'PUT', body: JSON.stringify(body) }),
   patch:  (path: string, secret: string, body: unknown) =>
     apiFetch(path, secret, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path: string, secret: string) =>

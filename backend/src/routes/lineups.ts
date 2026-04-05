@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth.middleware.js'
-import { isLeagueMember } from '../db/queries/leagues.js'
+import { isLeagueMember, getLeagueById } from '../db/queries/leagues.js'
 import { getLineup, validateLineup, setLineup, autoSetLineup, getGameBreakdown } from '../db/queries/lineups.js'
 import { isWeekLocked, getCurrentWeek } from '../services/schedule.service.js'
 
@@ -12,7 +12,7 @@ const setLineupSchema = z.object({
       playerId: z.string().uuid(),
       slotRole: z.enum(['batsman', 'wicket_keeper', 'all_rounder', 'bowler', 'flex']),
     })
-  ).min(1).max(11),
+  ).max(11),
 })
 
 export async function lineupRoutes(app: FastifyInstance): Promise<void> {
@@ -122,6 +122,31 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ games })
     }
   )
+
+  // PUT /lineups/:leagueId/user/:userId — admin sets lineup for another member
+  app.put<{ Params: { leagueId: string; userId: string } }>('/lineups/:leagueId/user/:userId', async (req, reply) => {
+    const { leagueId, userId } = req.params
+
+    const isMember = await isLeagueMember(leagueId, req.authUser!.id)
+    if (!isMember) return reply.code(403).send({ error: 'Not a member of this league' })
+
+    const league = await getLeagueById(leagueId)
+    if (!league || league.admin_id !== req.authUser!.id) {
+      return reply.code(403).send({ error: 'Only the league admin can set lineups for other members' })
+    }
+
+    const body = setLineupSchema.safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const { weekNum, entries } = body.data
+
+    const validation = await validateLineup(leagueId, userId, entries)
+    if (!validation.valid) return reply.code(400).send({ error: validation.error })
+
+    await setLineup(leagueId, userId, weekNum, entries)
+    const lineup = await getLineup(leagueId, userId, weekNum)
+    return reply.send({ lineup })
+  })
 
   // POST /lineups/:leagueId/auto — auto-set from previous week (admin triggers before lock)
   app.post<{ Params: { leagueId: string } }>('/lineups/:leagueId/auto', async (req, reply) => {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { isLeagueMember, getLeagueById } from '../db/queries/leagues.js'
 import { getUserTeam, getAllTeams } from '../db/queries/teams.js'
-import { clearUncompletedLineups } from '../db/queries/lineups.js'
+import { clearUncompletedLineups, getPlayerUncompletedLineupWeeks, removePlayerFromUncompletedLineups } from '../db/queries/lineups.js'
 import { pool, withTransaction } from '../db/client.js'
 import pg from 'pg'
 
@@ -43,6 +43,21 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ rosters })
   })
 
+  // GET /teams/:leagueId/players/:playerId/drop-impact — check if dropping affects uncompleted lineups
+  app.get<{ Params: { leagueId: string; playerId: string } }>(
+    '/teams/:leagueId/players/:playerId/drop-impact',
+    async (req, reply) => {
+      const { leagueId, playerId } = req.params
+      const userId = req.authUser!.id
+
+      const isMember = await isLeagueMember(leagueId, userId)
+      if (!isMember) return reply.code(403).send({ error: 'Not a member' })
+
+      const affectedWeeks = await getPlayerUncompletedLineupWeeks(leagueId, userId, playerId)
+      return reply.send({ affectedWeeks })
+    }
+  )
+
   // DELETE /teams/:leagueId/players/:playerId — immediately drop a player
   app.delete<{ Params: { leagueId: string; playerId: string } }>(
     '/teams/:leagueId/players/:playerId',
@@ -70,6 +85,8 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
         `UPDATE league_members SET roster_count = roster_count - 1 WHERE league_id = $1 AND user_id = $2`,
         [leagueId, userId]
       )
+
+      await removePlayerFromUncompletedLineups(leagueId, userId, playerId)
 
       return reply.code(204).send()
     }

@@ -5,7 +5,8 @@ export async function generateLeagueSchedule(leagueId: string): Promise<void> {
   await pool.query(`SELECT generate_schedule($1)`, [leagueId])
 }
 
-// Get the current active IPL week
+// Get the current active IPL week.
+// Priority: explicit system_settings.current_week → ipl_weeks.status='live' → date-based fallback.
 export async function getCurrentWeek(): Promise<{
   week_num: number
   label: string
@@ -14,12 +15,31 @@ export async function getCurrentWeek(): Promise<{
   lock_time: string
   is_playoff: boolean
 } | null> {
+  // 1. Explicit admin override
+  const { rows: settings } = await pool.query(
+    `SELECT value FROM system_settings WHERE key = 'current_week' LIMIT 1`
+  )
+  const explicitNum = settings[0]?.value ? parseInt(settings[0].value, 10) : null
+  if (explicitNum) {
+    const { rows } = await pool.query(
+      `SELECT * FROM ipl_weeks WHERE week_num = $1 LIMIT 1`,
+      [explicitNum]
+    )
+    if (rows[0]) return rows[0]
+  }
+
+  // 2. Week marked live via status column
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM ipl_weeks WHERE status = 'live' LIMIT 1`
+    )
+    if (rows[0]) return rows[0]
+  } catch { /* status column may not exist yet */ }
+
+  // 3. Date-based fallback
   const now = new Date().toISOString().slice(0, 10)
   const { rows } = await pool.query(
-    `SELECT * FROM ipl_weeks
-     WHERE start_date <= $1 AND end_date >= $1
-     ORDER BY week_num
-     LIMIT 1`,
+    `SELECT * FROM ipl_weeks WHERE start_date <= $1 AND end_date >= $1 ORDER BY week_num LIMIT 1`,
     [now]
   )
   return rows[0] ?? null

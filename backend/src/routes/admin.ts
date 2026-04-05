@@ -7,6 +7,7 @@ import { config } from '../config.js'
 import { calcFantasyPoints, getWeekForDate } from '../services/scoring.service.js'
 import { getAllWeeks } from '../services/schedule.service.js'
 import { getRoom, getMemberStates, getAllRooms } from '../services/auction.service.js'
+import { getLineup, validateLineup, setLineup } from '../db/queries/lineups.js'
 
 function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean {
   const secret = req.headers['x-admin-secret']
@@ -770,6 +771,42 @@ INSTRUCTIONS:
 
     return reply.send({ stats: parsed.matched, unmatched: parsed.unmatched })
   })
+
+  // GET /admin/leagues/:leagueId/lineups/:userId — fetch a user's lineup for a week
+  app.get<{ Params: { leagueId: string; userId: string }; Querystring: { week?: string } }>(
+    '/admin/leagues/:leagueId/lineups/:userId',
+    async (req, reply) => {
+      if (!requireAdmin(req, reply)) return
+      const { leagueId, userId } = req.params
+      const weekNum = parseInt(req.query.week ?? '', 10)
+      if (isNaN(weekNum)) return reply.code(400).send({ error: 'week query param required' })
+      const lineup = await getLineup(leagueId, userId, weekNum)
+      return reply.send({ lineup, weekNum })
+    }
+  )
+
+  // PUT /admin/leagues/:leagueId/lineups/:userId — set a user's lineup on their behalf
+  app.put<{ Params: { leagueId: string; userId: string } }>(
+    '/admin/leagues/:leagueId/lineups/:userId',
+    async (req, reply) => {
+      if (!requireAdmin(req, reply)) return
+      const { leagueId, userId } = req.params
+      const body = z.object({
+        weekNum: z.number().int().min(1),
+        entries: z.array(z.object({
+          playerId: z.string().uuid(),
+          slotRole: z.enum(['batsman', 'wicket_keeper', 'all_rounder', 'bowler', 'flex']),
+        })).min(1).max(11),
+      }).safeParse(req.body)
+      if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+      const { weekNum, entries } = body.data
+      const validation = await validateLineup(leagueId, userId, entries)
+      if (!validation.valid) return reply.code(400).send({ error: validation.error })
+      await setLineup(leagueId, userId, weekNum, entries)
+      const lineup = await getLineup(leagueId, userId, weekNum)
+      return reply.send({ lineup })
+    }
+  )
 
   // GET /admin/leagues/:id/live — in-memory auction room state
   app.get<{ Params: { id: string } }>('/admin/leagues/:id/live', async (req, reply) => {

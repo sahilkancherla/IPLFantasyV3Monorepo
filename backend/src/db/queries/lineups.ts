@@ -354,3 +354,52 @@ export async function clearUncompletedLineups(
     [leagueId, userId]
   )
 }
+
+/** Returns week numbers where the player appears in a non-finalized lineup for this user. */
+export async function getPlayerUncompletedLineupWeeks(
+  leagueId: string,
+  userId: string,
+  playerId: string
+): Promise<number[]> {
+  const { rows } = await pool.query<{ week_num: number }>(
+    `SELECT DISTINCT wl.week_num
+     FROM weekly_lineups wl
+     WHERE wl.league_id = $1
+       AND wl.user_id   = $2
+       AND wl.player_id = $3
+       AND wl.week_num NOT IN (
+         SELECT wm.week_num
+         FROM weekly_matchups wm
+         WHERE wm.league_id = $1
+           AND (wm.home_user = $2 OR wm.away_user = $2)
+           AND wm.is_final = TRUE
+       )
+     ORDER BY wl.week_num`,
+    [leagueId, userId, playerId]
+  )
+  return rows.map(r => r.week_num)
+}
+
+/** Removes a specific player from all non-finalized lineup weeks for this user. */
+export async function removePlayerFromUncompletedLineups(
+  leagueId: string,
+  userId: string,
+  playerId: string,
+  client?: pg.PoolClient
+): Promise<void> {
+  const db = client ?? pool
+  await db.query(
+    `DELETE FROM weekly_lineups
+     WHERE league_id = $1
+       AND user_id   = $2
+       AND player_id = $3
+       AND week_num NOT IN (
+         SELECT wm.week_num
+         FROM weekly_matchups wm
+         WHERE wm.league_id = $1
+           AND (wm.home_user = $2 OR wm.away_user = $2)
+           AND wm.is_final = TRUE
+       )`,
+    [leagueId, userId, playerId]
+  )
+}
