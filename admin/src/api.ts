@@ -1,13 +1,13 @@
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000'
 
-async function apiFetch(path: string, secret: string, options?: RequestInit): Promise<unknown> {
+async function apiFetch(path: string, secret: string, options?: RequestInit & { noContentType?: boolean }): Promise<unknown> {
+  const { noContentType, ...rest } = options ?? {}
+  const headers: Record<string, string> = { 'X-Admin-Secret': secret }
+  if (!noContentType) headers['Content-Type'] = 'application/json'
+
   const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Secret': secret,
-      ...options?.headers,
-    },
+    ...rest,
+    headers: { ...headers, ...rest.headers },
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string }
@@ -24,5 +24,5 @@ export const api = {
   patch:  (path: string, secret: string, body: unknown) =>
     apiFetch(path, secret, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path: string, secret: string) =>
-    apiFetch(path, secret, { method: 'DELETE' }),
+    apiFetch(path, secret, { method: 'DELETE', noContentType: true }),
 }

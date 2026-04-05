@@ -219,11 +219,15 @@ export async function auctionRoutes(app: FastifyInstance): Promise<void> {
     if (!isMember) return reply.code(403).send({ error: 'Not a member' })
 
     const { rows } = await pool.query(
-      `SELECT q.player_id, q.queue_position, q.status, q.sold_to, q.sold_price,
+      `SELECT q.player_id, q.queue_position,
+              CASE WHEN tr.player_id IS NOT NULL THEN 'sold' ELSE q.status END AS status,
+              COALESCE(tr.user_id, q.sold_to) AS sold_to,
+              COALESCE(tr.price_paid, q.sold_price) AS sold_price,
               p.name, p.ipl_team, p.role, p.base_price, p.nationality, p.image_url,
               COALESCE(i.interest_count, 0) AS interest_count
        FROM auction_player_queue q
        JOIN players p ON p.id = q.player_id
+       LEFT JOIN team_rosters tr ON tr.league_id = $1 AND tr.player_id = q.player_id
        LEFT JOIN (
          SELECT player_id, COUNT(*) AS interest_count
          FROM player_interests
@@ -232,7 +236,13 @@ export async function auctionRoutes(app: FastifyInstance): Promise<void> {
        ) i ON i.player_id = q.player_id
        WHERE q.league_id = $1
        ORDER BY
-         CASE q.status WHEN 'pending' THEN 0 WHEN 'live' THEN 1 WHEN 'unsold' THEN 2 WHEN 'sold' THEN 3 ELSE 4 END,
+         CASE
+           WHEN tr.player_id IS NOT NULL THEN 3
+           WHEN q.status = 'pending' THEN 0
+           WHEN q.status = 'live' THEN 1
+           WHEN q.status = 'unsold' THEN 2
+           ELSE 4
+         END,
          COALESCE(i.interest_count, 0) DESC,
          q.queue_position ASC`,
       [leagueId]

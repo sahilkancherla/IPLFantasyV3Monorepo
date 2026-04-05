@@ -12,6 +12,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:8081,http://localhost:5173'),
   SYNC_SECRET: z.string().min(16).default('dev-sync-secret-change-me'),
   ADMIN_SECRET: z.string().min(8).default('dev-admin-secret-change-me'),
+  ANTHROPIC_API_KEY: z.string().default(''),
 })
 
 const parsed = envSchema.safeParse(process.env)

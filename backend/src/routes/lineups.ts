@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { isLeagueMember } from '../db/queries/leagues.js'
-import { getLineup, validateLineup, setLineup, autoSetLineup } from '../db/queries/lineups.js'
+import { getLineup, validateLineup, setLineup, autoSetLineup, getGameBreakdown } from '../db/queries/lineups.js'
 import { isWeekLocked, getCurrentWeek } from '../services/schedule.service.js'
 
 const setLineupSchema = z.object({
@@ -10,9 +10,9 @@ const setLineupSchema = z.object({
   entries: z.array(
     z.object({
       playerId: z.string().uuid(),
-      slotRole: z.enum(['batsman', 'wicket_keeper', 'all_rounder', 'bowler']),
+      slotRole: z.enum(['batsman', 'wicket_keeper', 'all_rounder', 'bowler', 'flex']),
     })
-  ).length(11),
+  ).min(1).max(11),
 })
 
 export async function lineupRoutes(app: FastifyInstance): Promise<void> {
@@ -75,7 +75,10 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
     if (!isMember) return reply.code(403).send({ error: 'Not a member of this league' })
 
     const body = setLineupSchema.safeParse(req.body)
-    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+    if (!body.success) {
+      req.log.warn({ err: body.error.flatten() }, 'setLineup schema validation failed')
+      return reply.code(400).send({ error: body.error.flatten() })
+    }
 
     const { weekNum, entries } = body.data
 
@@ -83,12 +86,42 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
     if (locked) return reply.code(409).send({ error: 'Lineup is locked for this week' })
 
     const validation = await validateLineup(leagueId, req.authUser!.id, entries)
-    if (!validation.valid) return reply.code(400).send({ error: validation.error })
+    if (!validation.valid) {
+      req.log.warn({ err: validation.error, leagueId, userId: req.authUser!.id, weekNum, entries }, 'setLineup validation failed')
+      return reply.code(400).send({ error: validation.error })
+    }
 
     await setLineup(leagueId, req.authUser!.id, weekNum, entries)
     const lineup = await getLineup(leagueId, req.authUser!.id, weekNum)
     return reply.send({ lineup })
   })
+
+  // GET /lineups/:leagueId/game-breakdown — per-game points for caller vs opponent
+  app.get<{ Params: { leagueId: string }; Querystring: { week?: string; opponentId?: string } }>(
+    '/lineups/:leagueId/game-breakdown',
+    async (req, reply) => {
+      const { leagueId } = req.params
+      const { week, opponentId } = req.query
+
+      if (!opponentId) return reply.code(400).send({ error: 'opponentId required' })
+
+      const isMember = await isLeagueMember(leagueId, req.authUser!.id)
+      if (!isMember) return reply.code(403).send({ error: 'Not a member of this league' })
+
+      let weekNum: number
+      if (week) {
+        weekNum = parseInt(week, 10)
+        if (isNaN(weekNum)) return reply.code(400).send({ error: 'Invalid week' })
+      } else {
+        const current = await getCurrentWeek()
+        if (!current) return reply.code(404).send({ error: 'No active week' })
+        weekNum = current.week_num
+      }
+
+      const games = await getGameBreakdown(leagueId, req.authUser!.id, opponentId, weekNum)
+      return reply.send({ games })
+    }
+  )
 
   // POST /lineups/:leagueId/auto — auto-set from previous week (admin triggers before lock)
   app.post<{ Params: { leagueId: string } }>('/lineups/:leagueId/auto', async (req, reply) => {

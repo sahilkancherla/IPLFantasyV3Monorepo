@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
+import Anthropic from '@anthropic-ai/sdk'
 import { pool } from '../db/client.js'
 import { config } from '../config.js'
 import { calcFantasyPoints, getWeekForDate } from '../services/scoring.service.js'
@@ -101,6 +102,213 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ match: rows[0] })
   })
 
+  // PATCH /admin/matches/:matchId — update match fields (week_num, venue, match_date)
+  app.patch<{ Params: { matchId: string } }>('/admin/matches/:matchId', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const body = z.object({
+      venue: z.string().nullable().optional(),
+      matchDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      startTimeUtc: z.string().optional(),
+      status: z.enum(['pending', 'live', 'completed']).optional(),
+      scorecardUrl: z.string().nullable().optional(),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const updates: string[] = []
+    const values: unknown[] = []
+    let idx = 1
+
+    if ('venue' in body.data) { updates.push(`venue = $${idx++}`); values.push(body.data.venue) }
+    if (body.data.matchDate !== undefined) { updates.push(`match_date = $${idx++}`); values.push(body.data.matchDate) }
+    if (body.data.startTimeUtc !== undefined) { updates.push(`start_time_utc = $${idx++}`); values.push(body.data.startTimeUtc) }
+    if (body.data.status !== undefined) { updates.push(`status = $${idx++}`); values.push(body.data.status) }
+    if ('scorecardUrl' in body.data) { updates.push(`scorecard_url = $${idx++}`); values.push(body.data.scorecardUrl) }
+
+    if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })
+
+    // Enforce only one live match at a time
+    if (body.data.status === 'live') {
+      await pool.query(`UPDATE ipl_matches SET status = 'pending' WHERE status = 'live' AND id != $1`, [req.params.matchId])
+      // Sync system_settings so resolveCurrentMatchAndWeek picks up the new live match
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('current_match', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [req.params.matchId]
+      )
+    } else if (body.data.status === 'pending' || body.data.status === 'completed') {
+      // Clear system_settings if it was pointing to this match
+      await pool.query(
+        `UPDATE system_settings SET value = '', updated_at = NOW()
+         WHERE key = 'current_match' AND value = $1`,
+        [req.params.matchId]
+      )
+    }
+
+    values.push(req.params.matchId)
+    const { rows } = await pool.query(
+      `UPDATE ipl_matches SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    )
+    if (rows.length === 0) return reply.code(404).send({ error: 'Match not found' })
+    return reply.send({ match: rows[0] })
+  })
+
+  // PATCH /admin/weeks/:weekNum — update week details + auto-assign matches by window
+  app.patch<{ Params: { weekNum: string } }>('/admin/weeks/:weekNum', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const body = z.object({
+      label: z.string().optional(),
+      windowStart: z.string().optional(),
+      windowEnd: z.string().optional(),
+      lockTime: z.string().optional(),
+      weekType: z.enum(['regular', 'playoff', 'finals']).optional(),
+      status: z.enum(['pending', 'live', 'completed']).optional(),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const weekNumInt = parseInt(req.params.weekNum, 10)
+    const updates: string[] = []
+    const values: unknown[] = []
+    let idx = 1
+
+    if (body.data.label !== undefined) { updates.push(`label = $${idx++}`); values.push(body.data.label) }
+    if (body.data.windowStart !== undefined) { updates.push(`window_start = $${idx++}`); values.push(body.data.windowStart) }
+    if (body.data.windowEnd !== undefined) { updates.push(`window_end = $${idx++}`); values.push(body.data.windowEnd) }
+    if (body.data.lockTime !== undefined) { updates.push(`lock_time = $${idx++}`); values.push(body.data.lockTime) }
+    if (body.data.weekType !== undefined) {
+      updates.push(`week_type = $${idx++}`)
+      values.push(body.data.weekType)
+      updates.push(`is_playoff = $${idx++}`)
+      values.push(body.data.weekType !== 'regular')
+    }
+    if (body.data.status !== undefined) { updates.push(`status = $${idx++}`); values.push(body.data.status) }
+
+    if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })
+
+    // Enforce only one live week at a time + sync system_settings
+    if (body.data.status === 'live') {
+      await pool.query(`UPDATE ipl_weeks SET status = 'pending' WHERE status = 'live' AND week_num != $1`, [weekNumInt])
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('current_week', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [String(weekNumInt)]
+      )
+    } else if (body.data.status === 'pending' || body.data.status === 'completed') {
+      await pool.query(
+        `UPDATE system_settings SET value = '', updated_at = NOW()
+         WHERE key = 'current_week' AND value = $1`,
+        [String(weekNumInt)]
+      )
+    }
+
+    values.push(weekNumInt)
+    const { rows } = await pool.query(
+      `UPDATE ipl_weeks SET ${updates.join(', ')} WHERE week_num = $${idx} RETURNING *`,
+      values
+    )
+    if (rows.length === 0) return reply.code(404).send({ error: 'Week not found' })
+
+    const week = rows[0]
+
+    // Auto-assign matches whose start_time_utc falls within the window
+    let assignedCount = 0
+    if (week.window_start && week.window_end) {
+      const result = await pool.query(
+        `UPDATE ipl_matches
+         SET week_num = $1
+         WHERE start_time_utc >= $2 AND start_time_utc <= $3`,
+        [weekNumInt, week.window_start, week.window_end]
+      )
+      assignedCount = result.rowCount ?? 0
+    }
+
+    return reply.send({ week, assignedCount })
+  })
+
+  // DELETE /admin/weeks/:weekNum — delete a week (nullifies week_num on any assigned matches)
+  app.delete<{ Params: { weekNum: string } }>('/admin/weeks/:weekNum', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const weekNumInt = parseInt(req.params.weekNum, 10)
+    // Unassign matches that belong to this week
+    await pool.query(`UPDATE ipl_matches SET week_num = NULL WHERE week_num = $1`, [weekNumInt])
+    const { rowCount } = await pool.query(`DELETE FROM ipl_weeks WHERE week_num = $1`, [weekNumInt])
+    if (rowCount === 0) return reply.code(404).send({ error: 'Week not found' })
+    return reply.send({ success: true })
+  })
+
+  // GET /admin/leagues/:leagueId/matchups — all matchups grouped by week
+  app.get<{ Params: { leagueId: string } }>('/admin/leagues/:leagueId/matchups', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const { rows } = await pool.query(
+      `SELECT wm.*,
+              ph.full_name AS home_full_name, ph.username AS home_username,
+              pa.full_name AS away_full_name, pa.username AS away_username
+       FROM weekly_matchups wm
+       JOIN profiles ph ON ph.id = wm.home_user
+       JOIN profiles pa ON pa.id = wm.away_user
+       WHERE wm.league_id = $1
+       ORDER BY wm.week_num, wm.id`,
+      [req.params.leagueId]
+    )
+    return reply.send({ matchups: rows })
+  })
+
+  // PATCH /admin/matchups/:matchupId — edit home_user / away_user
+  app.patch<{ Params: { matchupId: string } }>('/admin/matchups/:matchupId', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const body = z.object({
+      homeUserId: z.string().uuid().optional(),
+      awayUserId: z.string().uuid().optional(),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const updates: string[] = []
+    const values: unknown[] = []
+    let idx = 1
+
+    if (body.data.homeUserId) { updates.push(`home_user = $${idx++}`); values.push(body.data.homeUserId) }
+    if (body.data.awayUserId) { updates.push(`away_user = $${idx++}`); values.push(body.data.awayUserId) }
+    if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })
+
+    values.push(req.params.matchupId)
+    const { rows } = await pool.query(
+      `UPDATE weekly_matchups SET ${updates.join(', ')} WHERE id = $${idx}
+       RETURNING *,
+         (SELECT full_name FROM profiles WHERE id = home_user) AS home_full_name,
+         (SELECT username FROM profiles WHERE id = home_user) AS home_username,
+         (SELECT full_name FROM profiles WHERE id = away_user) AS away_full_name,
+         (SELECT username FROM profiles WHERE id = away_user) AS away_username`,
+      values
+    )
+    if (rows.length === 0) return reply.code(404).send({ error: 'Matchup not found' })
+    return reply.send({ matchup: rows[0] })
+  })
+
+  // POST /admin/leagues/:leagueId/matchups/regenerate — wipe and regenerate from scratch
+  app.post<{ Params: { leagueId: string } }>('/admin/leagues/:leagueId/matchups/regenerate', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+    await pool.query(`SELECT generate_schedule($1)`, [req.params.leagueId])
+    const { rows } = await pool.query(
+      `SELECT wm.*,
+              ph.full_name AS home_full_name, ph.username AS home_username,
+              pa.full_name AS away_full_name, pa.username AS away_username
+       FROM weekly_matchups wm
+       JOIN profiles ph ON ph.id = wm.home_user
+       JOIN profiles pa ON pa.id = wm.away_user
+       WHERE wm.league_id = $1
+       ORDER BY wm.week_num, wm.id`,
+      [req.params.leagueId]
+    )
+    return reply.send({ matchups: rows })
+  })
+
   // DELETE /admin/matches/:matchId — delete a match and its scores
   app.delete<{ Params: { matchId: string } }>('/admin/matches/:matchId', async (req, reply) => {
     if (!requireAdmin(req, reply)) return
@@ -113,6 +321,25 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       await pool.query(`DELETE FROM match_scores WHERE match_id = $1`, [rows[0].match_id])
     }
     await pool.query(`DELETE FROM ipl_matches WHERE id = $1`, [req.params.matchId])
+
+    return reply.send({ success: true })
+  })
+
+  // DELETE /admin/matches/:matchId/stats — clear all stat entries for a match
+  app.delete<{ Params: { matchId: string } }>('/admin/matches/:matchId/stats', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const { rows } = await pool.query(
+      `SELECT match_id FROM ipl_matches WHERE id = $1`,
+      [req.params.matchId]
+    )
+    if (rows.length === 0) return reply.status(404).send({ error: 'Match not found' })
+
+    await pool.query(`DELETE FROM match_scores WHERE match_id = $1`, [rows[0].match_id])
+    await pool.query(
+      `UPDATE ipl_matches SET is_completed = false WHERE id = $1`,
+      [req.params.matchId]
+    )
 
     return reply.send({ success: true })
   })
@@ -179,10 +406,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       ballsBowled: z.number().int().min(0).default(0),
       runsConceded: z.number().int().min(0).default(0),
       maidens: z.number().int().min(0).default(0),
+      lbwBowledWickets: z.number().int().min(0).default(0),
       catches: z.number().int().min(0).default(0),
       stumpings: z.number().int().min(0).default(0),
       runOutsDirect: z.number().int().min(0).default(0),
       runOutsIndirect: z.number().int().min(0).default(0),
+      dismissalText: z.string().default(''),
     })
 
     const body = z.object({ playerStats: z.array(statSchema) }).safeParse(req.body)
@@ -198,10 +427,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const weeks = await getAllWeeks()
     const iplWeek = getWeekForDate(new Date(match.match_date), weeks)
 
+    // Bulk-fetch player roles so scoring can apply SR bonus correctly
+    const playerIds = body.data.playerStats.map(s => s.playerId)
+    const { rows: playerRoleRows } = await pool.query(
+      `SELECT id, role FROM players WHERE id = ANY($1)`,
+      [playerIds]
+    )
+    const roleMap = new Map<string, string>(playerRoleRows.map((r: { id: string; role: string }) => [r.id, r.role]))
+
     const results: Array<{ playerId: string; points: number }> = []
 
     for (const s of body.data.playerStats) {
       const fantasyPoints = calcFantasyPoints({
+        role: roleMap.get(s.playerId) ?? 'batsman',
         runs: s.runs,
         ballsFaced: s.ballsFaced,
         fours: s.fours,
@@ -211,6 +449,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         ballsBowled: s.ballsBowled,
         runsConceded: s.runsConceded,
         maidens: s.maidens,
+        lbwBowledWickets: s.lbwBowledWickets,
         catches: s.catches,
         stumpings: s.stumpings,
         runOutsDirect: s.runOutsDirect,
@@ -221,32 +460,34 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         `INSERT INTO match_scores (
            player_id, match_id, match_date, ipl_week,
            runs_scored, balls_faced, fours, sixes, is_out,
-           wickets_taken, balls_bowled, runs_conceded, maidens,
+           wickets_taken, balls_bowled, runs_conceded, maidens, lbw_bowled_wickets,
            catches, stumpings, run_outs_direct, run_outs_indirect,
-           fantasy_points
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+           fantasy_points, dismissal_text
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          ON CONFLICT (player_id, match_id) DO UPDATE SET
-           ipl_week          = EXCLUDED.ipl_week,
-           runs_scored       = EXCLUDED.runs_scored,
-           balls_faced       = EXCLUDED.balls_faced,
-           fours             = EXCLUDED.fours,
-           sixes             = EXCLUDED.sixes,
-           is_out            = EXCLUDED.is_out,
-           wickets_taken     = EXCLUDED.wickets_taken,
-           balls_bowled      = EXCLUDED.balls_bowled,
-           runs_conceded     = EXCLUDED.runs_conceded,
-           maidens           = EXCLUDED.maidens,
-           catches           = EXCLUDED.catches,
-           stumpings         = EXCLUDED.stumpings,
-           run_outs_direct   = EXCLUDED.run_outs_direct,
-           run_outs_indirect = EXCLUDED.run_outs_indirect,
-           fantasy_points    = EXCLUDED.fantasy_points`,
+           ipl_week             = EXCLUDED.ipl_week,
+           runs_scored          = EXCLUDED.runs_scored,
+           balls_faced          = EXCLUDED.balls_faced,
+           fours                = EXCLUDED.fours,
+           sixes                = EXCLUDED.sixes,
+           is_out               = EXCLUDED.is_out,
+           wickets_taken        = EXCLUDED.wickets_taken,
+           balls_bowled         = EXCLUDED.balls_bowled,
+           runs_conceded        = EXCLUDED.runs_conceded,
+           maidens              = EXCLUDED.maidens,
+           lbw_bowled_wickets   = EXCLUDED.lbw_bowled_wickets,
+           catches              = EXCLUDED.catches,
+           stumpings            = EXCLUDED.stumpings,
+           run_outs_direct      = EXCLUDED.run_outs_direct,
+           run_outs_indirect    = EXCLUDED.run_outs_indirect,
+           fantasy_points       = EXCLUDED.fantasy_points,
+           dismissal_text       = EXCLUDED.dismissal_text`,
         [
           s.playerId, match.match_id, match.match_date, iplWeek,
           s.runs, s.ballsFaced, s.fours, s.sixes, s.isOut,
-          s.wickets, s.ballsBowled, s.runsConceded, s.maidens,
+          s.wickets, s.ballsBowled, s.runsConceded, s.maidens, s.lbwBowledWickets,
           s.catches, s.stumpings, s.runOutsDirect, s.runOutsIndirect,
-          fantasyPoints,
+          fantasyPoints, s.dismissalText || null,
         ]
       )
 
@@ -410,6 +651,124 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       members: membersRes.rows,
       rosters: rostersRes.rows,
     })
+  })
+
+  // POST /admin/matches/:matchId/import-scorecard — scrape a scorecard URL and parse stats with Claude
+  app.post<{ Params: { matchId: string } }>('/admin/matches/:matchId/import-scorecard', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+
+    const body = z.object({ url: z.string().url() }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: 'Invalid URL' })
+
+    // Fetch the raw HTML
+    let html: string
+    try {
+      const res = await fetch(body.data.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!res.ok) return reply.code(400).send({ error: `Failed to fetch URL: HTTP ${res.status}` })
+      html = await res.text()
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: `Failed to fetch URL: ${e instanceof Error ? e.message : 'Unknown error'}` })
+    }
+
+    // Single-pass table row extraction
+    const scorecardText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<\/tr>/gi, '\n')
+      .replace(/<\/t[dh]>/gi, '\t')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>').replace(/&#?\w+;/g, ' ')
+      .split('\n')
+      .map(line => line.split('\t').map(c => c.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' | '))
+      .filter(line => line.includes('|') && line.replace(/[|\s]/g, '').length > 3)
+      .join('\n')
+
+    // Get all active players for matching
+    const { rows: players } = await pool.query(
+      `SELECT id, name, ipl_team FROM players WHERE is_active = true ORDER BY name`
+    )
+    const playerList = (players as Array<{ id: string; name: string; ipl_team: string }>)
+      .map(p => `${p.id}: ${p.name} (${p.ipl_team})`)
+      .join('\n')
+
+    // Call Claude to parse the scorecard
+    const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
+
+    const itemSchema = {
+      type: 'object',
+      properties: {
+        playerId:        { type: 'string' },
+        scorecardName:   { type: 'string' },
+        runs:            { type: 'integer' },
+        ballsFaced:      { type: 'integer' },
+        fours:           { type: 'integer' },
+        sixes:           { type: 'integer' },
+        isOut:           { type: 'boolean' },
+        wickets:            { type: 'integer' },
+        ballsBowled:        { type: 'integer' },
+        runsConceded:       { type: 'integer' },
+        maidens:            { type: 'integer' },
+        lbwBowledWickets:   { type: 'integer' },
+        catches:            { type: 'integer' },
+        stumpings:       { type: 'integer' },
+        runOutsDirect:   { type: 'integer' },
+        runOutsIndirect: { type: 'integer' },
+        dismissalText:   { type: 'string' },
+      },
+      required: ['playerId','scorecardName','runs','ballsFaced','fours','sixes','isOut',
+                 'wickets','ballsBowled','runsConceded','maidens','lbwBowledWickets',
+                 'catches','stumpings','runOutsDirect','runOutsIndirect','dismissalText'],
+      additionalProperties: false,
+    }
+
+    const aiResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 4096,
+      output_config: { format: { type: 'json_schema', schema: { type: 'object', properties: { matched: { type: 'array', items: itemSchema }, unmatched: { type: 'array', items: { type: 'string' } } }, required: ['matched','unmatched'], additionalProperties: false } } },
+      messages: [{
+        role: 'user',
+        content: `Parse this cricket scorecard and match players to our database.
+
+SCORECARD:
+${scorecardText}
+
+OUR PLAYER DATABASE (UUID: Name (Team)):
+${playerList}
+
+INSTRUCTIONS:
+- Batting table format: Name | Dismissal | Runs | Balls | Minutes | 4s | 6s | SR
+- Bowling table format: Name | Overs | Maidens | Runs | Wickets | Economy | Dots | Wides | NoBalls
+- isOut = false ONLY if dismissal is "not out" or "retired not out"
+- ballsBowled: convert overs to balls (e.g. 4 overs=24, 2.4 overs=16, 3.0 overs=18)
+- catches: scan batting dismissals for "c NAME b BOWLER" — count times each player appears as the catcher
+- stumpings: scan for "st NAME b BOWLER" — count times each player appears as the keeper
+- runOutsDirect/runOutsIndirect: 0 unless a run out explicitly credits a specific fielder
+- lbwBowledWickets: for each bowler, count their wickets where the dismissal mode is "lbw" or "bowled"
+- dismissalText: for each BATSMAN, copy the exact dismissal text from the scorecard (e.g. "c Dhoni b Bumrah", "lbw b Shami", "run out (Kohli)", "not out", "bowled Bumrah"). Leave empty string "" for non-batsmen/did-not-bat.
+- For fielding attribution from dismissalText: "c NAME b BOWLER" → catcher gets +1 catch; "st NAME b BOWLER" → keeper gets +1 stumping; "run out (NAME)" → direct RO for the named fielder (runOutsDirect); "run out (NAME1/NAME2)" → both get indirect RO (runOutsIndirect). Apply these to the correct players.
+- Match names with fuzzy matching; ignore "(c)", "†", abbreviated prefixes
+- Only include players present in both scorecard and database
+- Put unmatched scorecard names in "unmatched"`,
+      }],
+    })
+
+    const textBlock = aiResponse.content.find(b => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text') {
+      return reply.code(500).send({ error: 'Claude did not return a text response' })
+    }
+    let parsed: { matched: unknown[]; unmatched: string[] }
+    try {
+      parsed = JSON.parse(textBlock.text)
+    } catch {
+      return reply.code(500).send({ error: 'Claude returned invalid JSON' })
+    }
+
+    return reply.send({ stats: parsed.matched, unmatched: parsed.unmatched })
   })
 
   // GET /admin/leagues/:id/live — in-memory auction room state

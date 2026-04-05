@@ -40,10 +40,20 @@ export async function scoreRoutes(app: FastifyInstance): Promise<void> {
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
 
     const weeks = await getAllWeeks()
+
+    // Bulk-fetch player roles so scoring can apply SR bonus correctly
+    const playerIds = body.data.scores.map(s => s.playerId)
+    const { rows: playerRoleRows } = await pool.query(
+      `SELECT id, role FROM players WHERE id = ANY($1)`,
+      [playerIds]
+    )
+    const roleMap = new Map<string, string>(playerRoleRows.map((r: { id: string; role: string }) => [r.id, r.role]))
+
     const results: Array<{ playerId: string; matchId: string; points: number; ok: boolean }> = []
 
     for (const s of body.data.scores) {
       const fantasyPoints = calcFantasyPoints({
+        role: roleMap.get(s.playerId) ?? 'batsman',
         runs: s.runs,
         ballsFaced: s.ballsFaced,
         fours: s.fours,
@@ -53,6 +63,7 @@ export async function scoreRoutes(app: FastifyInstance): Promise<void> {
         ballsBowled: s.ballsBowled,
         runsConceded: s.runsConceded,
         maidens: s.maidens,
+        lbwBowledWickets: 0,
         catches: s.catches,
         stumpings: s.stumpings,
         runOutsDirect: s.runOutsDirect,

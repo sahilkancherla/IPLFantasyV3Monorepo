@@ -1,5 +1,6 @@
 import pg from 'pg'
 import { pool, withTransaction } from '../client.js'
+import { clearUncompletedLineups } from './lineups.js'
 
 export interface WaiverClaim {
   id: string
@@ -164,6 +165,9 @@ export async function processWaiverClaims(leagueId: string): Promise<void> {
          ) WHERE league_id = $1 AND user_id = $2`,
         [leagueId, claim.claimant_id]
       )
+      // Clear lineups for all non-finalized weeks so the manager must re-set
+      // their lineup with the updated roster. Completed week lineups are preserved.
+      await clearUncompletedLineups(leagueId, claim.claimant_id, client)
     })
 
     claimedPlayerIds.add(claim.claim_player_id)

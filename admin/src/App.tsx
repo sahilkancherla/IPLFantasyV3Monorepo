@@ -6,8 +6,9 @@ import { MatchDetail } from './MatchDetail'
 import { TeamsTab } from './TeamsTab'
 import { LeaguesTab } from './LeaguesTab'
 import { LeagueDetail } from './LeagueDetail'
+import { WeeksTab } from './WeeksTab'
 
-type Tab = 'settings' | 'games' | 'teams' | 'leagues'
+type Tab = 'settings' | 'games' | 'weeks' | 'teams' | 'leagues'
 
 export default function App() {
   const [secret, setSecret] = useState(() => localStorage.getItem('admin-secret') ?? '')
@@ -114,6 +115,7 @@ export default function App() {
           <nav style={{ display: 'flex', gap: 4 }}>
             {([
                 ['games', 'IPL Games'],
+                ['weeks', 'IPL Weeks'],
                 ['teams', 'Teams & Players'],
                 ['leagues', 'Leagues & Auctions'],
                 ['settings', 'General Settings'],
@@ -163,6 +165,8 @@ export default function App() {
           />
         ) : tab === 'games' ? (
           <GamesTab secret={secret} onSelectMatch={setSelectedMatchId} />
+        ) : tab === 'weeks' ? (
+          <WeeksTab secret={secret} onSelectMatch={id => { setSelectedMatchId(id); setTab('games') }} />
         ) : tab === 'teams' ? (
           <TeamsTab secret={secret} />
         ) : tab === 'leagues' ? (

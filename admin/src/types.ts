@@ -7,7 +7,10 @@ export interface IplMatch {
   week_num: number | null
   venue: string | null
   is_completed: boolean
+  status: 'pending' | 'live' | 'completed'
   created_at: string
+  start_time_utc: string | null
+  scorecard_url: string | null
 }
 
 export interface Player {
@@ -23,6 +26,12 @@ export interface IplWeek {
   label: string
   start_date: string
   end_date: string
+  lock_time: string | null
+  window_start: string | null
+  window_end: string | null
+  week_type: 'regular' | 'playoff' | 'finals'
+  is_playoff: boolean
+  status: 'pending' | 'live' | 'completed'
 }
 
 export interface PlayerStats {
@@ -35,8 +44,10 @@ export interface PlayerStats {
   ballsBowled: number
   runsConceded: number
   maidens: number
+  lbwBowledWickets: number
   catches: number
   stumpings: number
   runOutsDirect: number
   runOutsIndirect: number
+  dismissalText: string
 }

@@ -32,6 +32,22 @@ interface HistoryEntry {
   sold_price: number | null
 }
 
+interface Matchup {
+  id: string
+  league_id: string
+  week_num: number
+  home_user: string
+  away_user: string
+  home_points: number
+  away_points: number
+  winner_id: string | null
+  is_final: boolean
+  home_full_name: string | null
+  home_username: string
+  away_full_name: string | null
+  away_username: string
+}
+
 interface LiveState {
   live: boolean
   status?: string
@@ -209,7 +225,7 @@ function TeamColumn({ member, rosters, currency, memberCount }: { member: Member
       </div>
 
       {/* Player list */}
-      <div style={{ flex: 1, overflowY: 'auto', maxHeight: 480 }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {rosters.length === 0 ? (
           <div style={{ padding: 20, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>No players yet</div>
         ) : (
@@ -227,7 +243,7 @@ function TeamColumn({ member, rosters, currency, memberCount }: { member: Member
               }}>
                 {ROLE_LABELS[r.role] ?? r.role}
               </span>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#111827' }}>{r.name}</span>
+              <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#111827' }}>{r.name}</span>
               <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 700, flexShrink: 0 }}>
                 {fmt(r.price_paid, currency)}
               </span>
@@ -245,7 +261,7 @@ function HistoryColumn({ history, currency }: { history: HistoryEntry[]; currenc
   return (
     <div style={{
       background: 'white', borderRadius: 14, border: '1px solid #e5e7eb',
-      width: 240, flexShrink: 0,
+      width: 300, flexShrink: 0,
       display: 'flex', flexDirection: 'column',
       boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
     }}>
@@ -253,7 +269,7 @@ function HistoryColumn({ history, currency }: { history: HistoryEntry[]; currenc
         <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Auction History</div>
         <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{history.length} player{history.length !== 1 ? 's' : ''}</div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', maxHeight: 480 }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {history.length === 0 ? (
           <div style={{ padding: 20, color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>No players sold yet</div>
         ) : (
@@ -272,7 +288,7 @@ function HistoryColumn({ history, currency }: { history: HistoryEntry[]; currenc
                 {ROLE_LABELS[h.role] ?? h.role}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {h.name}
                 </div>
                 {h.type === 'sold' ? (
@@ -322,6 +338,12 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
   const [error, setError] = useState('')
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const [wsError, setWsError] = useState('')
+  const [activeTab, setActiveTab] = useState<'auction' | 'schedule'>('auction')
+  const [matchups, setMatchups] = useState<Matchup[]>([])
+  const [matchupsLoading, setMatchupsLoading] = useState(false)
+  // per-matchup edit state: { [matchupId]: { homeUserId, awayUserId, saving, saved } }
+  const [matchupEdits, setMatchupEdits] = useState<Record<string, { homeUserId: string; awayUserId: string; saving: boolean; saved: boolean }>>({})
+  const [regenerating, setRegenerating] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -336,6 +358,62 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [leagueId, secret])
+
+  const loadMatchups = () => {
+    setMatchupsLoading(true)
+    api.get(`/admin/leagues/${leagueId}/matchups`, secret)
+      .then((d: any) => {
+        setMatchups(d.matchups)
+        // Initialise edit state for each matchup
+        const edits: typeof matchupEdits = {}
+        for (const m of d.matchups as Matchup[]) {
+          edits[m.id] = { homeUserId: m.home_user, awayUserId: m.away_user, saving: false, saved: false }
+        }
+        setMatchupEdits(edits)
+      })
+      .catch(e => alert(e.message))
+      .finally(() => setMatchupsLoading(false))
+  }
+
+  useEffect(() => {
+    if (activeTab === 'schedule') loadMatchups()
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveMatchup = async (matchupId: string) => {
+    const edit = matchupEdits[matchupId]
+    if (!edit) return
+    setMatchupEdits(prev => ({ ...prev, [matchupId]: { ...prev[matchupId], saving: true, saved: false } }))
+    try {
+      const res: any = await api.patch(`/admin/matchups/${matchupId}`, secret, {
+        homeUserId: edit.homeUserId,
+        awayUserId: edit.awayUserId,
+      })
+      setMatchups(prev => prev.map(m => m.id === matchupId ? res.matchup : m))
+      setMatchupEdits(prev => ({ ...prev, [matchupId]: { ...prev[matchupId], saving: false, saved: true } }))
+      setTimeout(() => setMatchupEdits(prev => ({ ...prev, [matchupId]: { ...prev[matchupId], saved: false } })), 2000)
+    } catch (e: any) {
+      alert(e.message)
+      setMatchupEdits(prev => ({ ...prev, [matchupId]: { ...prev[matchupId], saving: false } }))
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!confirm('Regenerate schedule? This will overwrite all existing matchups for this league.')) return
+    setRegenerating(true)
+    try {
+      const res: any = await api.post(`/admin/leagues/${leagueId}/matchups/regenerate`, secret, {})
+      setMatchups(res.matchups)
+      const edits: typeof matchupEdits = {}
+      for (const m of res.matchups as Matchup[]) {
+        edits[m.id] = { homeUserId: m.home_user, awayUserId: m.away_user, saving: false, saved: false }
+      }
+      setMatchupEdits(edits)
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setRegenerating(false)
+    }
+  }
 
   // WebSocket connection for live auction updates
   useEffect(() => {
@@ -471,9 +549,12 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
   const rostersByMember = (userId: string) => rosters.filter(r => r.user_id === userId)
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{
+      padding: '24px 28px', boxSizing: 'border-box',
+      height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
       {/* Back + title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexShrink: 0 }}>
         <button
           onClick={onBack}
           style={{
@@ -500,28 +581,171 @@ export function LeagueDetail({ leagueId, leagueName, secret, onBack }: Props) {
         </span>
       </div>
 
-      {/* Live auction banner */}
-      {live.live && <LiveBanner live={live} currency={currency} />}
-
-      {/* Teams grid + history */}
-      <div style={{
-        display: 'flex', gap: 16, alignItems: 'flex-start',
-        paddingBottom: 16,
-      }}>
-        {members.map(m => (
-          <TeamColumn
-            key={m.user_id}
-            member={m}
-            rosters={rostersByMember(m.user_id)}
-            currency={currency}
-            memberCount={members.length}
-          />
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexShrink: 0 }}>
+        {(['auction', 'schedule'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontWeight: 600, fontSize: 14, textTransform: 'capitalize',
+              background: activeTab === tab ? '#dc2626' : '#f3f4f6',
+              color: activeTab === tab ? 'white' : '#6b7280',
+            }}
+          >
+            {tab === 'auction' ? 'Auction / Rosters' : 'Schedule'}
+          </button>
         ))}
-        {members.length === 0 && (
-          <div style={{ color: '#9ca3af', padding: 40 }}>No members in this league yet.</div>
-        )}
-        <HistoryColumn history={live.auctionHistory ?? []} currency={currency} />
       </div>
+
+      {/* ── Auction / Rosters tab ── */}
+      {activeTab === 'auction' && (
+        <>
+          {live.live && <div style={{ flexShrink: 0 }}><LiveBanner live={live} currency={currency} /></div>}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', flex: 1, overflow: 'hidden', paddingBottom: 8 }}>
+            {members.map(m => (
+              <TeamColumn
+                key={m.user_id}
+                member={m}
+                rosters={rostersByMember(m.user_id)}
+                currency={currency}
+                memberCount={members.length}
+              />
+            ))}
+            {members.length === 0 && (
+              <div style={{ color: '#9ca3af', padding: 40 }}>No members in this league yet.</div>
+            )}
+            <HistoryColumn history={live.auctionHistory ?? []} currency={currency} />
+          </div>
+        </>
+      )}
+
+      {/* ── Schedule tab ── */}
+      {activeTab === 'schedule' && (
+        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
+          {/* Toolbar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <span style={{ color: '#6b7280', fontSize: 13 }}>
+              {matchups.length} matchup{matchups.length !== 1 ? 's' : ''} across {[...new Set(matchups.map(m => m.week_num))].length} week{[...new Set(matchups.map(m => m.week_num))].length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              style={{
+                marginLeft: 'auto', padding: '8px 18px', borderRadius: 8, border: '1px solid #d1d5db',
+                background: 'white', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: '#374151',
+              }}
+            >
+              {regenerating ? 'Regenerating…' : '↺ Regenerate Schedule'}
+            </button>
+          </div>
+
+          {matchupsLoading ? (
+            <div style={{ color: '#9ca3af', padding: 40 }}>Loading schedule…</div>
+          ) : matchups.length === 0 ? (
+            <div style={{
+              background: 'white', border: '1px solid #e5e7eb', borderRadius: 12,
+              padding: 40, textAlign: 'center', color: '#9ca3af',
+            }}>
+              No matchups yet. Schedule is generated automatically when the league becomes active,
+              or click "Regenerate Schedule" above.
+            </div>
+          ) : (
+            // Group by week
+            [...new Set(matchups.map(m => m.week_num))].sort((a, b) => a - b).map(weekNum => {
+              const weekMatchups = matchups.filter(m => m.week_num === weekNum)
+              return (
+                <div key={weekNum} style={{ marginBottom: 20 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', marginBottom: 8 }}>
+                    Week {weekNum}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {weekMatchups.map(matchup => {
+                      const edit = matchupEdits[matchup.id]
+                      if (!edit) return null
+                      const memberSelect = (value: string, onChange: (v: string) => void) => (
+                        <select
+                          value={value}
+                          onChange={e => onChange(e.target.value)}
+                          style={{
+                            padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db',
+                            fontSize: 13, background: 'white', minWidth: 160,
+                          }}
+                        >
+                          {members.map(m => (
+                            <option key={m.user_id} value={m.user_id}>
+                              {m.display_name ?? m.username}
+                            </option>
+                          ))}
+                        </select>
+                      )
+                      return (
+                        <div
+                          key={matchup.id}
+                          style={{
+                            background: 'white', border: '1px solid #e5e7eb', borderRadius: 10,
+                            padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                          }}
+                        >
+                          {/* Home */}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>HOME</div>
+                            {memberSelect(edit.homeUserId, v =>
+                              setMatchupEdits(prev => ({ ...prev, [matchup.id]: { ...prev[matchup.id], homeUserId: v } }))
+                            )}
+                          </div>
+
+                          {/* Score / VS */}
+                          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                            {matchup.is_final ? (
+                              <div>
+                                <span style={{ fontWeight: 800, fontSize: 18, color: '#111827' }}>
+                                  {matchup.home_points}
+                                </span>
+                                <span style={{ color: '#d1d5db', margin: '0 6px' }}>–</span>
+                                <span style={{ fontWeight: 800, fontSize: 18, color: '#111827' }}>
+                                  {matchup.away_points}
+                                </span>
+                                <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, marginTop: 2 }}>FINAL</div>
+                              </div>
+                            ) : (
+                              <span style={{ color: '#d1d5db', fontWeight: 700, fontSize: 15 }}>VS</span>
+                            )}
+                          </div>
+
+                          {/* Away */}
+                          <div style={{ flex: 1, textAlign: 'right' }}>
+                            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>AWAY</div>
+                            {memberSelect(edit.awayUserId, v =>
+                              setMatchupEdits(prev => ({ ...prev, [matchup.id]: { ...prev[matchup.id], awayUserId: v } }))
+                            )}
+                          </div>
+
+                          {/* Save */}
+                          <button
+                            onClick={() => handleSaveMatchup(matchup.id)}
+                            disabled={edit.saving || (edit.homeUserId === matchup.home_user && edit.awayUserId === matchup.away_user)}
+                            style={{
+                              padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                              fontWeight: 600, fontSize: 13, flexShrink: 0,
+                              background: edit.saved ? '#16a34a' : edit.saving ? '#9ca3af'
+                                : (edit.homeUserId !== matchup.home_user || edit.awayUserId !== matchup.away_user) ? '#dc2626' : '#f3f4f6',
+                              color: (edit.saved || edit.saving || edit.homeUserId !== matchup.home_user || edit.awayUserId !== matchup.away_user) ? 'white' : '#9ca3af',
+                            }}
+                          >
+                            {edit.saving ? 'Saving…' : edit.saved ? '✓' : 'Save'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
     </div>
   )
 }
