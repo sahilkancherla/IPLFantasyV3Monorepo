@@ -155,12 +155,12 @@ export function GamesTab({ secret, onSelectMatch }: Props) {
     }
   }
 
-  const handleStatusChange = async (id: string, status: 'pending' | 'live' | 'completed') => {
+  const handleStatusChange = async (id: string, status: 'pending' | 'upcoming' | 'live' | 'completed') => {
     try {
       const res = await api.patch(`/admin/matches/${id}`, secret, { status }) as { match: IplMatch }
-      if (status === 'live') {
-        // Another match may have been demoted to pending — clear it locally
-        setMatches(prev => prev.map(m => m.id === id ? res.match : { ...m, status: m.status === 'live' ? 'pending' : m.status }))
+      if (status === 'live' || status === 'upcoming') {
+        // Demote any other live/upcoming match to pending locally
+        setMatches(prev => prev.map(m => m.id === id ? res.match : { ...m, status: (m.status === 'live' || m.status === 'upcoming') ? 'pending' : m.status }))
       } else {
         setMatches(prev => prev.map(m => m.id === id ? res.match : m))
       }
@@ -258,21 +258,22 @@ export function GamesTab({ secret, onSelectMatch }: Props) {
 
                   {/* Status buttons */}
                   <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #d1d5db', overflow: 'hidden', flexShrink: 0 }}>
-                    {(['pending', 'live', 'completed'] as const).map(s => {
-                      const active = (m.status ?? (m.is_completed ? 'completed' : 'pending')) === s
-                      const bg = active ? (s === 'live' ? '#dc2626' : s === 'completed' ? '#16a34a' : '#374151') : 'white'
-                      const color = active ? 'white' : '#6b7280'
+                    {(['pending', 'upcoming', 'live', 'completed'] as const).map((s, i, arr) => {
+                      const active = (m.status ?? 'pending') === s
+                      const activeBg = s === 'live' ? '#dc2626' : s === 'completed' ? '#16a34a' : s === 'upcoming' ? '#d97706' : '#374151'
                       return (
                         <button
                           key={s}
                           onClick={() => handleStatusChange(m.id, s)}
                           style={{
                             padding: '5px 11px', border: 'none', cursor: 'pointer', fontSize: 12,
-                            fontWeight: 600, background: bg, color,
-                            borderRight: s !== 'completed' ? '1px solid #d1d5db' : 'none',
+                            fontWeight: 600,
+                            background: active ? activeBg : 'white',
+                            color: active ? 'white' : '#6b7280',
+                            borderRight: i < arr.length - 1 ? '1px solid #d1d5db' : 'none',
                           }}
                         >
-                          {s === 'pending' ? 'Pending' : s === 'live' ? '● Live' : '✓ Done'}
+                          {s === 'pending' ? 'Pending' : s === 'upcoming' ? '▶ Next' : s === 'live' ? '● Live' : '✓ Done'}
                         </button>
                       )
                     })}

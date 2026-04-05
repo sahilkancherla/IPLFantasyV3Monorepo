@@ -96,12 +96,12 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ lineup })
   })
 
-  // GET /lineups/:leagueId/game-breakdown — per-game points for caller vs opponent
-  app.get<{ Params: { leagueId: string }; Querystring: { week?: string; opponentId?: string } }>(
+  // GET /lineups/:leagueId/game-breakdown — per-game points for caller (or userId) vs opponent
+  app.get<{ Params: { leagueId: string }; Querystring: { week?: string; opponentId?: string; userId?: string } }>(
     '/lineups/:leagueId/game-breakdown',
     async (req, reply) => {
       const { leagueId } = req.params
-      const { week, opponentId } = req.query
+      const { week, opponentId, userId } = req.query
 
       if (!opponentId) return reply.code(400).send({ error: 'opponentId required' })
 
@@ -118,7 +118,9 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
         weekNum = current.week_num
       }
 
-      const games = await getGameBreakdown(leagueId, req.authUser!.id, opponentId, weekNum)
+      // userId param lets any league member view another matchup's breakdown
+      const subjectId = userId ?? req.authUser!.id
+      const games = await getGameBreakdown(leagueId, subjectId, opponentId, weekNum)
       return reply.send({ games })
     }
   )

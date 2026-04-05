@@ -38,8 +38,9 @@ async function resolveCurrentMatchAndWeek(pool: import('pg').Pool) {
   }
   if (!currentMatch) {
     try {
+      // Prefer live, fall back to upcoming
       const { rows } = await pool.query(
-        `SELECT * FROM ipl_matches WHERE status = 'live' LIMIT 1`
+        `SELECT * FROM ipl_matches WHERE status IN ('live', 'upcoming') ORDER BY status = 'live' DESC LIMIT 1`
       )
       currentMatch = rows[0] ?? null
     } catch { /* status column not yet migrated */ }

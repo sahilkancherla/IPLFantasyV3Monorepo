@@ -205,7 +205,7 @@ export async function getGameBreakdown(
 ): Promise<GameBreakdownData[]> {
   // All IPL matches this week
   const { rows: matches } = await pool.query(
-    `SELECT match_id, home_team, away_team, match_date::text, start_time_utc, is_completed, match_number
+    `SELECT match_id, home_team, away_team, match_date::text, start_time_utc, is_completed, match_number, status
      FROM ipl_matches WHERE week_num = $1 ORDER BY match_date, start_time_utc NULLS LAST`,
     [weekNum]
   )
@@ -283,7 +283,7 @@ export async function getGameBreakdown(
     else g.oppPlayers.push(player)
   }
 
-  return matches.map((m: { match_id: string; home_team: string; away_team: string; match_date: string; start_time_utc: string | null; is_completed: boolean; match_number: number | null }) => {
+  return matches.map((m: { match_id: string; home_team: string; away_team: string; match_date: string; start_time_utc: string | null; is_completed: boolean; match_number: number | null; status: string }) => {
     const g = grouped.get(m.match_id) ?? { myPlayers: [], oppPlayers: [] }
     return {
       matchId: m.match_id,
@@ -292,6 +292,7 @@ export async function getGameBreakdown(
       matchDate: m.match_date,
       startTimeUtc: m.start_time_utc,
       isCompleted: m.is_completed,
+      status: m.status as 'pending' | 'upcoming' | 'live' | 'completed',
       matchNumber: m.match_number,
       myPoints: g.myPlayers.reduce((s, p) => s + p.points, 0),
       oppPoints: g.oppPlayers.reduce((s, p) => s + p.points, 0),

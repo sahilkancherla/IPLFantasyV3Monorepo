@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ViewToken } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ViewToken, ScrollView } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MatchupSlide } from './MatchupSlide'
+import { OtherMatchupDetail } from './OtherMatchupDetail'
 import type { Matchup, IplWeek } from '../../hooks/useMatchup'
 import { LoadingScreen } from '../ui/Loading'
 
@@ -14,11 +15,78 @@ interface Props {
   isLoading?: boolean
 }
 
+// ── Small card in the horizontal strip ───────────────────────────────────────
+
+function MatchupChip({
+  matchup,
+  userId,
+  selected,
+  onPress,
+}: {
+  matchup: Matchup
+  userId: string
+  selected: boolean
+  onPress: () => void
+}) {
+  const isMine = matchup.home_user === userId || matchup.away_user === userId
+  const leftFirst = (matchup.home_full_name || matchup.home_username).split(' ')[0]
+  const rightFirst = (matchup.away_full_name || matchup.away_username).split(' ')[0]
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={{
+        marginRight: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 14,
+        borderWidth: selected ? 2 : 1.5,
+        borderColor: selected ? '#ef4444' : '#e5e7eb',
+        backgroundColor: selected ? '#fff1f2' : 'white',
+        minWidth: 148,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+      }}
+    >
+      {isMine && (
+        <Text style={{ fontSize: 9, fontWeight: '700', color: '#ef4444', letterSpacing: 0.4 }}>
+          YOUR MATCHUP
+        </Text>
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', textAlign: 'center' }} numberOfLines={1}>
+          {leftFirst}
+        </Text>
+        <Text style={{ fontSize: 10, color: '#9ca3af' }}>vs</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', textAlign: 'center' }} numberOfLines={1}>
+          {rightFirst}
+        </Text>
+      </View>
+      {(() => {
+        const hp = parseFloat(String(matchup.home_points)) || 0
+        const ap = parseFloat(String(matchup.away_points)) || 0
+        return (hp > 0 || ap > 0 || matchup.is_final || !isMine) ? (
+          <Text style={{ fontSize: 11, color: '#6b7280', textAlign: 'center' }}>
+            {hp.toFixed(1)} – {ap.toFixed(1)}
+          </Text>
+        ) : null
+      })()}
+    </TouchableOpacity>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum, isLoading }: Props) {
   const { width: screenWidth } = useWindowDimensions()
   const { bottom: bottomInset } = useSafeAreaInsets()
   const listRef = useRef<FlatList>(null)
-  const [currentIndex, setCurrentIndex] = useState(0) // updated below once slides are known
+  const stripRef = useRef<ScrollView>(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  // null = viewing own matchup; non-null = viewing another matchup's detail
+  const [viewingOther, setViewingOther] = useState<{ matchup: Matchup; week: IplWeek } | null>(null)
 
   const myMatchups = matchups.filter(m => m.home_user === userId || m.away_user === userId)
 
@@ -31,11 +99,16 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
     ? Math.max(0, slides.findIndex(s => s.week.week_num === currentWeekNum))
     : 0
 
-  // Sync state if currentWeekNum or slides arrive after first render
+  // Sync to current week when data arrives
   useEffect(() => {
     if (slides.length === 0) return
     setCurrentIndex(targetIndex)
   }, [targetIndex, slides.length])
+
+  // Clear "viewing other" when week changes (prev/next navigation)
+  useEffect(() => {
+    setViewingOther(null)
+  }, [currentIndex])
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length > 0 && viewableItems[0].index !== null) {
@@ -45,9 +118,22 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
 
   const goTo = (index: number) => {
     if (index < 0 || index >= slides.length) return
+    setViewingOther(null)
     setCurrentIndex(index)
     listRef.current?.scrollToIndex({ index, animated: true })
   }
+
+  // All matchups for the week currently on screen, own matchup always first
+  const visibleWeekNum = slides[currentIndex]?.week.week_num ?? null
+  const weekAllMatchups = visibleWeekNum
+    ? matchups
+        .filter(m => m.week_num === visibleWeekNum)
+        .sort((a, b) => {
+          const aIsMine = a.home_user === userId || a.away_user === userId ? 0 : 1
+          const bIsMine = b.home_user === userId || b.away_user === userId ? 0 : 1
+          return aIsMine - bIsMine
+        })
+    : []
 
   if (isLoading) {
     return <LoadingScreen message="Loading schedule…" />
@@ -68,30 +154,73 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
 
   return (
     <View style={{ flex: 1 }}>
-      <FlatList
-        ref={listRef}
-        data={slides}
-        horizontal
-        pagingEnabled
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={s => String(s.week.week_num)}
-        getItemLayout={(_, index) => ({ length: screenWidth, offset: screenWidth * index, index })}
-        initialScrollIndex={targetIndex}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-        renderItem={({ item }) => (
-          <MatchupSlide
-            matchup={item.matchup}
-            week={item.week}
-            leagueId={leagueId}
-            userId={userId}
-            width={screenWidth}
-          />
-        )}
-      />
+      {/* ── Horizontal matchup strip ── */}
+      {weekAllMatchups.length > 0 && (
+        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: 'white' }}>
+          <ScrollView
+            ref={stripRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 20 }}
+          >
+            {weekAllMatchups.map(m => {
+              const isMine = m.home_user === userId || m.away_user === userId
+              const isSelected = viewingOther ? viewingOther.matchup.id === m.id : isMine
+              return (
+                <MatchupChip
+                  key={m.id}
+                  matchup={m}
+                  userId={userId}
+                  selected={isSelected}
+                  onPress={() => {
+                    if (isMine) {
+                      setViewingOther(null) // switch back to own matchup
+                    } else {
+                      const week = weeks.find(w => w.week_num === m.week_num)
+                      if (week) setViewingOther({ matchup: m, week })
+                    }
+                  }}
+                />
+              )
+            })}
+          </ScrollView>
+        </View>
+      )}
 
-      {/* Navigation row */}
+      {/* ── Content area: own matchup FlatList or other matchup detail ── */}
+      {viewingOther ? (
+        <OtherMatchupDetail
+          matchup={viewingOther.matchup}
+          week={viewingOther.week}
+          leagueId={leagueId}
+          width={screenWidth}
+        />
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={slides}
+          horizontal
+          pagingEnabled
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={s => String(s.week.week_num)}
+          getItemLayout={(_, index) => ({ length: screenWidth, offset: screenWidth * index, index })}
+          initialScrollIndex={targetIndex}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          renderItem={({ item }) => (
+            <MatchupSlide
+              matchup={item.matchup}
+              week={item.week}
+              leagueId={leagueId}
+              userId={userId}
+              width={screenWidth}
+            />
+          )}
+        />
+      )}
+
+      {/* ── Navigation row ── */}
       <View style={{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 + bottomInset,

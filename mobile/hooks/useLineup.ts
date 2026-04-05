@@ -119,6 +119,7 @@ export interface GameBreakdownData {
   matchDate: string
   startTimeUtc: string | null
   isCompleted: boolean
+  status: 'pending' | 'upcoming' | 'live' | 'completed'
   matchNumber: number | null
   myPoints: number
   oppPoints: number
@@ -134,6 +135,24 @@ export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: 
         `/lineups/${leagueId}/game-breakdown?week=${weekNum}&opponentId=${opponentId}`
       ),
     enabled: !!leagueId && !!weekNum && !!opponentId,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useMatchupBreakdown(
+  leagueId: string,
+  weekNum: number,
+  homeUserId: string | null,
+  awayUserId: string | null
+) {
+  return useQuery({
+    queryKey: ['game-breakdown', leagueId, weekNum, homeUserId, awayUserId],
+    queryFn: () =>
+      api.get<{ games: GameBreakdownData[] }>(
+        `/lineups/${leagueId}/game-breakdown?week=${weekNum}&userId=${homeUserId}&opponentId=${awayUserId}`
+      ),
+    enabled: !!leagueId && !!weekNum && !!homeUserId && !!awayUserId,
     staleTime: 30_000,
     refetchInterval: 60_000,
   })

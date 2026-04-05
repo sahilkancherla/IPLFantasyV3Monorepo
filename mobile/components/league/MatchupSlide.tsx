@@ -9,6 +9,11 @@ import type { PlayerDetailInfo } from './PlayerDetailModal'
 import type { Matchup, IplWeek } from '../../hooks/useMatchup'
 import { useWeekMatches } from '../../hooks/useMatchup'
 import { useMyTeam } from '../../hooks/useTeam'
+import { LineupCard, sortBySlotRole, ROLE_ORDER } from './LineupCard'
+
+const roleLabels: Record<string, string> = {
+  batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
+}
 
 const EMPTY_LINEUP: LineupEntry[] = []
 
@@ -20,59 +25,12 @@ interface Props {
   width: number
 }
 
-const roleLabels: Record<string, string> = {
-  batsman: 'BAT',
-  bowler: 'BOW',
-  all_rounder: 'AR',
-  wicket_keeper: 'WK',
-}
-
-const ROLE_ORDER: Record<string, number> = {
-  batsman: 0, wicket_keeper: 1, all_rounder: 2, bowler: 3, flex: 4,
-}
 function sortByRole<T extends { playerRole?: string; slot_role?: string; player_role?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => {
     const ra = ROLE_ORDER[a.slot_role ?? a.playerRole ?? a.player_role ?? ''] ?? 5
     const rb = ROLE_ORDER[b.slot_role ?? b.playerRole ?? b.player_role ?? ''] ?? 5
     return ra - rb
   })
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706', flex: '#6b7280',
-}
-const ROLE_GROUP_LABELS: Record<string, string> = {
-  batsman: 'Batsmen', bowler: 'Bowlers', all_rounder: 'All-Rounders', wicket_keeper: 'Wicket Keepers', flex: 'Flex',
-}
-
-function RoleSectionHeader({ role, count }: { role: string; count: number }) {
-  const roleColor = ROLE_COLORS[role] ?? '#6b7280'
-  const roleShort = roleLabels[role] ?? role.toUpperCase()
-  const groupLabel = ROLE_GROUP_LABELS[role] ?? role
-  return (
-    <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-        <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{roleShort}</Text>
-      </View>
-      <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
-      <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>{count}</Text>
-    </View>
-  )
-}
-
-function groupByRole<T>(items: T[], getRoleFn: (item: T) => string): Array<{ role: string; items: T[] }> {
-  const groups: Array<{ role: string; items: T[] }> = []
-  let currentRole = ''
-  for (const item of items) {
-    const role = getRoleFn(item)
-    if (role !== currentRole) {
-      groups.push({ role, items: [item] })
-      currentRole = role
-    } else {
-      groups[groups.length - 1].items.push(item)
-    }
-  }
-  return groups
 }
 
 // Parse YYYY-MM-DD (or full ISO) safely into a local date string
@@ -83,7 +41,7 @@ function formatWeekDate(d: string): string {
 }
 
 export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) {
-  const isCompleted = matchup?.is_final ?? false
+  const isCompleted = (matchup?.is_final ?? false) || new Date(week.end_date) < new Date()
 
   const isHome = matchup?.home_user === userId
   const dbMyPoints = matchup ? (isHome ? matchup.home_points : matchup.away_points) : null
@@ -103,10 +61,9 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
 
 useEffect(() => {
     if (!weekMatches || weekMatches.length === 0) return
-    const liveIndex = week.status === 'live'
-      ? weekMatches.findIndex(m => m.status === 'live')
-      : -1
-    const target = liveIndex >= 0 ? liveIndex : 0
+    const liveIndex = weekMatches.findIndex(m => m.status === 'live')
+    const upcomingIndex = weekMatches.findIndex(m => m.status === 'upcoming')
+    const target = liveIndex >= 0 ? liveIndex : upcomingIndex >= 0 ? upcomingIndex : 0
     setActiveGameIndex(target)
     if (target > 0) {
       setTimeout(() => {
@@ -215,7 +172,6 @@ useEffect(() => {
   }
 
   // Expanded player rows (lineup cards + modal use separate states)
-  const [expandedLineup, setExpandedLineup] = useState<Set<string>>(new Set())
   const [gamesModalOpen, setGamesModalOpen] = useState(false)
   const [expandedModal, setExpandedModal] = useState<Set<string>>(new Set())
 
@@ -403,12 +359,15 @@ useEffect(() => {
                   const matchStatus = item.status
                   const statusBg = matchStatus === 'live' ? '#fef9c3'
                     : matchStatus === 'completed' ? '#f0fdf4'
+                    : matchStatus === 'upcoming' ? '#dbeafe'
                     : '#f3f4f6'
                   const statusColor = matchStatus === 'live' ? '#b45309'
                     : matchStatus === 'completed' ? '#16a34a'
+                    : matchStatus === 'upcoming' ? '#1d4ed8'
                     : '#6b7280'
                   const sLabel = matchStatus === 'live' ? 'LIVE'
                     : matchStatus === 'completed' ? 'FINAL'
+                    : matchStatus === 'upcoming' ? 'NEXT'
                     : 'UPCOMING'
                   const dateStr = item.start_time_utc
                     ? new Date(item.start_time_utc).toLocaleString('en-US', {
@@ -563,201 +522,38 @@ useEffect(() => {
       {/* Starting lineups — always shown when there's a matchup */}
       {matchup && (
         <View style={{ gap: 10 }}>
-          {/* My lineup */}
-          <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-            <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
-                {myName ?? 'You'} ★
-              </Text>
-              {!lineupLocked && (
-                <TouchableOpacity
-                  onPress={openLineupModal}
-                  style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-                >
-                  <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>
-                    {myLineup.length === 0 ? 'Set Lineup' : 'Edit Lineup'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {myLineup.length === 0 ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#d1d5db', fontSize: 13 }}>You haven't set a lineup yet</Text>
-              </View>
-            ) : groupByRole(myLineup, e => e.slot_role).map(group => (
-              <View key={group.role}>
-                <RoleSectionHeader role={group.role} count={group.items.length} />
-                {group.items.map(entry => {
-                  const isExpanded = expandedLineup.has(entry.id)
-                  const games = gamesForTeam(entry.player_ipl_team)
-                  const weekPts = Array.from(breakdownByMatchId.values()).reduce((sum, bd) => {
-                    const p = bd.myPlayers.find(p => p.playerId === entry.player_id)
-                    return sum + (p?.points ?? 0)
-                  }, 0)
-                  return (
-                    <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => setSelectedPlayer({ id: entry.player_id, info: { name: entry.player_name, ipl_team: entry.player_ipl_team, role: entry.player_role } })}
-                          style={{ flex: 1, paddingVertical: 11, paddingLeft: 4 }}
-                        >
-                          <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
-                            {entry.player_name}
-                          </Text>
-                          <Text style={{ color: '#9ca3af', fontSize: 11 }}>{entry.player_ipl_team}</Text>
-                        </TouchableOpacity>
-                        {weekPts > 0 && (
-                          <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700', marginRight: 6 }}>
-                            +{weekPts.toFixed(1)}
-                          </Text>
-                        )}
-                        <View style={{ backgroundColor: games.length > 0 ? '#fee2e2' : '#f3f4f6', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                          <Text style={{ color: games.length > 0 ? '#dc2626' : '#9ca3af', fontSize: 11, fontWeight: '700' }}>{games.length} {games.length === 1 ? 'game' : 'games'}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setExpandedLineup(prev => { const s = new Set(prev); isExpanded ? s.delete(entry.id) : s.add(entry.id); return s })} style={{ padding: 8 }}>
-                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                      {isExpanded && (
-                        <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12, gap: 10 }}>
-                          {games.length === 0 ? (
-                            <Text style={{ color: '#d1d5db', fontSize: 12 }}>No games this week</Text>
-                          ) : games.map(m => {
-                            const opp = m.home_team === entry.player_ipl_team ? m.away_team : m.home_team
-                            const isHome = m.home_team === entry.player_ipl_team
-                            const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : '#6b7280'
-                            const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : '#f3f4f6'
-                            const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : 'UPCOMING'
-                            const playerStats = breakdownByMatchId.get(m.match_id)?.myPlayers.find(p => p.playerId === entry.player_id)
-                            return (
-                              <View key={m.id} style={{ gap: 4 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                  <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-                                    <Text style={{ color: statusColor, fontSize: 9, fontWeight: '700' }}>{statusLabel}</Text>
-                                  </View>
-                                  <Text style={{ color: '#374151', fontSize: 12, fontWeight: '500', flex: 1 }}>
-                                    {isHome ? 'vs' : '@'} {opp}
-                                  </Text>
-                                  {playerStats && (m.status === 'completed' || m.status === 'live') ? (
-                                    <PointsValue
-                                      value={playerStats.points}
-                                      stats={{ ...playerStats, playerRole: entry.player_role }}
-                                      playerName={entry.player_name}
-                                      style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
-                                    >
-                                      {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
-                                    </PointsValue>
-                                  ) : (
-                                    <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
-                                  )}
-                                </View>
-                                {playerStats && (m.status === 'completed' || m.status === 'live') && (
-                                  <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
-                                )}
-                              </View>
-                            )
-                          })}
-                        </View>
-                      )}
-                    </View>
-                  )
-                })}
-              </View>
-            ))}
-          </View>
-
-          {/* Opponent lineup */}
-          <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-            <View style={{ backgroundColor: '#374151', paddingHorizontal: 16, paddingVertical: 10 }}>
-              <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
-                {oppName ?? 'Opponent'}
-              </Text>
-            </View>
-            {oppLineup.length === 0 ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#d1d5db', fontSize: 13 }}>Opponent hasn't set a lineup yet</Text>
-              </View>
-            ) : groupByRole(oppLineup, e => e.slot_role).map(group => (
-              <View key={group.role}>
-                <RoleSectionHeader role={group.role} count={group.items.length} />
-                {group.items.map(entry => {
-                  const isExpanded = expandedLineup.has(entry.id)
-                  const games = gamesForTeam(entry.player_ipl_team)
-                  const weekPts = Array.from(breakdownByMatchId.values()).reduce((sum, bd) => {
-                    const p = bd.oppPlayers.find(p => p.playerId === entry.player_id)
-                    return sum + (p?.points ?? 0)
-                  }, 0)
-                  return (
-                    <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => setSelectedPlayer({ id: entry.player_id, info: { name: entry.player_name, ipl_team: entry.player_ipl_team, role: entry.player_role } })}
-                          style={{ flex: 1, paddingVertical: 11, paddingLeft: 4 }}
-                        >
-                          <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
-                            {entry.player_name}
-                          </Text>
-                          <Text style={{ color: '#9ca3af', fontSize: 11 }}>{entry.player_ipl_team}</Text>
-                        </TouchableOpacity>
-                        {weekPts > 0 && (
-                          <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700', marginRight: 6 }}>
-                            +{weekPts.toFixed(1)}
-                          </Text>
-                        )}
-                        <View style={{ backgroundColor: games.length > 0 ? '#fee2e2' : '#f3f4f6', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                          <Text style={{ color: games.length > 0 ? '#dc2626' : '#9ca3af', fontSize: 11, fontWeight: '700' }}>{games.length} {games.length === 1 ? 'game' : 'games'}</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setExpandedLineup(prev => { const s = new Set(prev); isExpanded ? s.delete(entry.id) : s.add(entry.id); return s })} style={{ padding: 8 }}>
-                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                      {isExpanded && (
-                        <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12, gap: 10 }}>
-                          {games.length === 0 ? (
-                            <Text style={{ color: '#d1d5db', fontSize: 12 }}>No games this week</Text>
-                          ) : games.map(m => {
-                            const opp = m.home_team === entry.player_ipl_team ? m.away_team : m.home_team
-                            const isHome = m.home_team === entry.player_ipl_team
-                            const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : '#6b7280'
-                            const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : '#f3f4f6'
-                            const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : 'UPCOMING'
-                            const playerStats = breakdownByMatchId.get(m.match_id)?.oppPlayers.find(p => p.playerId === entry.player_id)
-                            return (
-                              <View key={m.id} style={{ gap: 4 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                  <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
-                                    <Text style={{ color: statusColor, fontSize: 9, fontWeight: '700' }}>{statusLabel}</Text>
-                                  </View>
-                                  <Text style={{ color: '#374151', fontSize: 12, fontWeight: '500', flex: 1 }}>
-                                    {isHome ? 'vs' : '@'} {opp}
-                                  </Text>
-                                  {playerStats && (m.status === 'completed' || m.status === 'live') ? (
-                                    <PointsValue
-                                      value={playerStats.points}
-                                      stats={{ ...playerStats, playerRole: entry.player_role }}
-                                      playerName={entry.player_name}
-                                      style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
-                                    >
-                                      {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
-                                    </PointsValue>
-                                  ) : (
-                                    <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
-                                  )}
-                                </View>
-                                {playerStats && (m.status === 'completed' || m.status === 'live') && (
-                                  <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
-                                )}
-                              </View>
-                            )
-                          })}
-                        </View>
-                      )}
-                    </View>
-                  )
-                })}
-              </View>
-            ))}
-          </View>
+          <LineupCard
+            title={myName ?? 'You'}
+            titleSuffix=" ★"
+            lineup={myLineup}
+            emptyMessage="You haven't set a lineup yet"
+            weekMatches={weekMatches ?? []}
+            breakdownByMatchId={breakdownByMatchId}
+            getPlayerStats={(matchId, playerId) =>
+              breakdownByMatchId.get(matchId)?.myPlayers.find(p => p.playerId === playerId)
+            }
+            headerAction={!lineupLocked ? (
+              <TouchableOpacity
+                onPress={openLineupModal}
+                style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+              >
+                <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>
+                  {myLineup.length === 0 ? 'Set Lineup' : 'Edit Lineup'}
+                </Text>
+              </TouchableOpacity>
+            ) : undefined}
+          />
+          <LineupCard
+            title={oppName ?? 'Opponent'}
+            headerColor="#374151"
+            lineup={oppLineup}
+            emptyMessage="Opponent hasn't set a lineup yet"
+            weekMatches={weekMatches ?? []}
+            breakdownByMatchId={breakdownByMatchId}
+            getPlayerStats={(matchId, playerId) =>
+              breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)
+            }
+          />
         </View>
       )}
 
@@ -874,9 +670,9 @@ useEffect(() => {
                             ) : games.map(m => {
                               const opp = m.home_team === p.player_ipl_team ? m.away_team : m.home_team
                               const isHome = m.home_team === p.player_ipl_team
-                              const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : '#6b7280'
-                              const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : '#f3f4f6'
-                              const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : 'UPCOMING'
+                              const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : m.status === 'upcoming' ? '#1d4ed8' : '#6b7280'
+                              const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : m.status === 'upcoming' ? '#dbeafe' : '#f3f4f6'
+                              const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : m.status === 'upcoming' ? 'NEXT' : 'UPCOMING'
                               return (
                                 <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                   <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }}>

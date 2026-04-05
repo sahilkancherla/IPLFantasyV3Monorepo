@@ -111,7 +111,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       venue: z.string().nullable().optional(),
       matchDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       startTimeUtc: z.string().optional(),
-      status: z.enum(['pending', 'live', 'completed']).optional(),
+      status: z.enum(['pending', 'upcoming', 'live', 'completed']).optional(),
       scorecardUrl: z.string().nullable().optional(),
     }).safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
@@ -128,10 +128,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })
 
-    // Enforce only one live match at a time
-    if (body.data.status === 'live') {
-      await pool.query(`UPDATE ipl_matches SET status = 'pending' WHERE status = 'live' AND id != $1`, [req.params.matchId])
-      // Sync system_settings so resolveCurrentMatchAndWeek picks up the new live match
+    // Enforce only one live/upcoming match at a time
+    if (body.data.status === 'live' || body.data.status === 'upcoming') {
+      // Demote any other live/upcoming match back to pending
+      await pool.query(
+        `UPDATE ipl_matches SET status = 'pending'
+         WHERE status IN ('live', 'upcoming') AND id != $1`,
+        [req.params.matchId]
+      )
+      // Sync system_settings so resolveCurrentMatchAndWeek picks up this match
       await pool.query(
         `INSERT INTO system_settings (key, value, updated_at)
          VALUES ('current_match', $1, NOW())
@@ -166,7 +171,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       windowEnd: z.string().optional(),
       lockTime: z.string().optional(),
       weekType: z.enum(['regular', 'playoff', 'finals']).optional(),
-      status: z.enum(['pending', 'live', 'completed']).optional(),
+      status: z.enum(['pending', 'upcoming', 'live', 'completed']).optional(),
     }).safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
 

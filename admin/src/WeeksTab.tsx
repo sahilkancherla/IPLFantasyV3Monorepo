@@ -13,6 +13,14 @@ const btn = (bg: string, color = 'white'): React.CSSProperties => ({
 
 const PACIFIC_TZ = 'America/Los_Angeles'
 
+/** Derive week status purely from start/end dates vs today (YYYY-MM-DD comparison). */
+function weekStatus(w: IplWeek): 'pending' | 'live' | 'completed' {
+  const today = new Date().toISOString().slice(0, 10)
+  if (w.end_date < today) return 'completed'
+  if (w.start_date <= today) return 'live'
+  return 'pending'
+}
+
 /** Convert a UTC ISO string from the DB → YYYY-MM-DDTHH:mm in Pacific time for a datetime-local input */
 function utcToPacificDatetimeLocal(isoStr: string | null): string {
   if (!isoStr) return ''
@@ -98,20 +106,6 @@ export function WeeksTab({ secret, onSelectMatch }: Props) {
     setSaveResult(null)
   }, [selectedWeek, weeks])
 
-  const handleStatusChange = async (weekNum: number, status: 'pending' | 'live' | 'completed') => {
-    try {
-      const res = await api.patch(`/admin/weeks/${weekNum}`, secret, { status }) as { week: IplWeek; assignedCount: number }
-      if (status === 'live') {
-        // Another week may have been demoted to pending — refresh all
-        setWeeks(prev => prev.map(w => w.week_num === weekNum ? res.week : { ...w, status: w.status === 'live' ? 'pending' : w.status }))
-      } else {
-        setWeeks(prev => prev.map(w => w.week_num === weekNum ? res.week : w))
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to update status')
-    }
-  }
-
   const handleDeleteWeek = async () => {
     if (selectedWeek == null) return
     if (!confirm(`Delete Week ${selectedWeek}? Any matches assigned to it will become unassigned.`)) return
@@ -193,14 +187,14 @@ export function WeeksTab({ secret, onSelectMatch }: Props) {
                     {w.week_type}
                   </span>
                 )}
-                {w.status && w.status !== 'pending' && (
+                {weekStatus(w) !== 'pending' && (
                   <span style={{
                     fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
-                    background: w.status === 'live' ? '#fee2e2' : '#d1fae5',
-                    color: w.status === 'live' ? '#dc2626' : '#065f46',
+                    background: weekStatus(w) === 'live' ? '#fee2e2' : '#d1fae5',
+                    color: weekStatus(w) === 'live' ? '#dc2626' : '#065f46',
                     textTransform: 'uppercase',
                   }}>
-                    {w.status === 'live' ? '● Live' : 'Done'}
+                    {weekStatus(w) === 'live' ? '● Live' : 'Done'}
                   </span>
                 )}
               </div>
@@ -286,26 +280,19 @@ export function WeeksTab({ secret, onSelectMatch }: Props) {
                     Delete Week
                   </button>
 
-                  {/* Status quick-set */}
-                  <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #d1d5db', overflow: 'hidden', marginLeft: 'auto' }}>
-                    {(['pending', 'live', 'completed'] as const).map(s => {
-                      const active = (selectedWeekData.status ?? 'pending') === s
-                      const bg = active ? (s === 'live' ? '#dc2626' : s === 'completed' ? '#16a34a' : '#374151') : 'white'
-                      return (
-                        <button
-                          key={s}
-                          onClick={() => handleStatusChange(selectedWeekData.week_num, s)}
-                          style={{
-                            padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 12,
-                            fontWeight: 600, background: bg, color: active ? 'white' : '#6b7280',
-                            borderRight: s !== 'completed' ? '1px solid #d1d5db' : 'none',
-                          }}
-                        >
-                          {s === 'pending' ? 'Pending' : s === 'live' ? '● Live' : '✓ Done'}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {(() => {
+                    const s = weekStatus(selectedWeekData)
+                    const bg = s === 'live' ? '#fee2e2' : s === 'completed' ? '#d1fae5' : '#f3f4f6'
+                    const color = s === 'live' ? '#dc2626' : s === 'completed' ? '#065f46' : '#6b7280'
+                    return (
+                      <span style={{
+                        marginLeft: 'auto', padding: '8px 14px', borderRadius: 8,
+                        background: bg, color, fontWeight: 700, fontSize: 12,
+                      }}>
+                        {s === 'live' ? '● Live' : s === 'completed' ? '✓ Done' : 'Pending'}
+                      </span>
+                    )
+                  })()}
 
                   {saveResult && (
                     <span style={{ fontSize: 13, color: saveResult.assignedCount > 0 ? '#16a34a' : '#6b7280', fontWeight: 600 }}>

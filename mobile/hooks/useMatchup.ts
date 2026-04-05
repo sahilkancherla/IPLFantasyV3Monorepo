@@ -67,7 +67,7 @@ export interface IplMatch {
   match_date: string
   start_time_utc: string | null
   venue: string | null
-  status: string
+  status: 'completed' | 'live' | 'upcoming' | 'pending'
 }
 
 export function useWeekMatches(weekNum: number | null) {

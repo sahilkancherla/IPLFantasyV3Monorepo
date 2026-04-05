@@ -7,7 +7,7 @@ export interface IplMatch {
   week_num: number | null
   venue: string | null
   is_completed: boolean
-  status: 'pending' | 'live' | 'completed'
+  status: 'pending' | 'upcoming' | 'live' | 'completed'
   created_at: string
   start_time_utc: string | null
   scorecard_url: string | null

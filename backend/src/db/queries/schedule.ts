@@ -29,9 +29,29 @@ export interface WeeklyMatchup {
   away_avatar_url: string | null
 }
 
+// Subquery that computes live fantasy points for one user in one week
+// by summing match_scores for all their lineup players whose team plays that week.
+const livePointsSubquery = (userCol: string) => `
+  COALESCE((
+    SELECT SUM(ms.fantasy_points)
+    FROM weekly_lineups wl
+    JOIN players p ON p.id = wl.player_id
+    JOIN ipl_matches im
+      ON im.week_num = wm.week_num
+     AND p.ipl_team IN (im.home_team, im.away_team)
+    JOIN match_scores ms
+      ON ms.player_id = wl.player_id AND ms.match_id = im.match_id
+    WHERE wl.league_id = wm.league_id
+      AND wl.user_id   = wm.${userCol}
+      AND wl.week_num  = wm.week_num
+  ), 0)`
+
 export async function getLeagueSchedule(leagueId: string): Promise<WeeklyMatchup[]> {
   const { rows } = await pool.query<WeeklyMatchup>(
-    `SELECT wm.*,
+    `SELECT wm.id, wm.league_id, wm.week_num, wm.home_user, wm.away_user,
+            wm.winner_id, wm.is_final,
+            ${livePointsSubquery('home_user')} AS home_points,
+            ${livePointsSubquery('away_user')} AS away_points,
             ph.full_name AS home_full_name, ph.username AS home_username, ph.avatar_url AS home_avatar_url,
             pa.full_name AS away_full_name, pa.username AS away_username, pa.avatar_url AS away_avatar_url
      FROM weekly_matchups wm
@@ -50,7 +70,10 @@ export async function getMatchupForWeek(
   userId: string
 ): Promise<WeeklyMatchup | null> {
   const { rows } = await pool.query<WeeklyMatchup>(
-    `SELECT wm.*,
+    `SELECT wm.id, wm.league_id, wm.week_num, wm.home_user, wm.away_user,
+            wm.winner_id, wm.is_final,
+            ${livePointsSubquery('home_user')} AS home_points,
+            ${livePointsSubquery('away_user')} AS away_points,
             ph.full_name AS home_full_name, ph.username AS home_username, ph.avatar_url AS home_avatar_url,
             pa.full_name AS away_full_name, pa.username AS away_username, pa.avatar_url AS away_avatar_url
      FROM weekly_matchups wm

@@ -77,7 +77,7 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
     }}>
       {/* Match header */}
       <View style={{
-        backgroundColor: game.isCompleted ? '#1f2937' : '#1d4ed8',
+        backgroundColor: game.status === 'live' ? '#b45309' : game.isCompleted ? '#1f2937' : game.status === 'upcoming' ? '#1d4ed8' : '#374151',
         paddingHorizontal: 14, paddingVertical: 9,
         flexDirection: 'row', alignItems: 'center', gap: 8,
       }}>
@@ -91,10 +91,10 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
         )}
         <View style={{
           borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0,
-          backgroundColor: game.isCompleted ? '#4b5563' : 'rgba(255,255,255,0.18)',
+          backgroundColor: 'rgba(255,255,255,0.18)',
         }}>
           <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-            {game.isCompleted ? 'FINAL' : 'UPCOMING'}
+            {game.status === 'live' ? 'LIVE' : game.isCompleted ? 'FINAL' : game.status === 'upcoming' ? 'NEXT' : 'UPCOMING'}
           </Text>
         </View>
       </View>
@@ -183,10 +183,13 @@ function SectionLabel({ label, count }: { label: string; count: number }) {
   )
 }
 
-export function GameBreakdownSection({ leagueId, weekNum, opponentId, myName, oppName }: Props) {
-  const { data, isLoading } = useGameBreakdown(leagueId, weekNum, opponentId)
-  const games = data?.games ?? []
-
+/** Render-only version — accepts pre-fetched games */
+export function GameBreakdownList({ games, myName, oppName, isLoading }: {
+  games: GameBreakdownData[]
+  myName: string
+  oppName: string
+  isLoading?: boolean
+}) {
   if (isLoading) {
     return (
       <View style={{ padding: 20, alignItems: 'center' }}>
@@ -194,7 +197,6 @@ export function GameBreakdownSection({ leagueId, weekNum, opponentId, myName, op
       </View>
     )
   }
-
   if (games.length === 0) {
     return (
       <View style={{
@@ -205,28 +207,27 @@ export function GameBreakdownSection({ leagueId, weekNum, opponentId, myName, op
       </View>
     )
   }
-
   const completed = games.filter(g => g.isCompleted)
   const upcoming = games.filter(g => !g.isCompleted)
-
   return (
     <View>
       {completed.length > 0 && (
         <View style={{ marginBottom: upcoming.length > 0 ? 6 : 0 }}>
           <SectionLabel label="Finished" count={completed.length} />
-          {completed.map(game => (
-            <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />
-          ))}
+          {completed.map(game => <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />)}
         </View>
       )}
       {upcoming.length > 0 && (
         <View>
           <SectionLabel label="Upcoming" count={upcoming.length} />
-          {upcoming.map(game => (
-            <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />
-          ))}
+          {upcoming.map(game => <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />)}
         </View>
       )}
     </View>
   )
+}
+
+export function GameBreakdownSection({ leagueId, weekNum, opponentId, myName, oppName }: Props) {
+  const { data, isLoading } = useGameBreakdown(leagueId, weekNum, opponentId)
+  return <GameBreakdownList games={data?.games ?? []} myName={myName} oppName={oppName} isLoading={isLoading} />
 }

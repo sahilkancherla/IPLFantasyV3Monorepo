@@ -675,10 +675,10 @@ export default function LeagueScreen() {
             const myPoints = myWeekPoints || 0
             const oppPoints = oppWeekPoints || 0
 
-            const matchStatus = currentMatch?.status ?? (currentMatch?.is_completed ? 'completed' : 'upcoming')
-            const statusBg = matchStatus === 'live' ? '#fef9c3' : matchStatus === 'completed' ? '#f0fdf4' : '#f3f4f6'
-            const statusColor = matchStatus === 'live' ? '#b45309' : matchStatus === 'completed' ? '#16a34a' : '#6b7280'
-            const statusLabel = matchStatus === 'live' ? 'LIVE' : matchStatus === 'completed' ? 'FINAL' : 'UPCOMING'
+            const matchStatus = currentMatch?.status ?? (currentMatch?.is_completed ? 'completed' : 'pending')
+            const statusBg = matchStatus === 'live' ? '#fef9c3' : matchStatus === 'completed' ? '#f0fdf4' : matchStatus === 'upcoming' ? '#dbeafe' : '#f3f4f6'
+            const statusColor = matchStatus === 'live' ? '#b45309' : matchStatus === 'completed' ? '#16a34a' : matchStatus === 'upcoming' ? '#1d4ed8' : '#6b7280'
+            const statusLabel = matchStatus === 'live' ? 'LIVE' : matchStatus === 'completed' ? 'FINAL' : matchStatus === 'upcoming' ? 'NEXT UP' : 'UPCOMING'
             const isLiveOrDone = matchStatus === 'live' || matchStatus === 'completed'
 
             const matchDateStr = currentMatch?.start_time_utc
