@@ -51,8 +51,7 @@ export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
      FROM players p
      WHERE p.is_active = TRUE
        AND p.id NOT IN (
-         SELECT player_id FROM auction_player_queue
-         WHERE league_id = $1 AND status IN ('sold', 'live')
+         SELECT player_id FROM team_rosters WHERE league_id = $1
        )
      ORDER BY p.name`,
     [leagueId]
