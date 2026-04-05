@@ -81,6 +81,7 @@ export interface GamePlayer {
   runsConceded: number
   wicketsTaken: number
   maidens: number
+  lbwBowledWickets: number
   // fielding
   catches: number
   stumpings: number

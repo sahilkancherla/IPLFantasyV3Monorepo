@@ -46,46 +46,81 @@ function PlayerRow({ player }: { player: GamePlayer }) {
   )
 }
 
+function formatMatchTime(isoStr: string | null, matchDate: string): string {
+  const src = isoStr ?? matchDate
+  const d = new Date(src)
+  if (isNaN(d.getTime())) return matchDate
+  if (isoStr) {
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+      timeZoneName: 'short',
+    })
+  }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: string; oppName: string }) {
-  const myWins = game.myPoints > game.oppPoints
-  const oppWins = game.oppPoints > game.myPoints
+  const myWins = game.isCompleted && game.myPoints > game.oppPoints
+  const oppWins = game.isCompleted && game.oppPoints > game.myPoints
 
   return (
     <View style={{
-      backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6',
+      backgroundColor: 'white', borderRadius: 14,
+      borderWidth: 1, borderColor: game.isCompleted ? '#e5e7eb' : '#dbeafe',
       overflow: 'hidden', marginBottom: 10,
     }}>
       {/* Match header */}
       <View style={{
-        backgroundColor: '#1f2937', paddingHorizontal: 14, paddingVertical: 9,
+        backgroundColor: game.isCompleted ? '#1f2937' : '#1d4ed8',
+        paddingHorizontal: 14, paddingVertical: 9,
         flexDirection: 'row', alignItems: 'center', gap: 8,
       }}>
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 12, flex: 1 }} numberOfLines={1}>
           {game.homeTeam} vs {game.awayTeam}
         </Text>
         {game.matchNumber != null && (
-          <Text style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>M{game.matchNumber}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, flexShrink: 0 }}>
+            M{game.matchNumber}
+          </Text>
         )}
-        <Text style={{ color: '#9ca3af', fontSize: 11, flexShrink: 0 }}>
-          {new Date(game.matchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </Text>
-        {game.isCompleted && (
-          <View style={{ backgroundColor: '#374151', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, flexShrink: 0 }}>
-            <Text style={{ color: '#9ca3af', fontSize: 10, fontWeight: '600' }}>FT</Text>
-          </View>
-        )}
+        <View style={{
+          borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0,
+          backgroundColor: game.isCompleted ? '#4b5563' : 'rgba(255,255,255,0.18)',
+        }}>
+          <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+            {game.isCompleted ? 'FINAL' : 'UPCOMING'}
+          </Text>
+        </View>
       </View>
+
+      {/* Time row for pending games */}
+      {!game.isCompleted && (
+        <View style={{
+          paddingHorizontal: 14, paddingVertical: 7,
+          backgroundColor: '#eff6ff', borderBottomWidth: 1, borderBottomColor: '#dbeafe',
+        }}>
+          <Text style={{ color: '#3b82f6', fontSize: 12, fontWeight: '500' }}>
+            {formatMatchTime(game.startTimeUtc, game.matchDate)}
+          </Text>
+        </View>
+      )}
 
       {/* Scores row */}
       <View style={{
         flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10,
-        borderBottomWidth: 1, borderBottomColor: '#f3f4f6', gap: 12, alignItems: 'center',
+        borderBottomWidth: game.myPlayers.length > 0 || game.oppPlayers.length > 0 ? 1 : 0,
+        borderBottomColor: '#f3f4f6', gap: 12, alignItems: 'center',
       }}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-          <Text style={{ color: myWins ? '#dc2626' : '#6b7280', fontWeight: '800', fontSize: 22 }}>
-            {game.myPoints.toFixed(1)}
+          <Text style={{
+            color: myWins ? '#dc2626' : game.isCompleted ? '#374151' : '#9ca3af',
+            fontWeight: '800', fontSize: 22,
+          }}>
+            {game.isCompleted ? game.myPoints.toFixed(1) : '—'}
           </Text>
-          <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>
+          {game.isCompleted && <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>}
           <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '600', marginLeft: 2 }} numberOfLines={1}>
             {abbrevName(myName)}
           </Text>
@@ -95,17 +130,19 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
           <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
             {abbrevName(oppName)}
           </Text>
-          <Text style={{ color: oppWins ? '#111827' : '#6b7280', fontWeight: '800', fontSize: 22 }}>
-            {game.oppPoints.toFixed(1)}
+          <Text style={{
+            color: oppWins ? '#111827' : game.isCompleted ? '#374151' : '#9ca3af',
+            fontWeight: '800', fontSize: 22,
+          }}>
+            {game.isCompleted ? game.oppPoints.toFixed(1) : '—'}
           </Text>
-          <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>
+          {game.isCompleted && <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>}
         </View>
       </View>
 
       {/* Players columns */}
-      {(game.myPlayers.length > 0 || game.oppPlayers.length > 0) ? (
+      {(game.myPlayers.length > 0 || game.oppPlayers.length > 0) && (
         <View style={{ flexDirection: 'row' }}>
-          {/* My players */}
           <View style={{ flex: 1, padding: 10, borderRightWidth: 1, borderRightColor: '#f3f4f6' }}>
             {game.myPlayers.length === 0 ? (
               <Text style={{ color: '#d1d5db', fontSize: 11, textAlign: 'center', paddingVertical: 4 }}>
@@ -115,7 +152,6 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
               <PlayerRow key={p.playerId} player={p} />
             ))}
           </View>
-          {/* Opp players */}
           <View style={{ flex: 1, padding: 10 }}>
             {game.oppPlayers.length === 0 ? (
               <Text style={{ color: '#d1d5db', fontSize: 11, textAlign: 'center', paddingVertical: 4 }}>
@@ -126,11 +162,19 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
             ))}
           </View>
         </View>
-      ) : (
-        <View style={{ padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: '#d1d5db', fontSize: 12 }}>No started players in this match</Text>
-        </View>
       )}
+    </View>
+  )
+}
+
+function SectionLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+      <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {label}
+      </Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: '#e5e7eb' }} />
+      <Text style={{ color: '#9ca3af', fontSize: 11 }}>{count}</Text>
     </View>
   )
 }
@@ -158,11 +202,27 @@ export function GameBreakdownSection({ leagueId, weekNum, opponentId, myName, op
     )
   }
 
+  const completed = games.filter(g => g.isCompleted)
+  const upcoming = games.filter(g => !g.isCompleted)
+
   return (
     <View>
-      {games.map(game => (
-        <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />
-      ))}
+      {completed.length > 0 && (
+        <View style={{ marginBottom: upcoming.length > 0 ? 6 : 0 }}>
+          <SectionLabel label="Finished" count={completed.length} />
+          {completed.map(game => (
+            <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />
+          ))}
+        </View>
+      )}
+      {upcoming.length > 0 && (
+        <View>
+          <SectionLabel label="Upcoming" count={upcoming.length} />
+          {upcoming.map(game => (
+            <GameCard key={game.matchId} game={game} myName={myName} oppName={oppName} />
+          ))}
+        </View>
+      )}
     </View>
   )
 }

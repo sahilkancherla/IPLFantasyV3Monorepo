@@ -614,8 +614,7 @@ export default function LeagueScreen() {
             const gameStatLine = (p: { runsScored: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean; ballsBowled: number; runsConceded: number; wicketsTaken: number; maidens: number; catches: number; stumpings: number; runOutsDirect: number; runOutsIndirect: number }) => {
               const parts: string[] = []
               if (p.ballsFaced > 0 || p.runsScored > 0) {
-                const duck = p.isOut && p.runsScored === 0
-                parts.push(`${p.runsScored}${duck ? ' duck' : ''}(${p.ballsFaced})`)
+                parts.push(`${p.runsScored}(${p.ballsFaced})`)
                 if (p.fours > 0) parts.push(`${p.fours}×4`)
                 if (p.sixes > 0) parts.push(`${p.sixes}×6`)
               }

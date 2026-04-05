@@ -21,8 +21,7 @@ function statLine(s: PlayerMatchStat, _role: string): string {
   const parts: string[] = []
 
   if (s.ballsFaced > 0 || s.runsScored > 0) {
-    const duck = s.isOut && s.runsScored === 0
-    parts.push(`${s.runsScored}${duck ? ' duck' : ''}(${s.ballsFaced})`)
+    parts.push(`${s.runsScored}(${s.ballsFaced})`)
     if (s.fours > 0) parts.push(`${s.fours}×4`)
     if (s.sixes > 0) parts.push(`${s.sixes}×6`)
   }
