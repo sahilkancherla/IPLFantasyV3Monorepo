@@ -235,7 +235,7 @@ function PlayerRow({
 }
 
 interface ImportResult {
-  stats: Array<{
+  matched: Array<{
     playerId: string; scorecardName: string
     runs: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean
     wickets: number; ballsBowled: number; runsConceded: number; maidens: number; lbwBowledWickets: number
@@ -354,7 +354,7 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
       setStats(prev => {
         const next = { ...prev }
         const importedIds = new Set<string>()
-        for (const s of res.stats) {
+        for (const s of res.matched) {
           importedIds.add(s.playerId)
           next[s.playerId] = {
             runs: s.runs, ballsFaced: s.ballsFaced, fours: s.fours, sixes: s.sixes, isOut: s.isOut,
@@ -493,7 +493,7 @@ export function MatchDetail({ matchId, secret, onBack }: Props) {
         {importResult && (
           <div style={{ marginTop: 10, fontSize: 13 }}>
             <span style={{ color: '#16a34a', fontWeight: 600 }}>
-              ✓ {importResult.stats.length} player{importResult.stats.length !== 1 ? 's' : ''} imported
+              ✓ {importResult.matched.length} player{importResult.matched.length !== 1 ? 's' : ''} imported
             </span>
             {importResult.unmatched.length > 0 && (
               <span style={{ color: '#d97706', marginLeft: 12 }}>

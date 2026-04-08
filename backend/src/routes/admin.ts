@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
-import Anthropic from '@anthropic-ai/sdk'
 import { pool } from '../db/client.js'
 import { config } from '../config.js'
 import { calcFantasyPoints, getWeekForDate } from '../services/scoring.service.js'
@@ -669,201 +668,320 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const body = z.object({ url: z.string().url() }).safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: 'Invalid URL' })
 
-    // Fetch the raw HTML
+    // ── Shared types and helpers ─────────────────────────────────────────────
+    interface ParsedBatter {
+      scorecardName: string; dismissalText: string
+      runs: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean
+    }
+    interface ParsedBowler {
+      scorecardName: string
+      ballsBowled: number; maidens: number; runsConceded: number; wickets: number
+    }
+    function parseOvers(s: string): number | null {
+      const m = String(s).match(/^(\d+)(?:\.([0-5]))?$/)
+      if (!m) return null
+      return parseInt(m[1]) * 6 + (m[2] ? parseInt(m[2]) : 0)
+    }
+    // Remove wicket-keeper/captain markers and parentheticals like (wk), (c), (c & wk)
+    function cleanName(n: string): string {
+      return n.replace(/\([^)]*\)/g, '').replace(/[†*]/g, '').replace(/\s+/g, ' ').trim()
+    }
+    function isNotOut(dismissal: string): boolean {
+      return /^(not\s+out|did\s+not\s+bat|retired\s+(not\s+out|hurt)|absent|dnb)/i.test(dismissal.trim())
+    }
+
+    const batters: ParsedBatter[] = []
+    const bowlers: ParsedBowler[] = []
+    const url = body.data.url
+
+    // ── Fetch scorecard HTML ──────────────────────────────────────────────────
+    // Cricbuzz is a React SPA — the root page has no scorecard data, but the
+    // /scorecard sub-path returns full server-rendered HTML with the grid divs.
+    // Normalise any Cricbuzz URL to always end with /scorecard.
+    function normaliseScorecardUrl(rawUrl: string): string {
+      const m = rawUrl.match(/(cricbuzz\.com\/(?:live-cricket-scorecard|live-cricket-scores|cricket-match-facts)\/\d+)/)
+      if (m) return `https://www.${m[1].replace('live-cricket-scores', 'live-cricket-scorecard')}/scorecard`
+      return rawUrl
+    }
+    const fetchUrl = normaliseScorecardUrl(url)
+
     let html: string
     try {
-      const res = await fetch(body.data.url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+      const res = await fetch(fetchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
         signal: AbortSignal.timeout(15000),
       })
-      if (!res.ok) return reply.code(400).send({ error: `Failed to fetch URL: HTTP ${res.status}` })
+      if (!res.ok) return reply.code(400).send({ error: `Failed to fetch scorecard: HTTP ${res.status}` })
       html = await res.text()
     } catch (e: unknown) {
-      return reply.code(400).send({ error: `Failed to fetch URL: ${e instanceof Error ? e.message : 'Unknown error'}` })
+      return reply.code(400).send({ error: `Failed to fetch scorecard: ${e instanceof Error ? e.message : String(e)}` })
     }
 
-    // Single-pass table row extraction
-    const scorecardText = html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/<\/tr>/gi, '\n')
-      .replace(/<\/t[dh]>/gi, '\t')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>').replace(/&#?\w+;/g, ' ')
-      .split('\n')
-      .map(line => line.split('\t').map(c => c.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' | '))
-      .filter(line => line.includes('|') && line.replace(/[|\s]/g, '').length > 3)
-      .join('\n')
+    // ── Helper: strip HTML tags and decode entities ───────────────────────────
+    function stripTags(s: string): string {
+      return s.replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+        .replace(/\s+/g, ' ').trim()
+    }
 
-    // Get all active players for matching
-    const { rows: players } = await pool.query(
-      `SELECT id, name, ipl_team FROM players WHERE is_active = true ORDER BY name`
+    // ── Strategy 1: Cricbuzz CSS-grid divs (scorecard-bat-grid / scorecard-bowl-grid) ──
+    // Each batter row: <div class="grid scorecard-bat-grid ...">
+    //   <div class="flex flex-col ..."><a href="/profiles/ID/slug">Name</a><div>dismissal</div></div>
+    //   <div class="flex justify-center ...">R</div>  <div>B</div>  <div>4s</div>  <div>6s</div>
+    // Each bowler row: <div class="grid scorecard-bowl-grid ...">
+    //   <a href="/profiles/ID/slug">Name</a>
+    //   <div class="flex justify-center ...">overs</div> maidens runs wickets ...
+    if (html.includes('scorecard-bat-grid')) {
+      const seenBat  = new Set<string>()
+      const seenBowl = new Set<string>()
+
+      // ── Batting ──
+      const batSections = html.split('<div class="grid scorecard-bat-grid')
+      for (const sec of batSections.slice(1)) {
+        const nameM = sec.match(/<a[^>]+\/profiles\/(\d+)\/[^"]*"[^>]*>([^<]+)<\/a>/)
+        if (!nameM) continue
+        const profileId = nameM[1]
+        const name = cleanName(nameM[2])
+        if (!name || /^(Batter|Extras|Total|Fall of Wickets|Did not bat)$/i.test(name)) continue
+
+        const dismissalM = sec.match(/<\/a><div[^>]*>([\s\S]*?)<\/div>/)
+        const dismissal = dismissalM ? stripTags(dismissalM[1]) || 'not out' : 'not out'
+
+        const nums = [...sec.matchAll(/<div class="flex justify-center[^"]*">(\d+(?:\.\d+)?)<\/div>/g)]
+          .map(m => m[1])
+        if (nums.length < 4) continue
+
+        const key = `${profileId}-${nums[0]}-${nums[1]}`
+        if (seenBat.has(key)) continue
+        seenBat.add(key)
+
+        batters.push({
+          scorecardName: name,
+          dismissalText: dismissal,
+          runs:       parseInt(nums[0]),
+          ballsFaced: parseInt(nums[1]),
+          fours:      parseInt(nums[2]),
+          sixes:      parseInt(nums[3]),
+          isOut:      !isNotOut(dismissal),
+        })
+      }
+
+      // ── Bowling ──
+      const bowlSections = html.split('<div class="grid scorecard-bowl-grid')
+      for (const sec of bowlSections.slice(1)) {
+        const nameM = sec.match(/<a[^>]+\/profiles\/(\d+)\/[^"]*"[^>]*>([^<]+)<\/a>/)
+        if (!nameM) continue
+        const profileId = nameM[1]
+        const name = cleanName(nameM[2])
+        if (!name || /^Bowler$/i.test(name)) continue
+
+        const nums = [...sec.matchAll(/<div class="[^"]*(?:justify-center|items-center)[^"]*">(\d+(?:\.\d+)?)<\/div>/g)]
+          .map(m => m[1])
+        if (nums.length < 4) continue
+
+        const key = `${profileId}-${nums[2]}-${nums[3]}`
+        if (seenBowl.has(key)) continue
+        seenBowl.add(key)
+
+        bowlers.push({
+          scorecardName: name,
+          ballsBowled:  parseOvers(nums[0]) ?? 0,
+          maidens:      parseInt(nums[1]),
+          runsConceded: parseInt(nums[2]),
+          wickets:      parseInt(nums[3]),
+        })
+      }
+
+      console.log('[import-scorecard] Cricbuzz grid parse:', { batters: batters.length, bowlers: bowlers.length })
+    }
+
+    // ── Strategy 2: HTML table parsing (generic fallback for other sites) ─────
+    if (batters.length === 0 && bowlers.length === 0) {
+      const DISMISSAL_RE = /^(c\s|c\s*&|lbw|not\s+out|did\s+not\s+bat|run\s+out|b\s|st\s|retired|absent)/i
+      const rows: string[][] = html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<\/tr>/gi, '\n').replace(/<\/t[dh]>/gi, '\t').replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#?\w+;/g, ' ')
+        .split('\n')
+        .map(line => line.split('\t').map(c => c.replace(/\s+/g, ' ').trim()).filter(Boolean))
+        .filter(cols => cols.length >= 4)
+
+      for (const cols of rows) {
+        if (cols.length >= 6 && DISMISSAL_RE.test(cols[1]) && /^\d+$/.test(cols[2])) {
+          const dismissal = cols[1].replace(/\s+/g, ' ').trim()
+          batters.push({
+            scorecardName: cleanName(cols[0]),
+            dismissalText: dismissal,
+            runs: parseInt(cols[2]) || 0, ballsFaced: parseInt(cols[3]) || 0,
+            fours: parseInt(cols[4]) || 0, sixes: parseInt(cols[5]) || 0,
+            isOut: !isNotOut(dismissal),
+          })
+          continue
+        }
+        if (cols.length >= 5) {
+          const balls = parseOvers(cols[1])
+          if (balls !== null && /^\d+$/.test(cols[2]) && /^\d+$/.test(cols[3]) && /^\d+$/.test(cols[4])) {
+            bowlers.push({
+              scorecardName: cleanName(cols[0]),
+              ballsBowled: balls, maidens: parseInt(cols[2]),
+              runsConceded: parseInt(cols[3]), wickets: parseInt(cols[4]),
+            })
+          }
+        }
+      }
+    }
+
+    if (batters.length === 0 && bowlers.length === 0) {
+      console.error('[import-scorecard] extraction failed', { fetchUrl, htmlLen: html.length, hasBatGrid: html.includes('scorecard-bat-grid') })
+      return reply.code(422).send({ error: 'Could not extract batting or bowling data from the page.' })
+    }
+
+    // ── Parse dismissal texts into structured events (server-side, no AI) ─────
+    interface DismissalInfo {
+      batterName: string
+      type: 'caught' | 'caught_and_bowled' | 'bowled' | 'lbw' | 'stumped' | 'runout_direct' | 'runout_indirect' | 'not_out' | 'did_not_bat' | 'other'
+      fielder1Name: string | null
+      fielder2Name: string | null
+      lbwBowledBowlerName: string | null
+    }
+    function parseDismissal(batterName: string, t: string): DismissalInfo {
+      if (/^(not\s+out|retired\s+(not\s+out|hurt)|absent)/i.test(t))
+        return { batterName, type: 'not_out', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: null }
+      if (/^did\s+not\s+bat/i.test(t))
+        return { batterName, type: 'did_not_bat', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: null }
+      const cAndB = t.match(/^c\s*&\s*b\s+(.+)$/i)
+      if (cAndB) return { batterName, type: 'caught_and_bowled', fielder1Name: cAndB[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }
+      const caught = t.match(/^c\s+(.+?)\s+b\s+\S/i)
+      if (caught) return { batterName, type: 'caught', fielder1Name: caught[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }
+      const lbw = t.match(/^lbw\s+b\s+(.+)$/i)
+      if (lbw) return { batterName, type: 'lbw', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: lbw[1].trim() }
+      const bowledOut = t.match(/^b\s+(.+)$/i)
+      if (bowledOut) return { batterName, type: 'bowled', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: bowledOut[1].trim() }
+      const stumped = t.match(/^st\s+[†]?\s*(.+?)\s+b\s+/i)
+      if (stumped) return { batterName, type: 'stumped', fielder1Name: stumped[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }
+      const runoutTwo = t.match(/run\s+out\s*\(\s*([^/)]+?)\s*\/\s*([^)]+?)\s*\)/i)
+      if (runoutTwo) return { batterName, type: 'runout_indirect', fielder1Name: runoutTwo[1].trim(), fielder2Name: runoutTwo[2].trim(), lbwBowledBowlerName: null }
+      const runoutOne = t.match(/run\s+out\s*\(\s*([^)]+?)\s*\)/i)
+      if (runoutOne) return { batterName, type: 'runout_direct', fielder1Name: runoutOne[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }
+      return { batterName, type: 'other', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: null }
+    }
+
+    const dismissals: DismissalInfo[] = batters.map(b => parseDismissal(b.scorecardName, b.dismissalText))
+
+    // ── Fetch players for the two teams in this match ─────────────────────────
+    const { rows: matchRows } = await pool.query<{ home_team: string; away_team: string }>(
+      `SELECT home_team, away_team FROM ipl_matches WHERE id = $1`,
+      [req.params.matchId]
     )
-    const playerList = (players as Array<{ id: string; name: string; ipl_team: string }>)
-      .map(p => `${p.id}: ${p.name} (${p.ipl_team})`)
-      .join('\n')
+    const matchTeams = matchRows[0] ? [matchRows[0].home_team, matchRows[0].away_team] : []
+    const { rows: playerRows } = await pool.query<{ id: string; name: string; ipl_team: string }>(
+      matchTeams.length === 2
+        ? `SELECT id, name, ipl_team FROM players WHERE is_active = true AND ipl_team = ANY($1) ORDER BY ipl_team, name`
+        : `SELECT id, name, ipl_team FROM players WHERE is_active = true ORDER BY ipl_team, name`,
+      matchTeams.length === 2 ? [matchTeams] : []
+    )
 
-    // Call Claude to parse the scorecard
-    const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
+    // ── Deterministic name matcher (no AI) ────────────────────────────────────
+    // Handles: exact, surname-only, abbreviated first name ("V Kohli"), fuzzy spelling.
+    function normName(s: string): string {
+      return s.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
+    }
+    // Character bigram Dice coefficient — handles spelling variations
+    function bigramSim(a: string, b: string): number {
+      const bg = (s: string) => {
+        const set = new Set<string>()
+        const t = s.replace(/\s/g, '')
+        for (let i = 0; i < t.length - 1; i++) set.add(t.slice(i, i + 2))
+        return set
+      }
+      const ba = bg(a); const bb = bg(b)
+      let inter = 0
+      for (const g of ba) if (bb.has(g)) inter++
+      return ba.size + bb.size === 0 ? 0 : (2 * inter) / (ba.size + bb.size)
+    }
+    function matchPlayerName(scorecardName: string): string | null {
+      const sc = normName(scorecardName)
+      const scToks = sc.split(' ')
+      const scLast = scToks[scToks.length - 1]
 
-    // Player schema — no fielding fields (computed server-side from dismissals array)
-    const playerSchema = {
-      type: 'object',
-      properties: {
-        playerId:         { type: 'string' },
-        scorecardName:    { type: 'string' },
-        runs:             { type: 'integer' },
-        ballsFaced:       { type: 'integer' },
-        fours:            { type: 'integer' },
-        sixes:            { type: 'integer' },
-        isOut:            { type: 'boolean' },
-        wickets:          { type: 'integer' },
-        ballsBowled:      { type: 'integer' },
-        runsConceded:     { type: 'integer' },
-        maidens:          { type: 'integer' },
-        lbwBowledWickets: { type: 'integer' },
-        dismissalText:    { type: 'string' },
-      },
-      required: ['playerId','scorecardName','runs','ballsFaced','fours','sixes','isOut',
-                 'wickets','ballsBowled','runsConceded','maidens','lbwBowledWickets','dismissalText'],
-      additionalProperties: false,
+      // 1. Exact
+      for (const p of playerRows) {
+        if (normName(p.name) === sc) return p.id
+      }
+
+      // 2. Last name + first initial(s) — handles "V Kohli", "AM Ghazanfar"
+      const surnameMatches = playerRows.filter(p => {
+        const dbToks = normName(p.name).split(' ')
+        return dbToks[dbToks.length - 1] === scLast
+      })
+      if (surnameMatches.length === 1) return surnameMatches[0].id
+      if (surnameMatches.length > 1 && scToks.length > 1) {
+        // Use first initial(s) to disambiguate
+        for (const p of surnameMatches) {
+          const dbToks = normName(p.name).split(' ')
+          // All scorecard non-surname tokens must match as initials or full tokens of DB name
+          const allMatch = scToks.slice(0, -1).every((scTok, i) =>
+            dbToks[i]?.[0] === scTok[0]
+          )
+          if (allMatch) return p.id
+        }
+      }
+
+      // 3. Fuzzy bigram similarity — handles minor spelling differences
+      let bestScore = 0
+      let bestId: string | null = null
+      for (const p of playerRows) {
+        const score = bigramSim(sc, normName(p.name))
+        if (score > bestScore) { bestScore = score; bestId = p.id }
+      }
+      if (bestScore >= 0.6) return bestId
+
+      return null
     }
 
-    // One dismissal event per batter — Claude resolves names to UUIDs here,
-    // server counts them (no aggregation risk).
-    const dismissalSchema = {
-      type: 'object',
-      properties: {
-        batterPlayerId: { type: 'string' },
-        // caught | caught_and_bowled | bowled | lbw | stumped |
-        // runout_direct | runout_indirect | not_out | did_not_bat | other
-        type:            { type: 'string' },
-        // UUID of the catcher / keeper / run-out fielder (null when not applicable)
-        fielder1PlayerId: { type: ['string', 'null'] },
-        // UUID of second fielder for runout_indirect only (null otherwise)
-        fielder2PlayerId: { type: ['string', 'null'] },
-      },
-      required: ['batterPlayerId','type','fielder1PlayerId','fielder2PlayerId'],
-      additionalProperties: false,
+    // Match every name that appears in batting, bowling, or dismissal texts
+    const allNames = new Set<string>()
+    for (const b of batters) allNames.add(b.scorecardName)
+    for (const b of bowlers) allNames.add(b.scorecardName)
+    for (const d of dismissals) {
+      if (d.fielder1Name)        allNames.add(d.fielder1Name)
+      if (d.fielder2Name)        allNames.add(d.fielder2Name)
+      if (d.lbwBowledBowlerName) allNames.add(d.lbwBowledBowlerName)
     }
 
-    const outputSchema = {
-      type: 'object',
-      properties: {
-        matched:    { type: 'array', items: playerSchema },
-        dismissals: { type: 'array', items: dismissalSchema },
-        unmatched:  { type: 'array', items: { type: 'string' } },
-      },
-      required: ['matched','dismissals','unmatched'],
-      additionalProperties: false,
+    const nameToUUID = new Map<string, string>()
+    const unmatched: string[] = []
+    for (const name of allNames) {
+      const id = matchPlayerName(name)
+      if (id) nameToUUID.set(name.toLowerCase().trim(), id)
+      else unmatched.push(name)
+    }
+    if (unmatched.length > 0) console.warn('[import-scorecard] unmatched names:', unmatched)
+
+    const lookup = (name: string | null): string | null => {
+      if (!name) return null
+      return nameToUUID.get(name.toLowerCase().trim()) ?? null
     }
 
-    const aiResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 8192,
-      output_config: { format: { type: 'json_schema', schema: outputSchema } },
-      messages: [{
-        role: 'user',
-        content: `You are a cricket scorecard parser. Parse the scorecard below and produce structured output.
-
-SCORECARD:
-${scorecardText}
-
-OUR PLAYER DATABASE (UUID: Name (Team)):
-${playerList}
-
-════════════════════════════════════════
-STEP 1 — READ THE BATTING TABLE
-════════════════════════════════════════
-Columns: Name | Dismissal | Runs | Balls | 4s | 6s | SR
-
-For EVERY row (including DNB rows):
-• runs, ballsFaced, fours, sixes → read from columns
-• isOut = false only if dismissal is "not out", "retired not out", "retired hurt", or "did not bat"
-• dismissalText → copy the dismissal column exactly, stripping "(c)" and "†" markers only
-
-════════════════════════════════════════
-STEP 2 — READ THE BOWLING TABLE
-════════════════════════════════════════
-Columns: Name | Overs | Maidens | Runs | Wickets | Economy
-
-• ballsBowled = whole overs × 6 + remainder  (e.g. 3.2 overs = 20 balls)
-• lbwBowledWickets = count of THIS bowler's wickets where the batsman's dismissal
-  starts with "b NAME" (bowled) or "lbw b NAME" — look through all batting rows
-
-════════════════════════════════════════
-STEP 3 — BUILD THE DISMISSALS ARRAY
-════════════════════════════════════════
-For EVERY batter, produce exactly ONE entry in "dismissals":
-  batterPlayerId  — UUID of the batter
-  type            — one of the values below
-  fielder1PlayerId — UUID of the relevant fielder, or null
-  fielder2PlayerId — UUID of second fielder (runout_indirect only), or null
-
-Dismissal types and how to fill fielder fields:
-
-  DISMISSAL TEXT                  | type               | fielder1          | fielder2
-  --------------------------------|--------------------|-------------------|----------
-  "c FIELDER b BOWLER"            | caught             | FIELDER uuid      | null
-  "c & b BOWLER"                  | caught_and_bowled  | BOWLER uuid       | null
-  "b BOWLER"                      | bowled             | null              | null
-  "lbw b BOWLER"                  | lbw                | null              | null
-  "st KEEPER b BOWLER"            | stumped            | KEEPER uuid       | null
-  "run out (FIELDER)"             | runout_direct      | FIELDER uuid      | null
-  "run out (F1/F2)"               | runout_indirect    | F1 uuid           | F2 uuid
-  "not out"                       | not_out            | null              | null
-  "did not bat"                   | did_not_bat        | null              | null
-  anything else                   | other              | null              | null
-
-HOW TO RESOLVE A FIELDER NAME → UUID:
-The fielder name in the dismissal (e.g. "Dhoni", "MS Dhoni", "de Kock") refers to
-one of the players already in your matched list. Match on surname first; if multiple
-players share a surname use the initials to disambiguate. Use the player's UUID.
-If you cannot confidently resolve a name, use null.
-
-════════════════════════════════════════
-STEP 4 — MATCH NAMES TO DATABASE
-════════════════════════════════════════
-• Fuzzy-match scorecard names to UUIDs (ignore "(c)", "†", spacing, abbreviated first names)
-• All players appearing in batting OR bowling tables should be in "matched"
-• Unresolved scorecard names go in "unmatched"`,
-      }],
-    })
-
-    const textBlock = aiResponse.content.find(b => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return reply.code(500).send({ error: 'Claude did not return a text response' })
-    }
-    let parsed: {
-      matched: Array<{
-        playerId: string; scorecardName: string
-        runs: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean
-        wickets: number; ballsBowled: number; runsConceded: number; maidens: number
-        lbwBowledWickets: number; dismissalText: string
-      }>
-      dismissals: Array<{
-        batterPlayerId: string; type: string
-        fielder1PlayerId: string | null; fielder2PlayerId: string | null
-      }>
-      unmatched: string[]
-    }
-    try {
-      parsed = JSON.parse(textBlock.text)
-    } catch {
-      return reply.code(500).send({ error: 'Claude returned invalid JSON' })
-    }
-
-    // ── Count fielding credits from dismissals (deterministic — no Claude math) ──
+    // ── Count fielding credits from parsed dismissals ─────────────────────────
     const catches       = new Map<string, number>()
     const stumpings     = new Map<string, number>()
     const runOutsDirect = new Map<string, number>()
     const runOutsIndir  = new Map<string, number>()
+    const lbwBowledMap  = new Map<string, number>()
 
-    for (const d of parsed.dismissals) {
-      const f1 = d.fielder1PlayerId
-      const f2 = d.fielder2PlayerId
+    for (const d of dismissals) {
+      const f1 = lookup(d.fielder1Name)
+      const f2 = lookup(d.fielder2Name)
       if (d.type === 'caught' || d.type === 'caught_and_bowled') {
         if (f1) catches.set(f1, (catches.get(f1) ?? 0) + 1)
       } else if (d.type === 'stumped') {
@@ -874,17 +992,61 @@ STEP 4 — MATCH NAMES TO DATABASE
         if (f1) runOutsIndir.set(f1, (runOutsIndir.get(f1) ?? 0) + 1)
         if (f2) runOutsIndir.set(f2, (runOutsIndir.get(f2) ?? 0) + 1)
       }
+      if (d.lbwBowledBowlerName) {
+        const id = lookup(d.lbwBowledBowlerName)
+        if (id) lbwBowledMap.set(id, (lbwBowledMap.get(id) ?? 0) + 1)
+      }
     }
 
-    const finalStats = parsed.matched.map(p => ({
-      ...p,
-      catches:         catches.get(p.playerId)       ?? 0,
-      stumpings:       stumpings.get(p.playerId)     ?? 0,
-      runOutsDirect:   runOutsDirect.get(p.playerId) ?? 0,
-      runOutsIndirect: runOutsIndir.get(p.playerId)  ?? 0,
+    // ── Merge batting + bowling into per-player stat rows ─────────────────────
+    const statsMap = new Map<string, Record<string, unknown>>()
+
+    for (const batter of batters) {
+      const id = lookup(batter.scorecardName)
+      if (!id) continue
+      const existing = statsMap.get(id) ?? {}
+      statsMap.set(id, {
+        ...existing,
+        playerId: id, scorecardName: batter.scorecardName, isInXI: true,
+        runs: batter.runs, ballsFaced: batter.ballsFaced,
+        fours: batter.fours, sixes: batter.sixes,
+        isOut: batter.isOut, dismissalText: batter.dismissalText,
+        wickets:          (existing.wickets          as number) ?? 0,
+        ballsBowled:      (existing.ballsBowled      as number) ?? 0,
+        runsConceded:     (existing.runsConceded     as number) ?? 0,
+        maidens:          (existing.maidens          as number) ?? 0,
+        lbwBowledWickets: (existing.lbwBowledWickets as number) ?? 0,
+      })
+    }
+
+    for (const bowler of bowlers) {
+      const id = lookup(bowler.scorecardName)
+      if (!id) continue
+      const existing = statsMap.get(id) ?? {
+        playerId: id, scorecardName: bowler.scorecardName, isInXI: true,
+        runs: 0, ballsFaced: 0, fours: 0, sixes: 0, isOut: false, dismissalText: '',
+      }
+      statsMap.set(id, {
+        ...existing,
+        wickets:          bowler.wickets,
+        ballsBowled:      bowler.ballsBowled,
+        runsConceded:     bowler.runsConceded,
+        maidens:          bowler.maidens,
+        lbwBowledWickets: lbwBowledMap.get(id) ?? 0,
+      })
+    }
+
+    // Apply fielding credits
+    const finalStats = [...statsMap.values()].map(s => ({
+      ...s,
+      catches:         catches.get(s.playerId as string)       ?? 0,
+      stumpings:       stumpings.get(s.playerId as string)     ?? 0,
+      runOutsDirect:   runOutsDirect.get(s.playerId as string) ?? 0,
+      runOutsIndirect: runOutsIndir.get(s.playerId as string)  ?? 0,
     }))
 
-    return reply.send({ stats: finalStats, unmatched: parsed.unmatched })
+    console.log('[import-scorecard] done:', { matched: finalStats.length, unmatched: unmatched.length })
+    return reply.send({ matched: finalStats, unmatched })
   })
 
   // GET /admin/leagues/:leagueId/lineups/:userId — fetch a user's lineup for a week
