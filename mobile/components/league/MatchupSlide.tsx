@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Modal, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, Modal, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useLineup, useUserLineup, useSetLineup, useGameBreakdown } from '../../hooks/useLineup'
@@ -55,7 +55,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
   const oppId = matchup ? (isHome ? matchup.away_user : matchup.home_user) : null
 
   // Always fetch own lineup (needed for editor in pending weeks too)
-  const { data: weekMatches } = useWeekMatches(week.week_num)
+  const { data: weekMatches, refetch: refetchWeekMatches } = useWeekMatches(week.week_num)
   const [activeGameIndex, setActiveGameIndex] = useState(0)
   const gameListRef = useRef<ScrollView>(null)
 
@@ -72,8 +72,8 @@ useEffect(() => {
     }
   }, [weekMatches, week.status])
 
-  const { data: myLineupData } = useLineup(leagueId, week.week_num)
-  const { data: oppLineupData } = useUserLineup(
+  const { data: myLineupData, refetch: refetchMyLineup } = useLineup(leagueId, week.week_num)
+  const { data: oppLineupData, refetch: refetchOppLineup } = useUserLineup(
     oppId ? leagueId : '',
     oppId ?? '',
     week.week_num
@@ -83,7 +83,7 @@ useEffect(() => {
   const oppLineup = sortByRole(oppLineupData?.lineup ?? [])
 
   // Per-game breakdown (players + points per match)
-  const { data: gameBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null)
+  const { data: gameBreakdown, refetch: refetchBreakdown, isRefetching: isRefetchingBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null)
   const breakdownByMatchId = new Map((gameBreakdown?.games ?? []).map((g) => [g.matchId, g]))
 
   // Compute live weekly totals from game breakdown data
@@ -94,6 +94,13 @@ useEffect(() => {
   const hasPoints = ((myPoints ?? 0) + (oppPoints ?? 0)) > 0 || ((matchup?.home_points ?? 0) + (matchup?.away_points ?? 0)) > 0
   const isLive = !isCompleted && hasPoints
   const isPending = !isCompleted && !isLive
+
+  const onRefresh = useCallback(() => {
+    refetchWeekMatches()
+    refetchMyLineup()
+    refetchOppLineup()
+    refetchBreakdown()
+  }, [refetchWeekMatches, refetchMyLineup, refetchOppLineup, refetchBreakdown])
 
   // Set lineup modal state
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
@@ -180,6 +187,9 @@ useEffect(() => {
   function gamesForTeam(iplTeam: string) {
     return (weekMatches ?? []).filter(m => m.home_team === iplTeam || m.away_team === iplTeam)
   }
+  function gamesRemainingForTeam(iplTeam: string) {
+    return (weekMatches ?? []).filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
+  }
 
   function statLine(p: import('../../hooks/useLineup').GamePlayer): string {
     const parts: string[] = []
@@ -238,6 +248,7 @@ useEffect(() => {
       style={{ width }}
       contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 14 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor="#ef4444" />}
     >
       {/* Week header */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -625,6 +636,7 @@ useEffect(() => {
                     const isDisabled = !isSelected && selections.flex.length >= 3 && chosen.length >= slot.count
                     const isExpanded = expandedModal.has(p.player_id)
                     const games = gamesForTeam(p.player_ipl_team)
+                    const gamesRemaining = gamesRemainingForTeam(p.player_ipl_team)
                     return (
                       <View key={p.player_id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#f3f4f6', opacity: isDisabled ? 0.4 : 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSelected ? '#fff5f5' : 'white' }}>
@@ -655,9 +667,11 @@ useEffect(() => {
                             style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingRight: 14, paddingLeft: 8 }}
                             onPress={() => setExpandedModal(prev => { const s = new Set(prev); isExpanded ? s.delete(p.player_id) : s.add(p.player_id); return s })}
                           >
-                            <View style={{ backgroundColor: games.length > 0 ? '#fee2e2' : '#f3f4f6', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                              <Text style={{ color: games.length > 0 ? '#dc2626' : '#9ca3af', fontSize: 11, fontWeight: '700' }}>{games.length}</Text>
-                            </View>
+                            {gamesRemaining.length > 0 && (
+                              <View style={{ backgroundColor: '#fee2e2', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
+                                <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>{gamesRemaining.length}</Text>
+                              </View>
+                            )}
                             <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
                           </TouchableOpacity>
                         </View>

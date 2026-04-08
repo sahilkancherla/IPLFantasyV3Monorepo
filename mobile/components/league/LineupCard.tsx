@@ -123,6 +123,9 @@ export function LineupCard({
   function gamesForTeam(iplTeam: string) {
     return weekMatches.filter(m => m.home_team === iplTeam || m.away_team === iplTeam)
   }
+  function gamesRemainingForTeam(iplTeam: string) {
+    return weekMatches.filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
+  }
 
   return (
     <>
@@ -145,6 +148,7 @@ export function LineupCard({
               {group.items.map(entry => {
                 const isExpanded = expanded.has(entry.id)
                 const games = gamesForTeam(entry.player_ipl_team)
+                const gamesRemaining = gamesRemainingForTeam(entry.player_ipl_team)
                 const weekPts = Array.from(breakdownByMatchId.values()).reduce((sum, bd) => {
                   const p = getPlayerStats(bd.matchId, entry.player_id)
                   return sum + (p?.points ?? 0)
@@ -167,11 +171,13 @@ export function LineupCard({
                           +{weekPts.toFixed(1)}
                         </Text>
                       )}
-                      <View style={{ backgroundColor: games.length > 0 ? '#fee2e2' : '#f3f4f6', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                        <Text style={{ color: games.length > 0 ? '#dc2626' : '#9ca3af', fontSize: 11, fontWeight: '700' }}>
-                          {games.length} {games.length === 1 ? 'game' : 'games'}
-                        </Text>
-                      </View>
+                      {gamesRemaining.length > 0 && (
+                        <View style={{ backgroundColor: '#fee2e2', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
+                          <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>
+                            {gamesRemaining.length} {gamesRemaining.length === 1 ? 'game left' : 'games left'}
+                          </Text>
+                        </View>
+                      )}
                       <TouchableOpacity
                         onPress={() => setExpanded(prev => { const s = new Set(prev); isExpanded ? s.delete(entry.id) : s.add(entry.id); return s })}
                         style={{ padding: 8 }}
