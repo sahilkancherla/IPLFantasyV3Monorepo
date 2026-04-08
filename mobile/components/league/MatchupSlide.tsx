@@ -206,8 +206,8 @@ useEffect(() => {
       return new Date(m.start_time_utc).toLocaleString('en-US', {
         month: 'short', day: 'numeric',
         hour: 'numeric', minute: '2-digit',
-        timeZone: 'Asia/Kolkata',
-      }) + ' IST'
+        timeZoneName: 'short',
+      })
     }
     return m.match_date
   }
@@ -373,8 +373,8 @@ useEffect(() => {
                     ? new Date(item.start_time_utc).toLocaleString('en-US', {
                         month: 'short', day: 'numeric',
                         hour: 'numeric', minute: '2-digit',
-                        timeZone: 'Asia/Kolkata',
-                      }) + ' IST'
+                        timeZoneName: 'short',
+                      })
                     : item.match_date
                   const breakdown = breakdownByMatchId.get(item.match_id)
                   const myPlayers = sortByRole(breakdown?.myPlayers ?? [])
@@ -500,7 +500,6 @@ useEffect(() => {
         <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, alignItems: 'center' }}>
           <Text style={{ color: '#6b7280', fontSize: 13 }}>
             Lineups lock {new Date(week.lock_time).toLocaleString('en-US', {
-              timeZone: 'America/Los_Angeles',
               weekday: 'short', month: 'short', day: 'numeric',
               hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
             })}

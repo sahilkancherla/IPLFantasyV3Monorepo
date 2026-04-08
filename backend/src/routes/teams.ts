@@ -221,4 +221,157 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ ok: true })
     }
   )
+
+  // DELETE /teams/:leagueId/admin/:targetUserId/players/:playerId — admin drops from any roster
+  app.delete<{ Params: { leagueId: string; targetUserId: string; playerId: string } }>(
+    '/teams/:leagueId/admin/:targetUserId/players/:playerId',
+    async (req, reply) => {
+      const { leagueId, targetUserId, playerId } = req.params
+      const requesterId = req.authUser!.id
+
+      const league = await getLeagueById(leagueId)
+      if (!league || league.admin_id !== requesterId) {
+        return reply.code(403).send({ error: 'Only the league admin can modify other rosters' })
+      }
+
+      const { rows } = await pool.query(
+        `DELETE FROM team_rosters WHERE league_id = $1 AND user_id = $2 AND player_id = $3 RETURNING id`,
+        [leagueId, targetUserId, playerId]
+      )
+      if (rows.length === 0) {
+        return reply.code(404).send({ error: 'Player not on that roster' })
+      }
+
+      await pool.query(
+        `UPDATE league_members SET roster_count = roster_count - 1 WHERE league_id = $1 AND user_id = $2`,
+        [leagueId, targetUserId]
+      )
+
+      await removePlayerFromUncompletedLineups(leagueId, targetUserId, playerId)
+
+      return reply.code(204).send()
+    }
+  )
+
+  // POST /teams/:leagueId/admin/:targetUserId/players — admin adds a free agent to any roster
+  app.post<{ Params: { leagueId: string; targetUserId: string } }>(
+    '/teams/:leagueId/admin/:targetUserId/players',
+    async (req, reply) => {
+      const { leagueId, targetUserId } = req.params
+      const requesterId = req.authUser!.id
+
+      const league = await getLeagueById(leagueId)
+      if (!league || league.admin_id !== requesterId) {
+        return reply.code(403).send({ error: 'Only the league admin can modify other rosters' })
+      }
+
+      const body = addPlayerSchema.safeParse(req.body)
+      if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+      const { playerId, dropPlayerId } = body.data
+
+      // Verify player is a free agent
+      const { rows: onRoster } = await pool.query(
+        `SELECT 1 FROM team_rosters WHERE league_id = $1 AND player_id = $2`,
+        [leagueId, playerId]
+      )
+      if (onRoster.length > 0) {
+        return reply.code(409).send({ error: 'That player is already on a roster' })
+      }
+
+      // Get the incoming player's role
+      const { rows: playerRows } = await pool.query(
+        `SELECT role FROM players WHERE id = $1`,
+        [playerId]
+      )
+      if (playerRows.length === 0) {
+        return reply.code(404).send({ error: 'Player not found' })
+      }
+      const playerRole: string = playerRows[0].role
+
+      // Check positional limit against target user's roster
+      const { rows: roleCountRows } = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM team_rosters tr
+         JOIN players p ON p.id = tr.player_id
+         WHERE tr.league_id = $1 AND tr.user_id = $2 AND p.role = $3`,
+        [leagueId, targetUserId, playerRole]
+      )
+      const currentRoleCount: number = roleCountRows[0]?.count ?? 0
+      const roleLimits: Record<string, number> = {
+        batsman:       league.max_batsmen,
+        wicket_keeper: league.max_wicket_keepers,
+        all_rounder:   league.max_all_rounders,
+        bowler:        league.max_bowlers,
+      }
+      const roleLimit = roleLimits[playerRole] ?? 99
+      const roleFull = currentRoleCount >= roleLimit
+
+      if (roleFull && !dropPlayerId) {
+        return reply.code(409).send({
+          error: `${playerRole.replace(/_/g, ' ')} limit reached (${roleLimit} max). Drop a ${playerRole.replace(/_/g, ' ')} to add one.`,
+        })
+      }
+
+      if (roleFull && dropPlayerId) {
+        // The dropped player must be of the same role
+        const { rows: dropRoleRows } = await pool.query(
+          `SELECT p.role FROM team_rosters tr JOIN players p ON p.id = tr.player_id
+           WHERE tr.league_id = $1 AND tr.user_id = $2 AND tr.player_id = $3`,
+          [leagueId, targetUserId, dropPlayerId]
+        )
+        if (dropRoleRows.length === 0) {
+          return reply.code(404).send({ error: 'Drop player not on that roster' })
+        }
+        if (dropRoleRows[0].role !== playerRole) {
+          return reply.code(409).send({
+            error: `Must drop a ${playerRole.replace(/_/g, ' ')} to make room — you cannot drop a ${dropRoleRows[0].role.replace(/_/g, ' ')} instead.`,
+          })
+        }
+      }
+
+      // Get roster count for target user
+      const { rows: memberRows } = await pool.query(
+        `SELECT roster_count FROM league_members WHERE league_id = $1 AND user_id = $2`,
+        [leagueId, targetUserId]
+      )
+      const currentCount: number = memberRows[0]?.roster_count ?? 0
+
+      if (currentCount >= league.roster_size && !dropPlayerId) {
+        return reply.code(409).send({
+          error: `Roster is full (${league.roster_size} players max). You must drop a player to add one.`,
+        })
+      }
+
+      await withTransaction(async (client: pg.PoolClient) => {
+        if (dropPlayerId) {
+          const { rows: dropResult } = await client.query(
+            `DELETE FROM team_rosters WHERE league_id = $1 AND user_id = $2 AND player_id = $3 RETURNING id`,
+            [leagueId, targetUserId, dropPlayerId]
+          )
+          if (dropResult.length === 0) {
+            throw Object.assign(new Error('Drop player not on that roster'), { statusCode: 404 })
+          }
+          await client.query(
+            `UPDATE league_members SET roster_count = roster_count - 1 WHERE league_id = $1 AND user_id = $2`,
+            [leagueId, targetUserId]
+          )
+          await removePlayerFromUncompletedLineups(leagueId, targetUserId, dropPlayerId)
+        }
+
+        await client.query(
+          `INSERT INTO team_rosters (league_id, user_id, player_id, price_paid) VALUES ($1, $2, $3, 0)`,
+          [leagueId, targetUserId, playerId]
+        )
+
+        await client.query(
+          `UPDATE league_members SET roster_count = roster_count + 1 WHERE league_id = $1 AND user_id = $2`,
+          [leagueId, targetUserId]
+        )
+
+        await clearUncompletedLineups(leagueId, targetUserId, client)
+      })
+
+      return reply.code(201).send({ ok: true })
+    }
+  )
 }

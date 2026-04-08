@@ -78,8 +78,8 @@ export function LeagueCurrentMatch({ leagueName, currentMatch, matchup, myPlayer
     ? new Date(currentMatch.start_time_utc).toLocaleString('en-US', {
         month: 'short', day: 'numeric',
         hour: 'numeric', minute: '2-digit',
-        timeZone: 'Asia/Kolkata',
-      }) + ' IST'
+        timeZoneName: 'short',
+      })
     : null
 
   const myTotal = myPlayers.reduce((s, p) => s + p.points, 0)

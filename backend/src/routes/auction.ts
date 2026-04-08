@@ -224,7 +224,18 @@ export async function auctionRoutes(app: FastifyInstance): Promise<void> {
               COALESCE(tr.user_id, q.sold_to) AS sold_to,
               COALESCE(tr.price_paid, q.sold_price) AS sold_price,
               p.name, p.ipl_team, p.role, p.base_price, p.nationality, p.image_url,
-              COALESCE(i.interest_count, 0) AS interest_count
+              COALESCE(i.interest_count, 0) AS interest_count,
+              COALESCE((
+                SELECT SUM(ms.fantasy_points)
+                FROM match_scores ms
+                WHERE ms.player_id = q.player_id
+              ), 0) AS total_points,
+              COALESCE((
+                SELECT COUNT(*)
+                FROM ipl_matches im
+                WHERE (im.home_team = p.ipl_team OR im.away_team = p.ipl_team)
+                  AND im.status = 'completed'
+              ), 0) AS team_games_played
        FROM auction_player_queue q
        JOIN players p ON p.id = q.player_id
        LEFT JOIN team_rosters tr ON tr.league_id = $1 AND tr.player_id = q.player_id

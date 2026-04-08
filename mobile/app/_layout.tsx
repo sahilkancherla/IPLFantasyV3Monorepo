@@ -3,7 +3,8 @@ import { AppState } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
+import { QueryClientProvider, focusManager } from '@tanstack/react-query'
+import { queryClient } from '../lib/queryClient'
 import * as SplashScreen from 'expo-splash-screen'
 import { useAuthStore } from '../stores/authStore'
 import '../global.css'
@@ -17,14 +18,6 @@ focusManager.setEventListener(onFocus => {
 // Keep splash visible until auth is restored
 SplashScreen.preventAutoHideAsync()
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 1000 * 60,  // 1 min
-    },
-  },
-})
 
 export default function RootLayout() {
   const { restoreSession, isLoading } = useAuthStore()

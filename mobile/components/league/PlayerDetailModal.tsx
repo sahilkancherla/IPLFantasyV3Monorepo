@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator } from 'react-native'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { formatCurrency, type Currency } from '../../lib/currency'
-import { usePlayerStats } from '../../hooks/useLineup'
-import type { PlayerMatchStat } from '../../hooks/useLineup'
+import { usePlayerStats, usePlayerUpcoming } from '../../hooks/useLineup'
+import type { PlayerMatchStat, PlayerUpcomingMatch } from '../../hooks/useLineup'
 
 const ROLE_SHORT: Record<string, string> = {
   batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
@@ -71,8 +72,90 @@ function statLine(s: PlayerMatchStat, _role: string): string {
   return parts.join('  ') || 'Did not bat/bowl'
 }
 
+function UpcomingGames({ playerId }: { playerId: string }) {
+  const { data: matches, isLoading } = usePlayerUpcoming(playerId)
+  const [expanded, setExpanded] = useState(false)
+
+  if (isLoading) {
+    return (
+      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+        <ActivityIndicator color="#dc2626" />
+      </View>
+    )
+  }
+
+  if (!matches || matches.length === 0) {
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Upcoming Games</Text>
+        <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+          <Text style={{ color: '#d1d5db', fontSize: 14 }}>No upcoming games scheduled</Text>
+        </View>
+      </View>
+    )
+  }
+
+  const visible = expanded ? matches : matches.slice(0, 2)
+  const hasMore = matches.length > 2
+
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Upcoming Games</Text>
+        {hasMore && (
+          <TouchableOpacity onPress={() => setExpanded(v => !v)}>
+            <Text style={{ color: '#dc2626', fontSize: 12, fontWeight: '600' }}>
+              {expanded ? 'Show Less' : `See All (${matches.length})`}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {visible.map((m: PlayerUpcomingMatch) => {
+        const isHome = m.homeTeam === m.playerIplTeam
+        const opp = isHome ? m.awayTeam : m.homeTeam
+        const isNext = m.status === 'upcoming'
+        const dateStr = m.startTimeUtc
+          ? new Date(m.startTimeUtc).toLocaleString('en-US', {
+              month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit',
+              timeZoneName: 'short',
+            })
+          : new Date(m.matchDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        return (
+          <View key={m.matchId} style={{
+            backgroundColor: isNext ? '#eff6ff' : '#f9fafb',
+            borderRadius: 12, borderWidth: 1,
+            borderColor: isNext ? '#bfdbfe' : '#f3f4f6',
+            padding: 12,
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+          }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>
+                {isHome ? 'vs' : '@'} {opp}
+              </Text>
+              <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>{dateStr}</Text>
+              {m.venue && <Text style={{ color: '#9ca3af', fontSize: 11 }}>{m.venue}</Text>}
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              {m.matchNumber != null && (
+                <Text style={{ color: '#d1d5db', fontSize: 11 }}>M{m.matchNumber}</Text>
+              )}
+              {isNext && (
+                <View style={{ backgroundColor: '#1d4ed8', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>NEXT</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
 function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
   const { data: stats, isLoading, isError } = usePlayerStats(playerId)
+  const [expanded, setExpanded] = useState(false)
 
   if (isLoading) {
     return (
@@ -98,18 +181,30 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
     )
   }
 
+  const visible = expanded ? stats : stats.slice(0, 2)
+  const hasMore = stats.length > 2
+
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>Match History</Text>
-      {stats.map((s, i) => {
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Match History</Text>
+        {hasMore && (
+          <TouchableOpacity onPress={() => setExpanded(v => !v)}>
+            <Text style={{ color: '#dc2626', fontSize: 12, fontWeight: '600' }}>
+              {expanded ? 'Show Less' : `See All (${stats.length})`}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {visible.map((s, i) => {
         const isHome = s.homeTeam === s.playerIplTeam
         const opp = s.homeTeam ? (isHome ? s.awayTeam : s.homeTeam) : null
         const dateStr = s.startTimeUtc
           ? new Date(s.startTimeUtc).toLocaleString('en-US', {
               month: 'short', day: 'numeric',
               hour: 'numeric', minute: '2-digit',
-              timeZone: 'Asia/Kolkata',
-            }) + ' IST'
+              timeZoneName: 'short',
+            })
           : s.matchDate
 
         const statusColor = s.status === 'live' ? '#b45309' : s.status === 'completed' ? '#16a34a' : '#6b7280'
@@ -266,7 +361,8 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
             </View>
           )}
 
-          {/* Match history (shown when playerId is provided) */}
+          {/* Upcoming games + match history (shown when playerId is provided) */}
+          {playerId && <UpcomingGames playerId={playerId} />}
           {playerId && <MatchHistory playerId={playerId} role={player.role} />}
         </ScrollView>
 

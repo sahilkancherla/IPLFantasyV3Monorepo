@@ -10,7 +10,7 @@ import { Badge } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
 import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups } from '../../../hooks/useLeague'
 import { usePlayerInterests, useToggleInterest, useAvailablePlayers } from '../../../hooks/useAuctionInterests'
-import { useAllTeams, useLeaderboard, useDropPlayer, useAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
+import { useAllTeams, useLeaderboard, useDropPlayer, useAddPlayer, useAdminDropPlayer, useAdminAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
 import { useFreeAgents, type FreeAgent } from '../../../hooks/useWaivers'
 import { useLeagueHome } from '../../../hooks/useLeagueHome'
 import { useLeagueSchedule, useAllWeeks } from '../../../hooks/useMatchup'
@@ -113,6 +113,12 @@ export default function LeagueScreen() {
   const [adminLineupWeek, setAdminLineupWeek] = useState<number | null>(null)
   const [adminLineupDraft, setAdminLineupDraft] = useState<Array<{ playerId: string; slotRole: string }>>([])
 
+  // Admin Roster Management state
+  const [adminRosterOpen, setAdminRosterOpen] = useState(false)
+  const [adminRosterUserId, setAdminRosterUserId] = useState<string | null>(null)
+  const [adminRosterAction, setAdminRosterAction] = useState<'drop' | 'add' | null>(null)
+  const [adminRosterFaSearch, setAdminRosterFaSearch] = useState('')
+
   // Players tab filters (active league state)
   const [lpSearch, setLpSearch] = useState('')
   const [lpRoleFilter, setLpRoleFilter] = useState<string | null>(null)
@@ -145,6 +151,8 @@ export default function LeagueScreen() {
   const { data: freeAgents, isLoading: faLoading } = useFreeAgents(id!)
   const dropPlayerMutation = useDropPlayer(id!)
   const addPlayerMutation = useAddPlayer(id!)
+  const adminDropPlayer = useAdminDropPlayer(id!)
+  const adminAddPlayer = useAdminAddPlayer(id!)
   const adminSetLineup = useAdminSetLineup(id!)
   const { data: adminLineupData, isLoading: adminLineupLoading } = useUserLineup(
     id!, adminLineupUserId ?? '', adminLineupWeek ?? 0
@@ -501,6 +509,10 @@ export default function LeagueScreen() {
             if (lpTeamFilter && p.ipl_team !== lpTeamFilter) return false
             if (maxPriceNum !== null && !isNaN(maxPriceNum) && playerBasePrice(p, currency) > maxPriceNum) return false
             return true
+          }).sort((a, b) => {
+            const avgA = a.team_games_played > 0 ? a.total_points / a.team_games_played : 0
+            const avgB = b.team_games_played > 0 ? b.total_points / b.team_games_played : 0
+            return avgB - avgA
           })
 
           const chipStyle = (active: boolean) => ({
@@ -614,6 +626,9 @@ export default function LeagueScreen() {
               renderItem={({ item, index }) => {
                 const statusColor = item.status === 'pending' ? 'gray' :
                   item.status === 'live' ? 'red' : item.status === 'unsold' ? 'yellow' : 'green'
+                const avgPts = item.team_games_played > 0
+                  ? (item.total_points / item.team_games_played).toFixed(1)
+                  : null
                 return (
                   <TouchableOpacity
                     onPress={() => setLpSelectedPlayer(item)}
@@ -634,7 +649,12 @@ export default function LeagueScreen() {
                       </View>
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                      <Text style={{ color: '#6b7280', fontSize: 12 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
+                      {avgPts !== null ? (
+                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts} <Text style={{ color: '#9ca3af', fontWeight: '400', fontSize: 11 }}>avg pts</Text></Text>
+                      ) : (
+                        <Text style={{ color: '#9ca3af', fontSize: 12 }}>— avg pts</Text>
+                      )}
+                      <Text style={{ color: '#6b7280', fontSize: 11 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
                       {item.status !== 'pending' && <Badge label={item.status.toUpperCase()} color={statusColor} />}
                       {item.status === 'sold' && item.sold_price != null && item.sold_price > 0 && (
                         <Text style={{ color: '#16a34a', fontSize: 11, fontWeight: '700' }}>{formatCurrency(item.sold_price, currency)}</Text>
@@ -685,8 +705,8 @@ export default function LeagueScreen() {
               ? new Date(currentMatch.start_time_utc).toLocaleString('en-US', {
                   month: 'short', day: 'numeric',
                   hour: 'numeric', minute: '2-digit',
-                  timeZone: 'Asia/Kolkata',
-                }) + ' IST'
+                  timeZoneName: 'short',
+                })
               : currentMatch?.match_date ?? null
 
             const hasPlayers = myPlayers.length > 0 || oppPlayers.length > 0
@@ -1257,6 +1277,24 @@ export default function LeagueScreen() {
                 </View>
               )}
 
+              {(isActive || isComplete) && (
+                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
+                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Roster Management</Text>
+                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Add or drop a player from any league member's roster.</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAdminRosterUserId(null)
+                      setAdminRosterAction(null)
+                      setAdminRosterFaSearch('')
+                      setAdminRosterOpen(true)
+                    }}
+                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Manage Roster</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#fee2e2', gap: 8 }}>
                 <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 15 }}>Danger Zone</Text>
                 <Button
@@ -1597,6 +1635,208 @@ export default function LeagueScreen() {
             </ScrollView>
           </View>
         </Modal>
+
+        {/* Admin Roster Management Modal */}
+        <Modal visible={adminRosterOpen} animationType="slide" presentationStyle="pageSheet">
+          <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
+              <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Roster Management</Text>
+              <TouchableOpacity onPress={() => setAdminRosterOpen(false)}>
+                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+              {/* Member picker */}
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {members.map(m => {
+                    const name = m.display_name || m.username
+                    const selected = adminRosterUserId === m.user_id
+                    return (
+                      <TouchableOpacity
+                        key={m.user_id}
+                        onPress={() => { setAdminRosterUserId(m.user_id); setAdminRosterAction(null); setAdminRosterFaSearch('') }}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                      >
+                        <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>{name}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+
+              {/* Action picker */}
+              {adminRosterUserId && (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>ACTION</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {(['drop', 'add'] as const).map(action => (
+                      <TouchableOpacity
+                        key={action}
+                        onPress={() => { setAdminRosterAction(action); setAdminRosterFaSearch('') }}
+                        style={{
+                          flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+                          backgroundColor: adminRosterAction === action ? '#111827' : 'white',
+                          borderWidth: 1, borderColor: adminRosterAction === action ? '#111827' : '#e5e7eb',
+                        }}
+                      >
+                        <Text style={{ color: adminRosterAction === action ? 'white' : '#374151', fontWeight: '700', fontSize: 14 }}>
+                          {action === 'drop' ? 'Drop Player' : 'Add Player'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Drop: show member roster */}
+              {adminRosterUserId && adminRosterAction === 'drop' && (() => {
+                const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
+                const adRoleColors: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
+                const adRoleLabels: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                return (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>TAP TO DROP</Text>
+                    <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                      {memberRoster.length === 0 ? (
+                        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                          <Text style={{ color: '#9ca3af', fontSize: 14 }}>No players on this roster</Text>
+                        </View>
+                      ) : memberRoster.map((player, idx) => {
+                        const roleColor = adRoleColors[player.player_role] ?? '#6b7280'
+                        const roleLabel = adRoleLabels[player.player_role] ?? player.player_role
+                        return (
+                          <TouchableOpacity
+                            key={player.player_id}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              Alert.alert(
+                                'Drop Player',
+                                `Drop ${player.player_name} from this roster?`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Drop',
+                                    style: 'destructive',
+                                    onPress: () => {
+                                      adminDropPlayer.mutate(
+                                        { targetUserId: adminRosterUserId!, playerId: player.player_id },
+                                        { onSuccess: () => Alert.alert('Done', `${player.player_name} dropped.`) }
+                                      )
+                                    },
+                                  },
+                                ]
+                              )
+                            }}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center',
+                              paddingHorizontal: 14, paddingVertical: 13,
+                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                            }}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
+                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.player_ipl_team}</Text>
+                            </View>
+                            <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
+                              <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </View>
+                )
+              })()}
+
+              {/* Add: search free agents */}
+              {adminRosterUserId && adminRosterAction === 'add' && (() => {
+                const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
+                const rosterFull = memberRoster.length >= (league?.roster_size ?? 16)
+                const adRoleColors: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
+                const adRoleLabels: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                const filteredFa = (freeAgents ?? []).filter(p =>
+                  !adminRosterFaSearch || p.name.toLowerCase().includes(adminRosterFaSearch.toLowerCase()) || p.ipl_team.toLowerCase().includes(adminRosterFaSearch.toLowerCase())
+                )
+                return (
+                  <View style={{ gap: 8 }}>
+                    {rosterFull && (
+                      <View style={{ backgroundColor: '#fef3c7', borderRadius: 10, padding: 12 }}>
+                        <Text style={{ color: '#92400e', fontSize: 13, fontWeight: '600' }}>Roster is full — adding a player will require dropping one first.</Text>
+                      </View>
+                    )}
+                    <TextInput
+                      value={adminRosterFaSearch}
+                      onChangeText={setAdminRosterFaSearch}
+                      placeholder="Search free agents…"
+                      placeholderTextColor="#9ca3af"
+                      style={{ backgroundColor: 'white', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' }}
+                    />
+                    <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                      {filteredFa.length === 0 ? (
+                        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                          <Text style={{ color: '#9ca3af', fontSize: 14 }}>No free agents found</Text>
+                        </View>
+                      ) : filteredFa.slice(0, 50).map((player, idx) => {
+                        const roleColor = adRoleColors[player.role] ?? '#6b7280'
+                        const roleLabel = adRoleLabels[player.role] ?? player.role
+                        return (
+                          <TouchableOpacity
+                            key={player.id}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (rosterFull) {
+                                Alert.alert(
+                                  'Roster Full',
+                                  `To add ${player.name}, you must first drop a player from this roster.`,
+                                  [{ text: 'OK' }]
+                                )
+                                return
+                              }
+                              Alert.alert(
+                                'Add Player',
+                                `Add ${player.name} to this roster?`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Add',
+                                    onPress: () => {
+                                      adminAddPlayer.mutate(
+                                        { targetUserId: adminRosterUserId!, playerId: player.id },
+                                        { onSuccess: () => Alert.alert('Done', `${player.name} added.`) }
+                                      )
+                                    },
+                                  },
+                                ]
+                              )
+                            }}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center',
+                              paddingHorizontal: 14, paddingVertical: 13,
+                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                            }}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.name}</Text>
+                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.ipl_team}</Text>
+                            </View>
+                            <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
+                              <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </View>
+                )
+              })()}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        <LoadingOverlay visible={adminDropPlayer.isPending} message="Dropping player…" />
+        <LoadingOverlay visible={adminAddPlayer.isPending} message="Adding player…" />
 
         <LoadingOverlay visible={addPlayerMutation.isPending && !dropPickerVisible} message="Adding player…" />
         <LoadingOverlay visible={dropPlayerMutation.isPending} message="Dropping player…" />

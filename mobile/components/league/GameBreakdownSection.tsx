@@ -56,7 +56,6 @@ function formatMatchTime(isoStr: string | null, matchDate: string): string {
   if (isNaN(d.getTime())) return matchDate
   if (isoStr) {
     return d.toLocaleString('en-US', {
-      timeZone: 'America/Los_Angeles',
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit',
       timeZoneName: 'short',

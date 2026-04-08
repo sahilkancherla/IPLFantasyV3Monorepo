@@ -62,6 +62,32 @@ export function useAddPlayer(leagueId: string) {
   })
 }
 
+export function useAdminDropPlayer(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ targetUserId, playerId }: { targetUserId: string; playerId: string }) =>
+      api.delete(`/teams/${leagueId}/admin/${targetUserId}/players/${playerId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+    },
+  })
+}
+
+export function useAdminAddPlayer(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ targetUserId, playerId, dropPlayerId }: { targetUserId: string; playerId: string; dropPlayerId?: string }) =>
+      api.post(`/teams/${leagueId}/admin/${targetUserId}/players`, { playerId, dropPlayerId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+    },
+  })
+}
+
 export function useLeaderboard(leagueId: string) {
   return useQuery({
     queryKey: ['leaderboard', leagueId],

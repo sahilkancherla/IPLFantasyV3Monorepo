@@ -5,12 +5,14 @@ import { useLeagues } from '../../hooks/useLeague'
 import { useAuth } from '../../hooks/useAuth'
 import { useAuthStore } from '../../stores/authStore'
 import { LoadingSpinner } from '../../components/ui/Loading'
+import { isSuperAdmin } from '../../lib/adminApi'
 
 export default function HomeScreen() {
   const router = useRouter()
   const { logout, deleteAccount } = useAuth()
   const { user } = useAuthStore()
   const { data: leagues, isLoading, refetch, isRefetching } = useLeagues()
+  const superAdmin = isSuperAdmin(user)
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -53,7 +55,15 @@ export default function HomeScreen() {
                   {user?.display_name ?? user?.username ?? 'Player'}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
+              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                {superAdmin && (
+                  <TouchableOpacity
+                    onPress={() => router.push('/(app)/superadmin')}
+                    style={{ backgroundColor: '#111827', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>⚙ Admin</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={logout}>
                   <Text style={{ color: '#9ca3af', fontSize: 13 }}>Sign out</Text>
                 </TouchableOpacity>

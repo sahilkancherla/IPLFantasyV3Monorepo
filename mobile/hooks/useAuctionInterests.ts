@@ -19,6 +19,8 @@ export interface AvailablePlayer {
   nationality: string
   image_url: string | null
   interest_count: number
+  total_points: number
+  team_games_played: number
 }
 
 export function usePlayerInterests(leagueId: string) {

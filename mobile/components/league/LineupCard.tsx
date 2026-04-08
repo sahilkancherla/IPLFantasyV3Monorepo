@@ -85,8 +85,8 @@ export function formatMatchTime(m: { start_time_utc: string | null; match_date: 
     return new Date(m.start_time_utc).toLocaleString('en-US', {
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit',
-      timeZone: 'Asia/Kolkata',
-    }) + ' IST'
+      timeZoneName: 'short',
+    })
   }
   return m.match_date
 }

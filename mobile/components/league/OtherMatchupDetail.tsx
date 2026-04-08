@@ -189,8 +189,8 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
                   ? new Date(item.start_time_utc).toLocaleString('en-US', {
                       month: 'short', day: 'numeric',
                       hour: 'numeric', minute: '2-digit',
-                      timeZone: 'Asia/Kolkata',
-                    }) + ' IST'
+                      timeZoneName: 'short',
+                    })
                   : item.match_date
 
                 const breakdown = breakdownByMatchId.get(item.match_id)

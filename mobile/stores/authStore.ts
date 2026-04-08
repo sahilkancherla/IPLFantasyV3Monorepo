@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import * as SecureStore from 'expo-secure-store'
 import { supabase } from '../lib/supabase'
 import { apiRequest } from '../lib/api'
+import { queryClient } from '../lib/queryClient'
 
 interface AuthUser {
   id: string
@@ -10,6 +11,7 @@ interface AuthUser {
   full_name: string
   display_name: string | null
   avatar_url: string | null
+  is_super_admin: boolean
 }
 
 interface AuthSession {
@@ -38,6 +40,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: async (user, session) => {
     await SecureStore.setItemAsync('sb-access-token', session.access_token)
     await SecureStore.setItemAsync('sb-refresh-token', session.refresh_token)
+    // Persist via Supabase's own storage so getSession() works on app restart
+    await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
     set({ user, session })
   },
 
@@ -45,6 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await SecureStore.deleteItemAsync('sb-access-token')
     await SecureStore.deleteItemAsync('sb-refresh-token')
     await supabase.auth.signOut()
+    queryClient.clear()
     set({ user: null, session: null })
   },
 
@@ -68,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } else if (event === 'SIGNED_OUT') {
           await SecureStore.deleteItemAsync('sb-access-token')
           await SecureStore.deleteItemAsync('sb-refresh-token')
+          queryClient.clear()
           set({ user: null, session: null })
         }
       })

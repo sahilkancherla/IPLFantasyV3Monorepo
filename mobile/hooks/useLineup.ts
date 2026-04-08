@@ -194,6 +194,28 @@ export function usePlayerStats(playerId: string | null) {
   })
 }
 
+export interface PlayerUpcomingMatch {
+  matchId: string
+  matchNumber: number | null
+  homeTeam: string
+  awayTeam: string
+  matchDate: string
+  startTimeUtc: string | null
+  status: 'pending' | 'upcoming'
+  venue: string | null
+  playerIplTeam: string
+}
+
+export function usePlayerUpcoming(playerId: string | null) {
+  return useQuery({
+    queryKey: ['player-upcoming', playerId],
+    queryFn: () => api.get<{ matches: PlayerUpcomingMatch[] }>(`/players/${playerId}/upcoming`),
+    enabled: !!playerId,
+    select: (data) => data.matches,
+    staleTime: 5 * 60_000,
+  })
+}
+
 export function useAutoSetLineup(leagueId: string) {
   const queryClient = useQueryClient()
 

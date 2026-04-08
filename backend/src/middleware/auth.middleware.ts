@@ -9,6 +9,7 @@ export interface AuthUser {
   full_name: string
   display_name: string | null
   avatar_url: string | null
+  is_super_admin: boolean
 }
 
 declare module 'fastify' {
@@ -36,7 +37,7 @@ export async function authenticate(
   }
 
   const { rows } = await pool.query<AuthUser>(
-    `SELECT id, username, full_name, display_name, avatar_url FROM profiles WHERE id = $1`,
+    `SELECT id, username, full_name, display_name, avatar_url, is_super_admin FROM profiles WHERE id = $1`,
     [user.id]
   )
 

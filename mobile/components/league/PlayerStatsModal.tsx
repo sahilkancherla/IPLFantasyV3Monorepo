@@ -79,8 +79,8 @@ export function PlayerStatsModal({ playerId, playerName, playerRole, playerTeam,
                 ? new Date(s.startTimeUtc).toLocaleString('en-US', {
                     month: 'short', day: 'numeric',
                     hour: 'numeric', minute: '2-digit',
-                    timeZone: 'Asia/Kolkata',
-                  }) + ' IST'
+                    timeZoneName: 'short',
+                  })
                 : s.matchDate
 
               const statusColor = s.status === 'live' ? '#b45309' : s.status === 'completed' ? '#16a34a' : '#6b7280'

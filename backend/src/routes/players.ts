@@ -87,6 +87,36 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ stats })
   })
 
+  // GET /players/:id/upcoming — future matches for the player's IPL team
+  app.get<{ Params: { id: string } }>('/players/:id/upcoming', async (req, reply) => {
+    const { pool } = await import('../db/client.js')
+    const { rows } = await pool.query(
+      `SELECT im.match_id, im.match_number, im.home_team, im.away_team,
+              im.match_date::text AS match_date, im.start_time_utc, im.status, im.venue,
+              p.ipl_team AS player_ipl_team
+       FROM players p
+       JOIN ipl_matches im
+         ON im.home_team = p.ipl_team OR im.away_team = p.ipl_team
+       WHERE p.id = $1
+         AND im.status IN ('pending', 'upcoming')
+       ORDER BY im.match_date ASC, im.start_time_utc ASC NULLS LAST
+       LIMIT 10`,
+      [req.params.id]
+    )
+    const matches = rows.map((r: Record<string, unknown>) => ({
+      matchId: r.match_id,
+      matchNumber: r.match_number ?? null,
+      homeTeam: r.home_team,
+      awayTeam: r.away_team,
+      matchDate: r.match_date,
+      startTimeUtc: r.start_time_utc ?? null,
+      status: r.status,
+      venue: r.venue ?? null,
+      playerIplTeam: r.player_ipl_team,
+    }))
+    return reply.send({ matches })
+  })
+
   // GET /leagues/:id/players/available
   app.get<{ Params: { id: string } }>('/leagues/:id/players/available', async (req, reply) => {
     const { id } = req.params
