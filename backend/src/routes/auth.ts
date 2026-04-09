@@ -18,6 +18,7 @@ const updateProfileSchema = z.object({
   fullName: z.string().min(2).max(80).optional(),
   displayName: z.string().max(50).optional(),
   avatarUrl: z.string().url().optional(),
+  email: z.string().email().optional(),
 })
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -137,21 +138,28 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: body.error.flatten() })
     }
 
-    const { fullName, displayName, avatarUrl } = body.data
+    const { fullName, displayName, avatarUrl, email } = body.data
     const userId = req.authUser!.id
 
-    const updates: Record<string, string> = {}
-    if (fullName !== undefined) updates.full_name = fullName
-    if (displayName !== undefined) updates.display_name = displayName
-    if (avatarUrl !== undefined) updates.avatar_url = avatarUrl
+    // Update email in Supabase Auth if provided
+    if (email !== undefined) {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { email })
+      if (error) return reply.code(400).send({ error: error.message })
+    }
 
-    if (Object.keys(updates).length === 0) {
+    const profileUpdates: Record<string, string> = {}
+    if (fullName !== undefined) profileUpdates.full_name = fullName
+    if (displayName !== undefined) profileUpdates.display_name = displayName
+    if (avatarUrl !== undefined) profileUpdates.avatar_url = avatarUrl
+    if (email !== undefined) profileUpdates.email = email
+
+    if (Object.keys(profileUpdates).length === 0) {
       return reply.send({ user: req.authUser })
     }
 
     const { data: updated } = await supabaseAdmin
       .from('profiles')
-      .update(updates)
+      .update(profileUpdates)
       .eq('id', userId)
       .select()
       .single()

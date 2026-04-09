@@ -56,14 +56,14 @@ export default function LeaderboardScreen() {
             {/* Avatar */}
             <Avatar
               uri={item.avatar_url}
-              name={item.display_name ?? item.username}
+              name={item.team_name || item.display_name || item.username}
               size={44}
             />
 
             {/* Name */}
             <View className="flex-1">
               <Text className={`font-bold ${isMe ? 'text-red-600' : 'text-gray-900'}`}>
-                {item.display_name ?? item.username}
+                {item.team_name || item.display_name || item.username}
                 {isMe && <Text className="text-red-400 font-normal"> (you)</Text>}
               </Text>
               <Text className="text-gray-400 text-xs">@{item.username}</Text>

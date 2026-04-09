@@ -4,6 +4,7 @@ import { formatCurrency, type Currency } from '../../lib/currency'
 
 interface Member {
   user_id: string
+  team_name: string
   username: string
   display_name: string | null
   avatar_url: string | null
@@ -26,11 +27,11 @@ export function MemberList({ members, adminId, startingBudget, currency = 'lakhs
       scrollEnabled={false}
       renderItem={({ item }) => (
         <View className="flex-row items-center gap-3 py-3 border-b border-gray-100">
-          <Avatar uri={item.avatar_url} name={item.display_name ?? item.username} size={44} />
+          <Avatar uri={item.avatar_url} name={item.team_name || item.display_name || item.username} size={44} />
           <View className="flex-1">
             <View className="flex-row items-center gap-2">
               <Text className="text-gray-900 font-semibold">
-                {item.display_name ?? item.username}
+                {item.team_name || item.display_name || item.username}
               </Text>
               {item.user_id === adminId && (
                 <Text className="text-yellow-600 text-xs">👑 Admin</Text>

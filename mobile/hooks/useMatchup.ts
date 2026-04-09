@@ -25,8 +25,10 @@ export interface Matchup {
   winner_id: string | null
   is_final: boolean
   // joined
+  home_team_name: string
   home_username: string
   home_full_name: string
+  away_team_name: string
   away_username: string
   away_full_name: string
 }

@@ -211,16 +211,11 @@ export async function getGameBreakdown(
   )
   if (matches.length === 0) return []
 
-  // Lineup players for both users, joined to matches where their team plays
-  const { rows: playerRows } = await pool.query(
-    `SELECT
+  const statsSelect = `
        im.match_id,
-       wl.user_id,
-       wl.player_id,
        p.name              AS player_name,
        p.ipl_team          AS player_ipl_team,
        p.role              AS player_role,
-       wl.slot_role,
        COALESCE(ms.fantasy_points,   0)     AS points,
        COALESCE(ms.runs_scored,      0)     AS runs_scored,
        COALESCE(ms.balls_faced,      0)     AS balls_faced,
@@ -236,7 +231,16 @@ export async function getGameBreakdown(
        COALESCE(ms.run_outs_direct,      0)     AS run_outs_direct,
        COALESCE(ms.run_outs_indirect,    0)     AS run_outs_indirect,
        COALESCE(ms.lbw_bowled_wickets,   0)     AS lbw_bowled_wickets,
-       COALESCE(ms.is_in_xi,             true)  AS is_in_xi
+       COALESCE(ms.is_in_xi,             true)  AS is_in_xi`
+
+  // Starting lineup players for both users
+  const { rows: playerRows } = await pool.query(
+    `SELECT
+       wl.user_id,
+       wl.player_id,
+       wl.slot_role,
+       false AS is_bench,
+       ${statsSelect}
      FROM weekly_lineups wl
      JOIN players p ON p.id = wl.player_id
      JOIN ipl_matches im
@@ -249,11 +253,41 @@ export async function getGameBreakdown(
     [leagueId, userId, weekNum, opponentId]
   )
 
-  // Group by match
-  const grouped = new Map<string, { myPlayers: GamePlayer[]; oppPlayers: GamePlayer[] }>(
-    matches.map((m: { match_id: string }) => [m.match_id, { myPlayers: [], oppPlayers: [] }])
+  // Bench players (on roster but not in starting lineup this week)
+  const { rows: benchRows } = await pool.query(
+    `SELECT
+       tr.user_id,
+       tr.player_id,
+       'bench' AS slot_role,
+       true AS is_bench,
+       ${statsSelect}
+     FROM team_rosters tr
+     JOIN players p ON p.id = tr.player_id
+     JOIN ipl_matches im
+       ON im.week_num = $3
+      AND p.ipl_team IN (im.home_team, im.away_team)
+     LEFT JOIN match_scores ms
+       ON ms.player_id = tr.player_id AND ms.match_id = im.match_id
+     WHERE tr.league_id = $1
+       AND tr.user_id IN ($2, $4)
+       AND NOT EXISTS (
+         SELECT 1 FROM weekly_lineups wl2
+         WHERE wl2.league_id = $1
+           AND wl2.user_id = tr.user_id
+           AND wl2.player_id = tr.player_id
+           AND wl2.week_num = $3
+       )
+     ORDER BY COALESCE(ms.fantasy_points, 0) DESC`,
+    [leagueId, userId, weekNum, opponentId]
   )
-  for (const row of playerRows) {
+
+  const allRows = [...playerRows, ...benchRows]
+
+  // Group by match
+  const grouped = new Map<string, { myPlayers: GamePlayer[]; oppPlayers: GamePlayer[]; myStarterPoints: number; oppStarterPoints: number }>(
+    matches.map((m: { match_id: string }) => [m.match_id, { myPlayers: [], oppPlayers: [], myStarterPoints: 0, oppStarterPoints: 0 }])
+  )
+  for (const row of allRows) {
     const g = grouped.get(row.match_id)
     if (!g) continue
     const player: GamePlayer = {
@@ -279,12 +313,17 @@ export async function getGameBreakdown(
       lbwBowledWickets: parseInt(row.lbw_bowled_wickets, 10),
       isInXI: row.is_in_xi !== false,
     }
-    if (row.user_id === userId) g.myPlayers.push(player)
-    else g.oppPlayers.push(player)
+    if (row.user_id === userId) {
+      g.myPlayers.push(player)
+      if (!row.is_bench) g.myStarterPoints += player.points
+    } else {
+      g.oppPlayers.push(player)
+      if (!row.is_bench) g.oppStarterPoints += player.points
+    }
   }
 
   return matches.map((m: { match_id: string; home_team: string; away_team: string; match_date: string; start_time_utc: string | null; is_completed: boolean; match_number: number | null; status: string }) => {
-    const g = grouped.get(m.match_id) ?? { myPlayers: [], oppPlayers: [] }
+    const g = grouped.get(m.match_id) ?? { myPlayers: [], oppPlayers: [], myStarterPoints: 0, oppStarterPoints: 0 }
     return {
       matchId: m.match_id,
       homeTeam: m.home_team,
@@ -294,8 +333,8 @@ export async function getGameBreakdown(
       isCompleted: m.is_completed,
       status: m.status as 'pending' | 'upcoming' | 'live' | 'completed',
       matchNumber: m.match_number,
-      myPoints: g.myPlayers.reduce((s, p) => s + p.points, 0),
-      oppPoints: g.oppPlayers.reduce((s, p) => s + p.points, 0),
+      myPoints: g.myStarterPoints,
+      oppPoints: g.oppStarterPoints,
       myPlayers: g.myPlayers,
       oppPlayers: g.oppPlayers,
     }

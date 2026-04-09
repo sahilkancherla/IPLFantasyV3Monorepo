@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { MemberList } from '../../../components/league/MemberList'
 import { Badge } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
-import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups } from '../../../hooks/useLeague'
+import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups, useUpdateTeamName } from '../../../hooks/useLeague'
 import { usePlayerInterests, useToggleInterest, useAvailablePlayers } from '../../../hooks/useAuctionInterests'
 import { useAllTeams, useLeaderboard, useDropPlayer, useAddPlayer, useAdminDropPlayer, useAdminAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
 import { useFreeAgents, type FreeAgent } from '../../../hooks/useWaivers'
@@ -89,6 +89,11 @@ export default function LeagueScreen() {
   const scrollRef = useRef<ScrollView>(null)
   const [wishlistY, setWishlistY] = useState(0)
   const [activeLeagueTab, setActiveLeagueTab] = useState('home')
+  const [scheduleSubTab, setScheduleSubTab] = useState<'upcoming' | 'results'>('upcoming')
+
+  // Team name state
+  const [teamNameInput, setTeamNameInput] = useState('')
+  const updateTeamName = useUpdateTeamName()
 
   // Teams tab state
   const [teamsSubTab, setTeamsSubTab] = useState<'squads' | 'points'>('squads')
@@ -104,7 +109,7 @@ export default function LeagueScreen() {
   // Player detail modal (active league Players tab)
   const [lpSelectedPlayer, setLpSelectedPlayer] = useState<{
     player_id: string; name: string; ipl_team: string; role: string
-    nationality: string; base_price: number; sold_price?: number | null; status: string
+    nationality: string; base_price: number; sold_to: string | null
   } | null>(null)
 
   // Admin Set Lineup state
@@ -124,7 +129,7 @@ export default function LeagueScreen() {
   const [lpRoleFilter, setLpRoleFilter] = useState<string | null>(null)
   const [lpTeamFilter, setLpTeamFilter] = useState<string | null>(null)
   const [lpMaxPrice, setLpMaxPrice] = useState('')
-  const [lpHideSold, setLpHideSold] = useState(true)
+  const [lpFreeAgentsOnly, setLpFreeAgentsOnly] = useState(true)
 
   const league = data?.league
   const members = data?.members ?? []
@@ -497,12 +502,12 @@ export default function LeagueScreen() {
         {/* Players tab — FlatList takes full flex:1 directly, no wrapping ScrollView */}
         {activeLeagueTab === 'players' && (() => {
           const allPlayers = availableData?.players ?? []
-          const uniqueTeams = [...new Set(allPlayers.map(p => p.ipl_team))].sort()
+          const uniqueIplTeams = [...new Set(allPlayers.map(p => p.ipl_team))].sort()
           const currency = league.currency
           const maxPriceNum = lpMaxPrice ? parseInt(lpMaxPrice, 10) : null
 
           const filtered = allPlayers.filter(p => {
-            if (lpHideSold && p.status === 'sold') return false
+            if (lpFreeAgentsOnly && p.sold_to !== null) return false
             if (lpSearch && !p.name.toLowerCase().includes(lpSearch.toLowerCase()) &&
                 !p.ipl_team.toLowerCase().includes(lpSearch.toLowerCase())) return false
             if (lpRoleFilter && p.role !== lpRoleFilter) return false
@@ -542,6 +547,21 @@ export default function LeagueScreen() {
               keyboardShouldPersistTaps="handled"
               ListHeaderComponent={
                 <View style={{ gap: 10, paddingTop: 12, paddingBottom: 8 }}>
+                  {/* Free agents toggle */}
+                  <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 3 }}>
+                    <TouchableOpacity
+                      onPress={() => setLpFreeAgentsOnly(true)}
+                      style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: lpFreeAgentsOnly ? 'white' : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>Free Agents</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setLpFreeAgentsOnly(false)}
+                      style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: !lpFreeAgentsOnly ? 'white' : 'transparent' }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: !lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>All Players</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TextInput
                     value={lpSearch}
                     onChangeText={setLpSearch}
@@ -566,9 +586,9 @@ export default function LeagueScreen() {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row' }}>
                       <TouchableOpacity onPress={() => setLpTeamFilter(null)} style={chipStyle(lpTeamFilter === null)}>
-                        <Text style={chipText(lpTeamFilter === null)}>All Teams</Text>
+                        <Text style={chipText(lpTeamFilter === null)}>All IPL Teams</Text>
                       </TouchableOpacity>
-                      {uniqueTeams.map(team => (
+                      {uniqueIplTeams.map(team => (
                         <TouchableOpacity key={team} onPress={() => setLpTeamFilter(team)} style={chipStyle(lpTeamFilter === team)}>
                           <Text style={chipText(lpTeamFilter === team)}>{team}</Text>
                         </TouchableOpacity>
@@ -591,20 +611,8 @@ export default function LeagueScreen() {
                         keyboardType="number-pad"
                         style={{ flex: 1, fontSize: 13, color: '#111827', padding: 0 }}
                       />
-                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>L</Text>
+                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>{currency === 'usd' ? '' : 'L'}</Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => setLpHideSold(v => !v)}
-                      style={{
-                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
-                        backgroundColor: lpHideSold ? '#f3f4f6' : '#dc2626',
-                        borderWidth: 1, borderColor: lpHideSold ? '#e5e7eb' : '#dc2626',
-                      }}
-                    >
-                      <Text style={{ color: lpHideSold ? '#6b7280' : 'white', fontSize: 12, fontWeight: '600' }}>
-                        {lpHideSold ? 'Show Sold' : 'Hide Sold'}
-                      </Text>
-                    </TouchableOpacity>
                     {(lpSearch || lpRoleFilter || lpTeamFilter || lpMaxPrice) && (
                       <TouchableOpacity
                         onPress={() => { setLpSearch(''); setLpRoleFilter(null); setLpTeamFilter(null); setLpMaxPrice('') }}
@@ -624,8 +632,10 @@ export default function LeagueScreen() {
                 </View>
               }
               renderItem={({ item, index }) => {
-                const statusColor = item.status === 'pending' ? 'gray' :
-                  item.status === 'live' ? 'red' : item.status === 'unsold' ? 'yellow' : 'green'
+                const ownerMember = item.sold_to ? members.find(m => m.user_id === item.sold_to) : null
+                const ownerName = ownerMember
+                  ? (ownerMember.team_name || ownerMember.display_name || ownerMember.username)
+                  : null
                 const avgPts = item.team_games_played > 0
                   ? (item.total_points / item.team_games_played).toFixed(1)
                   : null
@@ -647,6 +657,9 @@ export default function LeagueScreen() {
                         <Badge label={roleLabels[item.role] ?? item.role} color={roleBadgeColors[item.role] ?? 'gray'} />
                         {item.nationality !== 'Indian' && <Badge label="OS" color="yellow" />}
                       </View>
+                      {ownerName && (
+                        <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{ownerName}</Text>
+                      )}
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 2 }}>
                       {avgPts !== null ? (
@@ -655,10 +668,6 @@ export default function LeagueScreen() {
                         <Text style={{ color: '#9ca3af', fontSize: 12 }}>— avg pts</Text>
                       )}
                       <Text style={{ color: '#6b7280', fontSize: 11 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
-                      {item.status !== 'pending' && <Badge label={item.status.toUpperCase()} color={statusColor} />}
-                      {item.status === 'sold' && item.sold_price != null && item.sold_price > 0 && (
-                        <Text style={{ color: '#16a34a', fontSize: 11, fontWeight: '700' }}>{formatCurrency(item.sold_price, currency)}</Text>
-                      )}
                     </View>
                   </TouchableOpacity>
                 )
@@ -684,13 +693,13 @@ export default function LeagueScreen() {
             const isHome = matchup?.home_user === user?.id
             const myName = matchup
               ? (isHome
-                  ? (matchup.home_full_name || matchup.home_username)
-                  : (matchup.away_full_name || matchup.away_username))
+                  ? (matchup.home_team_name || matchup.home_full_name || matchup.home_username)
+                  : (matchup.away_team_name || matchup.away_full_name || matchup.away_username))
               : null
             const oppName = matchup
               ? (isHome
-                  ? (matchup.away_full_name || matchup.away_username)
-                  : (matchup.home_full_name || matchup.home_username))
+                  ? (matchup.away_team_name || matchup.away_full_name || matchup.away_username)
+                  : (matchup.home_team_name || matchup.home_full_name || matchup.home_username))
               : null
             const myPoints = myWeekPoints || 0
             const oppPoints = oppWeekPoints || 0
@@ -944,11 +953,17 @@ export default function LeagueScreen() {
                                 paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
                                 backgroundColor: isSelected ? '#dc2626' : 'white',
                                 borderWidth: 1, borderColor: isSelected ? '#dc2626' : '#e5e7eb',
+                                alignItems: 'center',
                               }}
                             >
-                              <Text style={{ fontSize: 13, fontWeight: '600', color: isSelected ? 'white' : '#374151' }}>
-                                {m.display_name ?? m.username}{isMe ? ' (You)' : ''}
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? 'white' : '#374151' }}>
+                                {m.team_name || m.display_name || m.username}{isMe ? ' (You)' : ''}
                               </Text>
+                              {m.team_name && (
+                                <Text style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.75)' : '#9ca3af' }}>
+                                  {m.display_name ?? m.username}
+                                </Text>
+                              )}
                             </TouchableOpacity>
                           )
                         })}
@@ -964,14 +979,19 @@ export default function LeagueScreen() {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                           <Avatar
                             uri={selectedMember.avatar_url}
-                            name={selectedMember.display_name ?? selectedMember.username}
+                            name={selectedMember.team_name || selectedMember.display_name || selectedMember.username}
                             size={44}
                           />
                           <View style={{ flex: 1 }}>
                             <Text style={{ color: '#111827', fontWeight: '700', fontSize: 18 }}>
-                              {selectedMember.display_name ?? selectedMember.username}
+                              {selectedMember.team_name || selectedMember.display_name || selectedMember.username}
                               {selectedMember.user_id === user?.id ? ' (You)' : ''}
                             </Text>
+                            {selectedMember.team_name && (
+                              <Text style={{ color: '#6b7280', fontSize: 13 }}>
+                                {selectedMember.display_name ?? selectedMember.username}
+                              </Text>
+                            )}
                             <Text style={{ color: '#9ca3af', fontSize: 13 }}>
                               {selectedRoster.length} / {league.roster_size} players
                             </Text>
@@ -1041,10 +1061,17 @@ export default function LeagueScreen() {
                               {i + 1}
                             </Text>
                             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <Avatar uri={m.avatar_url} name={m.display_name ?? m.username} size={28} />
-                              <Text style={{ color: '#111827', fontSize: 13, fontWeight: isMe ? '700' : '500' }} numberOfLines={1}>
-                                {m.display_name ?? m.username}{isMe ? ' ★' : ''}
-                              </Text>
+                              <Avatar uri={m.avatar_url} name={m.team_name || m.display_name || m.username} size={28} />
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#111827', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                                  {m.team_name || m.display_name || m.username}{isMe ? ' ★' : ''}
+                                </Text>
+                                {m.team_name && (
+                                  <Text style={{ color: '#9ca3af', fontSize: 11 }} numberOfLines={1}>
+                                    {m.display_name ?? m.username}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
                             <Text style={{ width: 52, color: '#6b7280', fontSize: 13, textAlign: 'right' }}>
                               {m.roster_count}
@@ -1068,16 +1095,25 @@ export default function LeagueScreen() {
             const matchups = scheduleMatchups ?? []
             const weeks = allWeeks ?? []
 
-            // Group matchups by week_num
             const byWeek = matchups.reduce<Record<number, typeof matchups>>((acc, m) => {
               if (!acc[m.week_num]) acc[m.week_num] = []
               acc[m.week_num].push(m)
               return acc
             }, {})
 
-            const weekNums = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
+            const allWeekNums = Object.keys(byWeek).map(Number).sort((a, b) => a - b)
 
-            if (weekNums.length === 0) {
+            const isCompleted = (weekNum: number) => {
+              const weekInfo = weeks.find(w => w.week_num === weekNum)
+              if (weekInfo?.end_date && new Date(weekInfo.end_date) < new Date()) return true
+              return byWeek[weekNum]!.every(m => m.is_final)
+            }
+
+            const upcomingWeeks = allWeekNums.filter(wn => !isCompleted(wn))
+            const resultWeeks = [...allWeekNums.filter(wn => isCompleted(wn))].reverse()
+            const weekNums = scheduleSubTab === 'upcoming' ? upcomingWeeks : resultWeeks
+
+            if (allWeekNums.length === 0) {
               return (
                 <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
                   <Text style={{ color: '#9ca3af', fontSize: 15 }}>No schedule generated yet</Text>
@@ -1087,6 +1123,56 @@ export default function LeagueScreen() {
 
             return (
               <View style={{ gap: 16 }}>
+                {/* Sub-tabs */}
+                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4, gap: 4 }}>
+                  {([
+                    { key: 'upcoming', label: 'Schedule', count: upcomingWeeks.length },
+                    { key: 'results',  label: 'Results',  count: resultWeeks.length },
+                  ] as { key: 'upcoming' | 'results'; label: string; count: number }[]).map(tab => (
+                    <TouchableOpacity
+                      key={tab.key}
+                      onPress={() => setScheduleSubTab(tab.key)}
+                      style={{
+                        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                        gap: 6, paddingVertical: 8, borderRadius: 9,
+                        backgroundColor: scheduleSubTab === tab.key ? 'white' : 'transparent',
+                        shadowColor: '#000',
+                        shadowOpacity: scheduleSubTab === tab.key ? 0.06 : 0,
+                        shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
+                        elevation: scheduleSubTab === tab.key ? 2 : 0,
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 14, fontWeight: scheduleSubTab === tab.key ? '700' : '500',
+                        color: scheduleSubTab === tab.key ? '#111827' : '#6b7280',
+                      }}>
+                        {tab.label}
+                      </Text>
+                      {tab.count > 0 && (
+                        <View style={{
+                          backgroundColor: scheduleSubTab === tab.key ? '#fee2e2' : '#e5e7eb',
+                          borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1,
+                        }}>
+                          <Text style={{
+                            fontSize: 11, fontWeight: '700',
+                            color: scheduleSubTab === tab.key ? '#dc2626' : '#9ca3af',
+                          }}>
+                            {tab.count}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {weekNums.length === 0 && (
+                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
+                    <Text style={{ color: '#9ca3af', fontSize: 15 }}>
+                      {scheduleSubTab === 'upcoming' ? 'No upcoming games' : 'No completed weeks yet'}
+                    </Text>
+                  </View>
+                )}
+
                 {weekNums.map(weekNum => {
                   const weekMatchups = byWeek[weekNum]!
                   const weekInfo = weeks.find(w => w.week_num === weekNum)
@@ -1121,11 +1207,11 @@ export default function LeagueScreen() {
                         const isMyMatchup = m.home_user === user?.id || m.away_user === user?.id
                         const isHome = m.home_user === user?.id
                         const myName = isHome
-                          ? (m.home_full_name || m.home_username)
-                          : (m.away_full_name || m.away_username)
+                          ? (m.home_team_name || m.home_full_name || m.home_username)
+                          : (m.away_team_name || m.away_full_name || m.away_username)
                         const oppName = isHome
-                          ? (m.away_full_name || m.away_username)
-                          : (m.home_full_name || m.home_username)
+                          ? (m.away_team_name || m.away_full_name || m.away_username)
+                          : (m.home_team_name || m.home_full_name || m.home_username)
                         const myPts = isHome ? m.home_points : m.away_points
                         const oppPts = isHome ? m.away_points : m.home_points
                         const hasResult = m.is_final
@@ -1158,11 +1244,11 @@ export default function LeagueScreen() {
                               <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
                                 <Avatar
                                   uri={null}
-                                  name={isMyMatchup ? (user?.display_name ?? user?.username ?? myName) : (m.home_full_name || m.home_username)}
+                                  name={isMyMatchup ? myName : (m.home_team_name || m.home_full_name || m.home_username)}
                                   size={36}
                                 />
                                 <Text style={{ color: '#111827', fontWeight: isMyMatchup ? '700' : '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
-                                  {isMyMatchup ? (user?.display_name ?? user?.username) : (m.home_full_name || m.home_username)}
+                                  {isMyMatchup ? myName : (m.home_team_name || m.home_full_name || m.home_username)}
                                   {isMyMatchup ? ' ★' : ''}
                                 </Text>
                                 <Text style={{ color: isMyMatchup ? '#dc2626' : '#374151', fontWeight: '800', fontSize: 22 }}>
@@ -1189,11 +1275,11 @@ export default function LeagueScreen() {
                               <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
                                 <Avatar
                                   uri={null}
-                                  name={isMyMatchup ? oppName : (m.away_full_name || m.away_username)}
+                                  name={isMyMatchup ? oppName : (m.away_team_name || m.away_full_name || m.away_username)}
                                   size={36}
                                 />
                                 <Text style={{ color: '#111827', fontWeight: '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
-                                  {isMyMatchup ? oppName : (m.away_full_name || m.away_username)}
+                                  {isMyMatchup ? oppName : (m.away_team_name || m.away_full_name || m.away_username)}
                                 </Text>
                                 <Text style={{ color: '#374151', fontWeight: '800', fontSize: 22 }}>
                                   {isMyMatchup ? oppPts : m.away_points}
@@ -1234,6 +1320,45 @@ export default function LeagueScreen() {
                     <Text style={{ color: '#111827', fontWeight: '600' }}>{league.roster_size}</Text>
                   </View>
                 </View>
+              </View>
+
+              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 10 }}>
+                <Text style={{ fontWeight: '700', fontSize: 16, color: '#111827' }}>Team Name</Text>
+                <TextInput
+                  value={teamNameInput}
+                  onChangeText={setTeamNameInput}
+                  placeholder={members.find(m => m.user_id === user?.id)?.team_name || 'Your team name'}
+                  placeholderTextColor="#9ca3af"
+                  style={{
+                    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10,
+                    paddingHorizontal: 12, paddingVertical: 10,
+                    fontSize: 15, color: '#111827', backgroundColor: '#f9fafb',
+                  }}
+                  maxLength={50}
+                />
+                <TouchableOpacity
+                  onPress={async () => {
+                    const trimmed = teamNameInput.trim()
+                    if (!trimmed) return
+                    try {
+                      await updateTeamName.mutateAsync({ leagueId: id!, teamName: trimmed })
+                      setTeamNameInput('')
+                      Alert.alert('Updated', 'Team name changed successfully')
+                    } catch (err) {
+                      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update team name')
+                    }
+                  }}
+                  disabled={!teamNameInput.trim() || updateTeamName.isPending}
+                  style={{
+                    backgroundColor: !teamNameInput.trim() ? '#e5e7eb' : '#111827',
+                    borderRadius: 10, paddingVertical: 11, alignItems: 'center',
+                  }}
+                >
+                  {updateTeamName.isPending
+                    ? <ActivityIndicator color="white" />
+                    : <Text style={{ color: !teamNameInput.trim() ? '#9ca3af' : 'white', fontWeight: '700', fontSize: 14 }}>Save Team Name</Text>
+                  }
+                </TouchableOpacity>
               </View>
 
               {!isAdmin && (
@@ -1850,8 +1975,6 @@ export default function LeagueScreen() {
             role: lpSelectedPlayer.role,
             nationality: lpSelectedPlayer.nationality,
             base_price: lpSelectedPlayer.base_price,
-            sold_price: lpSelectedPlayer.sold_price,
-            status: lpSelectedPlayer.status,
           } : null}
           playerId={lpSelectedPlayer?.player_id}
           currency={league.currency}

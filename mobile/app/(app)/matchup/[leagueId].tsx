@@ -22,8 +22,8 @@ function MatchupCard({
   const isHome = matchup.home_user === userId
   const isMine = matchup.home_user === userId || matchup.away_user === userId
 
-  const leftName = (matchup.home_full_name || matchup.home_username).split(' ')[0]
-  const rightName = (matchup.away_full_name || matchup.away_username).split(' ')[0]
+  const leftName = matchup.home_team_name || (matchup.home_full_name || matchup.home_username).split(' ')[0]
+  const rightName = matchup.away_team_name || (matchup.away_full_name || matchup.away_username).split(' ')[0]
 
   return (
     <TouchableOpacity
@@ -141,13 +141,13 @@ export default function MatchupScreen() {
   // For other matchups: home team on the left
   const leftName = sel
     ? (selIsMine
-        ? (selIsHome ? (sel.home_full_name || sel.home_username) : (sel.away_full_name || sel.away_username))
-        : (sel.home_full_name || sel.home_username))
+        ? (selIsHome ? (sel.home_team_name || sel.home_full_name || sel.home_username) : (sel.away_team_name || sel.away_full_name || sel.away_username))
+        : (sel.home_team_name || sel.home_full_name || sel.home_username))
     : '—'
   const rightName = sel
     ? (selIsMine
-        ? (selIsHome ? (sel.away_full_name || sel.away_username) : (sel.home_full_name || sel.home_username))
-        : (sel.away_full_name || sel.away_username))
+        ? (selIsHome ? (sel.away_team_name || sel.away_full_name || sel.away_username) : (sel.home_team_name || sel.home_full_name || sel.home_username))
+        : (sel.away_team_name || sel.away_full_name || sel.away_username))
     : '—'
   const leftPts = sel
     ? (selIsMine ? (selIsHome ? sel.home_points : sel.away_points) : sel.home_points)

@@ -10,6 +10,7 @@ interface LeagueMember {
   roster_count: number
   waiver_priority: number
   joined_at: string
+  team_name: string
   username: string
   full_name: string
   display_name: string | null
@@ -38,6 +39,7 @@ export function useCreateLeague() {
   return useMutation({
     mutationFn: (data: {
       name: string
+      teamName: string
       startingBudget?: number
       maxTeams?: number
       rosterSize?: number
@@ -59,10 +61,22 @@ export function useJoinLeague() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (inviteCode: string) =>
-      api.post<{ league: League; member: LeagueMember }>('/leagues/join', { inviteCode }),
+    mutationFn: ({ inviteCode, teamName }: { inviteCode: string; teamName: string }) =>
+      api.post<{ league: League; member: LeagueMember }>('/leagues/join', { inviteCode, teamName }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leagues'] })
+    },
+  })
+}
+
+export function useUpdateTeamName() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ leagueId, teamName }: { leagueId: string; teamName: string }) =>
+      api.patch(`/leagues/${leagueId}/team-name`, { teamName }),
+    onSuccess: (_data, { leagueId }) => {
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] })
     },
   })
 }

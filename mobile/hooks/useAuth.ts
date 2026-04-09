@@ -73,7 +73,7 @@ export function useAuth() {
     await clearAuth()
   }, [clearAuth])
 
-  const updateProfile = useCallback(async (data: { fullName?: string; displayName?: string; avatarUrl?: string }) => {
+  const updateProfile = useCallback(async (data: { fullName?: string; displayName?: string; avatarUrl?: string; email?: string }) => {
     const result = await apiRequest<{ user: LoginResult['user'] }>('PATCH', '/auth/me', data)
     if (result.user && session) {
       await setAuth(result.user, session)

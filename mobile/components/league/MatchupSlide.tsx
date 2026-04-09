@@ -1,19 +1,13 @@
 import { View, Text, ScrollView, Modal, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
-import { PointsValue } from '../ui/PointsBreakdown'
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useLineup, useUserLineup, useSetLineup, useGameBreakdown } from '../../hooks/useLineup'
 import type { LineupEntry } from '../../hooks/useLineup'
 import { GameBreakdownSection } from './GameBreakdownSection'
-import { PlayerDetailModal } from './PlayerDetailModal'
-import type { PlayerDetailInfo } from './PlayerDetailModal'
 import type { Matchup, IplWeek } from '../../hooks/useMatchup'
 import { useWeekMatches } from '../../hooks/useMatchup'
-import { useMyTeam } from '../../hooks/useTeam'
-import { LineupCard, sortBySlotRole, ROLE_ORDER } from './LineupCard'
-
-const roleLabels: Record<string, string> = {
-  batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
-}
+import { useMyTeam, useAllTeams } from '../../hooks/useTeam'
+import { ROLE_ORDER } from './LineupCard'
+import { MatchupView } from './MatchupView'
 
 const EMPTY_LINEUP: LineupEntry[] = []
 
@@ -33,11 +27,15 @@ function sortByRole<T extends { playerRole?: string; slot_role?: string; player_
   })
 }
 
-// Parse YYYY-MM-DD (or full ISO) safely into a local date string
-function formatWeekDate(d: string): string {
-  const parts = d.slice(0, 10).split('-').map(Number)
-  const dt = new Date(parts[0], parts[1] - 1, parts[2])
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function formatMatchTime(m: { start_time_utc: string | null; match_date: string }) {
+  if (m.start_time_utc) {
+    return new Date(m.start_time_utc).toLocaleString('en-US', {
+      month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+      timeZoneName: 'short',
+    })
+  }
+  return m.match_date
 }
 
 export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) {
@@ -47,31 +45,16 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
   const dbMyPoints = matchup ? (isHome ? matchup.home_points : matchup.away_points) : null
   const dbOppPoints = matchup ? (isHome ? matchup.away_points : matchup.home_points) : null
   const myName = matchup
-    ? (isHome ? (matchup.home_full_name || matchup.home_username) : (matchup.away_full_name || matchup.away_username))
-    : null
+    ? (isHome ? (matchup.home_team_name || matchup.home_full_name || matchup.home_username) : (matchup.away_team_name || matchup.away_full_name || matchup.away_username))
+    : 'You'
+  const myUsername = matchup ? (isHome ? matchup.home_full_name : matchup.away_full_name) : undefined
   const oppName = matchup
-    ? (isHome ? (matchup.away_full_name || matchup.away_username) : (matchup.home_full_name || matchup.home_username))
-    : null
+    ? (isHome ? (matchup.away_team_name || matchup.away_full_name || matchup.away_username) : (matchup.home_team_name || matchup.home_full_name || matchup.home_username))
+    : 'Opponent'
+  const oppUsername = matchup ? (isHome ? matchup.away_full_name : matchup.home_full_name) : undefined
   const oppId = matchup ? (isHome ? matchup.away_user : matchup.home_user) : null
 
-  // Always fetch own lineup (needed for editor in pending weeks too)
   const { data: weekMatches, refetch: refetchWeekMatches } = useWeekMatches(week.week_num)
-  const [activeGameIndex, setActiveGameIndex] = useState(0)
-  const gameListRef = useRef<ScrollView>(null)
-
-useEffect(() => {
-    if (!weekMatches || weekMatches.length === 0) return
-    const liveIndex = weekMatches.findIndex(m => m.status === 'live')
-    const upcomingIndex = weekMatches.findIndex(m => m.status === 'upcoming')
-    const target = liveIndex >= 0 ? liveIndex : upcomingIndex >= 0 ? upcomingIndex : 0
-    setActiveGameIndex(target)
-    if (target > 0) {
-      setTimeout(() => {
-        gameListRef.current?.scrollTo({ x: target * (width - 64), animated: false })
-      }, 50)
-    }
-  }, [weekMatches, week.status])
-
   const { data: myLineupData, refetch: refetchMyLineup } = useLineup(leagueId, week.week_num)
   const { data: oppLineupData, refetch: refetchOppLineup } = useUserLineup(
     oppId ? leagueId : '',
@@ -82,18 +65,29 @@ useEffect(() => {
   const lineupLocked = myLineupData?.locked ?? false
   const oppLineup = sortByRole(oppLineupData?.lineup ?? [])
 
-  // Per-game breakdown (players + points per match)
+  const { data: allRosters } = useAllTeams(leagueId)
+  const myStartingIds = new Set(myLineup.map(e => e.player_id))
+  const oppStartingIds = new Set(oppLineup.map(e => e.player_id))
+  const myBench = (allRosters ?? [])
+    .filter(r => r.user_id === userId && !myStartingIds.has(r.player_id))
+    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
+  const oppBench = (allRosters ?? [])
+    .filter(r => r.user_id === (oppId ?? '') && !oppStartingIds.has(r.player_id))
+    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
+
   const { data: gameBreakdown, refetch: refetchBreakdown, isRefetching: isRefetchingBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null)
   const breakdownByMatchId = new Map((gameBreakdown?.games ?? []).map((g) => [g.matchId, g]))
 
-  // Compute live weekly totals from game breakdown data
   const liveMyPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.myPoints, 0)
   const liveOppPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.oppPoints, 0)
   const myPoints = gameBreakdown ? liveMyPoints : (dbMyPoints ?? 0) || 0
   const oppPoints = gameBreakdown ? liveOppPoints : (dbOppPoints ?? 0) || 0
   const hasPoints = ((myPoints ?? 0) + (oppPoints ?? 0)) > 0 || ((matchup?.home_points ?? 0) + (matchup?.away_points ?? 0)) > 0
   const isLive = !isCompleted && hasPoints
-  const isPending = !isCompleted && !isLive
+
+  const result = isCompleted
+    ? (matchup?.winner_id === userId ? 'WIN' : matchup?.winner_id ? 'LOSS' : 'TIE') as 'WIN' | 'LOSS' | 'TIE'
+    : null
 
   const onRefresh = useCallback(() => {
     refetchWeekMatches()
@@ -102,7 +96,8 @@ useEffect(() => {
     refetchBreakdown()
   }, [refetchWeekMatches, refetchMyLineup, refetchOppLineup, refetchBreakdown])
 
-  // Set lineup modal state
+  // ── Lineup editor ──────────────────────────────────────────────────────────
+
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [carouselKey, setCarouselKey] = useState(0)
   const { data: myRoster } = useMyTeam(lineupModalOpen ? leagueId : '')
@@ -119,6 +114,14 @@ useEffect(() => {
   const [selections, setSelections] = useState<Record<SlotRole, string[]>>({
     batsman: [], wicket_keeper: [], all_rounder: [], bowler: [], flex: [],
   })
+  const [expandedModal, setExpandedModal] = useState<Set<string>>(new Set())
+
+  function gamesForTeam(iplTeam: string) {
+    return (weekMatches ?? []).filter(m => m.home_team === iplTeam || m.away_team === iplTeam)
+  }
+  function gamesRemainingForTeam(iplTeam: string) {
+    return (weekMatches ?? []).filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
+  }
 
   function openLineupModal() {
     const prefill: Record<SlotRole, string[]> = {
@@ -135,32 +138,18 @@ useEffect(() => {
     setSelections(prev => {
       const inPrimary = prev[role].includes(playerId)
       const inFlex = prev.flex.includes(playerId)
-
       if (inPrimary) {
         const newPrimary = prev[role].filter(id => id !== playerId)
-        // Promote first flex overflow of the same role back into primary
         const roster = myRoster ?? []
         const flexOfSameRole = prev.flex.find(id => roster.find(p => p.player_id === id)?.player_role === role)
         if (flexOfSameRole) {
-          return {
-            ...prev,
-            [role]: [...newPrimary, flexOfSameRole],
-            flex: prev.flex.filter(id => id !== flexOfSameRole),
-          }
+          return { ...prev, [role]: [...newPrimary, flexOfSameRole], flex: prev.flex.filter(id => id !== flexOfSameRole) }
         }
         return { ...prev, [role]: newPrimary }
       }
-      if (inFlex) {
-        return { ...prev, flex: prev.flex.filter(id => id !== playerId) }
-      }
-      // Primary slot has room — add there
-      if (prev[role].length < maxCount) {
-        return { ...prev, [role]: [...prev[role], playerId] }
-      }
-      // Primary slot full — overflow to flex if room
-      if (prev.flex.length < 3) {
-        return { ...prev, flex: [...prev.flex, playerId] }
-      }
+      if (inFlex) return { ...prev, flex: prev.flex.filter(id => id !== playerId) }
+      if (prev[role].length < maxCount) return { ...prev, [role]: [...prev[role], playerId] }
+      if (prev.flex.length < 3) return { ...prev, flex: [...prev.flex, playerId] }
       return prev
     })
   }
@@ -178,133 +167,20 @@ useEffect(() => {
     } catch { /* error shown below */ }
   }
 
-  // Expanded player rows (lineup cards + modal use separate states)
+  // ── Expand games modal ────────────────────────────────────────────────────
+
   const [gamesModalOpen, setGamesModalOpen] = useState(false)
-  const [expandedModal, setExpandedModal] = useState<Set<string>>(new Set())
+  const isPending = !isCompleted && !isLive
 
-  const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; info: PlayerDetailInfo } | null>(null)
+  // ── Render ────────────────────────────────────────────────────────────────
 
-  function gamesForTeam(iplTeam: string) {
-    return (weekMatches ?? []).filter(m => m.home_team === iplTeam || m.away_team === iplTeam)
-  }
-  function gamesRemainingForTeam(iplTeam: string) {
-    return (weekMatches ?? []).filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
-  }
-
-  function statLine(p: import('../../hooks/useLineup').GamePlayer): string {
-    const parts: string[] = []
-
-    if (p.ballsFaced > 0 || p.runsScored > 0) {
-      parts.push(`${p.runsScored}(${p.ballsFaced})`)
-      if (p.fours > 0) parts.push(`${p.fours}×4`)
-      if (p.sixes > 0) parts.push(`${p.sixes}×6`)
-    }
-    if (p.ballsBowled > 0) {
-      const overs = `${Math.floor(p.ballsBowled / 6)}.${p.ballsBowled % 6}`
-      parts.push(`${p.wicketsTaken}/${p.runsConceded} (${overs}ov)`)
-      if (p.maidens > 0) parts.push(`${p.maidens}m`)
-    }
-    if (p.catches > 0) parts.push(`${p.catches}c`)
-    if (p.stumpings > 0) parts.push(`${p.stumpings}st`)
-    if (p.runOutsDirect > 0 || p.runOutsIndirect > 0)
-      parts.push(`${p.runOutsDirect + p.runOutsIndirect}ro`)
-    return parts.join('  ') || '—'
-  }
-
-  function formatMatchTime(m: { start_time_utc: string | null; match_date: string }) {
-    if (m.start_time_utc) {
-      return new Date(m.start_time_utc).toLocaleString('en-US', {
-        month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit',
-        timeZoneName: 'short',
-      })
-    }
-    return m.match_date
-  }
-
-  const onGameScroll = useCallback((e: import('react-native').NativeSyntheticEvent<import('react-native').NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / (width - 64))
-    setActiveGameIndex(idx)
-  }, [width])
-
-  const result = isCompleted
-    ? (matchup?.winner_id === userId ? 'WIN' : matchup?.winner_id ? 'LOSS' : 'TIE')
-    : null
-
-  const statusLabel = isPending ? 'UPCOMING' : isLive ? 'LIVE' : 'FINAL'
-  const statusStyle = isPending
-    ? { bg: '#f3f4f6', color: '#6b7280' }
-    : isLive
-    ? { bg: '#fef9c3', color: '#b45309' }
-    : { bg: '#f0fdf4', color: '#16a34a' }
-  const resultStyle = result === 'WIN'
-    ? { bg: '#d1fae5', color: '#16a34a' }
-    : result === 'LOSS'
-    ? { bg: '#fee2e2', color: '#dc2626' }
-    : { bg: '#f3f4f6', color: '#6b7280' }
-
-  return (
-    <ScrollView
-      style={{ width }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 14 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor="#ef4444" />}
-    >
-      {/* Week header */}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }} numberOfLines={1}>
-            {week.label}
-          </Text>
-          <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
-            {formatWeekDate(week.start_date)} – {formatWeekDate(week.end_date)}
-          </Text>
-        </View>
-        <View style={{ backgroundColor: statusStyle.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 0 }}>
-          <Text style={{ color: statusStyle.color, fontSize: 11, fontWeight: '700' }}>{statusLabel}</Text>
-        </View>
-      </View>
-
-      {/* Score card */}
-      {matchup ? (
-        <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-          <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Overview</Text>
-            {result && (
-              <View style={{ backgroundColor: resultStyle.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ color: resultStyle.color, fontSize: 11, fontWeight: '700' }}>{result}</Text>
-              </View>
-            )}
-          </View>
-          <View style={{ padding: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 14, textAlign: 'center' }} numberOfLines={1}>
-                  {myName} ★
-                </Text>
-                <Text style={{ color: '#dc2626', fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
-                  {Number(myPoints || 0).toFixed(1)}
-                </Text>
-                <Text style={{ color: '#9ca3af', fontSize: 12 }}>pts</Text>
-              </View>
-
-              <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
-                <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 18 }}>VS</Text>
-              </View>
-
-              <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14, textAlign: 'center' }} numberOfLines={1}>
-                  {oppName}
-                </Text>
-                <Text style={{ color: '#374151', fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
-                  {Number(oppPoints || 0).toFixed(1)}
-                </Text>
-                <Text style={{ color: '#9ca3af', fontSize: 12 }}>pts</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      ) : (
+  if (!matchup) {
+    return (
+      <ScrollView
+        style={{ width }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
           <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10 }}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Matchup</Text>
@@ -313,177 +189,51 @@ useEffect(() => {
             <Text style={{ color: '#9ca3af', fontSize: 15 }}>Bye week — no matchup</Text>
           </View>
         </View>
-      )}
+      </ScrollView>
+    )
+  }
 
-      {/* IPL Games this week */}
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-        <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-            IPL Games This Week{weekMatches && weekMatches.length > 0 ? ` · ${weekMatches.length}` : ''}
-          </Text>
-          {weekMatches && weekMatches.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setGamesModalOpen(true)}
-              style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-            >
-              <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>Expand</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {!weekMatches ? (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>Loading…</Text>
-          </View>
-        ) : weekMatches.length === 0 ? (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>No games scheduled this week</Text>
-          </View>
-        ) : (
-          <View style={{ padding: 12, gap: 8 }}>
-            {weekMatches.length > 1 && (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
-                {weekMatches.map((m, i) => (
-                  <TouchableOpacity key={m.id} onPress={() => {
-                    setActiveGameIndex(i)
-                    gameListRef.current?.scrollTo({ x: i * (width - 64), animated: true })
-                  }}>
-                    <View style={{
-                      width: i === activeGameIndex ? 16 : 6,
-                      height: 6, borderRadius: 3,
-                      backgroundColor: i === activeGameIndex ? '#dc2626' : '#e5e7eb',
-                    }} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            <ScrollView
-                key={carouselKey}
-                ref={gameListRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={16}
-                onScroll={onGameScroll}
-                style={{ width: width - 64 }}
-              >
-                {weekMatches.map(item => {
-                  const matchStatus = item.status
-                  const statusBg = matchStatus === 'live' ? '#fef9c3'
-                    : matchStatus === 'completed' ? '#f0fdf4'
-                    : matchStatus === 'upcoming' ? '#dbeafe'
-                    : '#f3f4f6'
-                  const statusColor = matchStatus === 'live' ? '#b45309'
-                    : matchStatus === 'completed' ? '#16a34a'
-                    : matchStatus === 'upcoming' ? '#1d4ed8'
-                    : '#6b7280'
-                  const sLabel = matchStatus === 'live' ? 'LIVE'
-                    : matchStatus === 'completed' ? 'FINAL'
-                    : matchStatus === 'upcoming' ? 'NEXT'
-                    : 'UPCOMING'
-                  const dateStr = item.start_time_utc
-                    ? new Date(item.start_time_utc).toLocaleString('en-US', {
-                        month: 'short', day: 'numeric',
-                        hour: 'numeric', minute: '2-digit',
-                        timeZoneName: 'short',
-                      })
-                    : item.match_date
-                  const breakdown = breakdownByMatchId.get(item.match_id)
-                  const myPlayers = sortByRole(breakdown?.myPlayers ?? [])
-                  const oppPlayers = sortByRole(breakdown?.oppPlayers ?? [])
-                  const hasPlayers = myPlayers.length > 0 || oppPlayers.length > 0
+  const lineupHeaderAction = !lineupLocked ? (
+    <TouchableOpacity
+      onPress={openLineupModal}
+      style={{ backgroundColor: '#dc2626', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}
+    >
+      <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>
+        {myLineup.length === 0 ? 'Set' : 'Edit'}
+      </Text>
+    </TouchableOpacity>
+  ) : undefined
 
-                  return (
-                    <View
-                      key={item.id}
-                      style={{ width: width - 64 }}
-                    >
-                      <View style={{
-                        backgroundColor: 'white',
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: '#f3f4f6',
-                        padding: 14,
-                        gap: 10,
-                      }}>
-                        {/* Status + match number */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <View style={{ backgroundColor: statusBg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                            <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{sLabel}</Text>
-                          </View>
-                          {item.match_number != null && (
-                            <Text style={{ color: '#d1d5db', fontSize: 11 }}>Match {item.match_number}</Text>
-                          )}
-                        </View>
+  return (
+    <>
+      <MatchupView
+        week={week}
+        myName={myName}
+        myUsername={myUsername}
+        oppName={oppName}
+        oppUsername={oppUsername}
+        myPoints={myPoints}
+        oppPoints={oppPoints}
+        result={result}
+        isCompleted={isCompleted}
+        isLive={isLive}
+        myLineup={myLineup}
+        oppLineup={oppLineup}
+        lineupLocked={lineupLocked}
+        lineupHeaderAction={lineupHeaderAction}
+        myBench={myBench}
+        oppBench={oppBench}
+        weekMatches={weekMatches}
+        breakdownByMatchId={breakdownByMatchId}
+        getMyPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.myPlayers.find(p => p.playerId === playerId)}
+        getOppPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)}
+        width={width}
+        refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor="#ef4444" />}
+        onExpandGames={() => setGamesModalOpen(true)}
+        carouselKey={carouselKey}
+      />
 
-                        {/* Teams */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-                            {item.home_team}
-                          </Text>
-                          <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 12 }}>vs</Text>
-                          <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-                            {item.away_team}
-                          </Text>
-                        </View>
-
-                        {/* Date + venue */}
-                        <View style={{ gap: 2 }}>
-                          <Text style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>{dateStr}</Text>
-                          {item.venue != null && (
-                            <Text style={{ color: '#d1d5db', fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
-                              {item.venue}
-                            </Text>
-                          )}
-                        </View>
-
-                        {/* Players in this game */}
-                        <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, gap: 10 }}>
-                          {!hasPlayers ? (
-                            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
-                              <Text style={{ color: '#d1d5db', fontSize: 12 }}>No players in this game</Text>
-                            </View>
-                          ) : [
-                            { players: myPlayers, label: myName ?? 'You', labelColor: '#dc2626' },
-                            { players: oppPlayers, label: oppName ?? 'Opponent', labelColor: '#6b7280' },
-                          ].map(({ players, label, labelColor }) => players.length > 0 && (
-                            <View key={label} style={{ gap: 6 }}>
-                              <Text style={{ color: labelColor, fontSize: 10, fontWeight: '700' }}>{label}</Text>
-                              {players.map(p => (
-                                <View key={p.playerId} style={{ gap: 1 }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', width: 28 }}>
-                                      {roleLabels[p.playerRole] ?? p.playerRole}
-                                    </Text>
-                                    <Text style={{ flex: 1, color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                                      {p.playerName}
-                                    </Text>
-                                    <PointsValue
-                                      value={p.points}
-                                      stats={{ ...p, playerRole: p.playerRole }}
-                                      playerName={p.playerName}
-                                      style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
-                                    >
-                                      {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
-                                    </PointsValue>
-                                  </View>
-                                  {(matchStatus === 'live' || matchStatus === 'completed') && statLine(p) !== '' && (
-                                    <Text style={{ color: '#9ca3af', fontSize: 11 }}>{statLine(p)}</Text>
-                                  )}
-                                </View>
-                              ))}
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
-                  )
-                })}
-              </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* IPL Games Expand Modal */}
+      {/* IPL Games expand modal */}
       <Modal visible={gamesModalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGamesModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
           <View style={{ backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -498,84 +248,15 @@ useEffect(() => {
                 leagueId={leagueId}
                 weekNum={week.week_num}
                 opponentId={oppId}
-                myName={myName ?? 'You'}
-                oppName={oppName ?? 'Opponent'}
+                myName={myName}
+                oppName={oppName}
               />
             )}
           </ScrollView>
         </View>
       </Modal>
 
-      {/* Lineup lock time */}
-      {!lineupLocked && (
-        <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: '#6b7280', fontSize: 13 }}>
-            Lineups lock {new Date(week.lock_time).toLocaleString('en-US', {
-              weekday: 'short', month: 'short', day: 'numeric',
-              hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-            })}
-          </Text>
-        </View>
-      )}
-
-      {/* Per-game breakdown for live / completed
-      {!isPending && matchup && oppId && (
-        <GameBreakdownSection
-          leagueId={leagueId}
-          weekNum={week.week_num}
-          opponentId={oppId}
-          myName={myName ?? 'You'}
-          oppName={oppName ?? 'Opponent'}
-        />
-      )} */}
-
-      {/* Starting lineups — always shown when there's a matchup */}
-      {matchup && (
-        <View style={{ gap: 10 }}>
-          <LineupCard
-            title={myName ?? 'You'}
-            titleSuffix=" ★"
-            lineup={myLineup}
-            emptyMessage="You haven't set a lineup yet"
-            weekMatches={weekMatches ?? []}
-            breakdownByMatchId={breakdownByMatchId}
-            getPlayerStats={(matchId, playerId) =>
-              breakdownByMatchId.get(matchId)?.myPlayers.find(p => p.playerId === playerId)
-            }
-            headerAction={!lineupLocked ? (
-              <TouchableOpacity
-                onPress={openLineupModal}
-                style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-              >
-                <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>
-                  {myLineup.length === 0 ? 'Set Lineup' : 'Edit Lineup'}
-                </Text>
-              </TouchableOpacity>
-            ) : undefined}
-          />
-          <LineupCard
-            title={oppName ?? 'Opponent'}
-            headerColor="#374151"
-            lineup={oppLineup}
-            emptyMessage="Opponent hasn't set a lineup yet"
-            weekMatches={weekMatches ?? []}
-            breakdownByMatchId={breakdownByMatchId}
-            getPlayerStats={(matchId, playerId) =>
-              breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)
-            }
-          />
-        </View>
-      )}
-
-      {/* Player stats modal */}
-      <PlayerDetailModal
-        visible={!!selectedPlayer}
-        player={selectedPlayer?.info ?? null}
-        playerId={selectedPlayer?.id}
-        onClose={() => setSelectedPlayer(null)}
-      />
-
-      {/* Set Lineup Modal */}
+      {/* Set/Edit Lineup modal */}
       <Modal
         visible={lineupModalOpen}
         animationType="slide"
@@ -584,7 +265,6 @@ useEffect(() => {
         onDismiss={() => setCarouselKey(k => k + 1)}
       >
         <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-          {/* Modal header */}
           <View style={{ backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', flex: 1 }}>
               <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17, flex: 1 }}>Set Lineup — Week {week.week_num}</Text>
@@ -592,8 +272,6 @@ useEffect(() => {
                 <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Position count bar */}
             <View style={{ flexDirection: 'row', marginTop: 14, gap: 6 }}>
               {[
                 ...PRIMARY_SLOTS.map(s => ({ label: s.shortLabel, filled: selections[s.role].length, total: s.count })),
@@ -616,17 +294,14 @@ useEffect(() => {
               const players = roster.filter(p => p.player_role === slot.role)
               const chosen = selections[slot.role]
               const atCap = chosen.length >= slot.count
-
               return (
                 <View key={slot.role} style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-                  {/* Section header */}
                   <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ color: '#374151', fontWeight: '700', fontSize: 13 }}>{slot.label}</Text>
                     <Text style={{ color: atCap ? '#dc2626' : '#9ca3af', fontSize: 12, fontWeight: '600' }}>
                       {chosen.length}/{slot.count}
                     </Text>
                   </View>
-
                   {players.length === 0 ? (
                     <View style={{ padding: 16, alignItems: 'center' }}>
                       <Text style={{ color: '#d1d5db', fontSize: 13 }}>No players available</Text>
@@ -640,7 +315,6 @@ useEffect(() => {
                     return (
                       <View key={p.player_id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#f3f4f6', opacity: isDisabled ? 0.4 : 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSelected ? '#fff5f5' : 'white' }}>
-                          {/* Checkbox + player info — entire left area toggles selection */}
                           <TouchableOpacity
                             onPress={() => togglePlayer(slot.role, p.player_id, slot.count)}
                             disabled={isDisabled}
@@ -650,8 +324,7 @@ useEffect(() => {
                               width: 22, height: 22, borderRadius: 11, borderWidth: 2,
                               borderColor: isSelected ? '#dc2626' : '#d1d5db',
                               backgroundColor: isSelected ? '#dc2626' : 'white',
-                              alignItems: 'center', justifyContent: 'center',
-                              marginRight: 12,
+                              alignItems: 'center', justifyContent: 'center', marginRight: 12,
                             }}>
                               {isSelected && <Text style={{ color: 'white', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>✓</Text>}
                             </View>
@@ -662,7 +335,6 @@ useEffect(() => {
                               <Text style={{ color: '#9ca3af', fontSize: 12 }}>{p.player_ipl_team}</Text>
                             </View>
                           </TouchableOpacity>
-                          {/* Chevron — only toggles dropdown */}
                           <TouchableOpacity
                             style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingRight: 14, paddingLeft: 8 }}
                             onPress={() => setExpandedModal(prev => { const s = new Set(prev); isExpanded ? s.delete(p.player_id) : s.add(p.player_id); return s })}
@@ -675,7 +347,6 @@ useEffect(() => {
                             <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
                           </TouchableOpacity>
                         </View>
-
                         {isExpanded && (
                           <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 8, gap: 10 }}>
                             {games.length === 0 ? (
@@ -708,7 +379,6 @@ useEffect(() => {
             })}
           </ScrollView>
 
-          {/* Submit button */}
           <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
             {setLineupMutation.isError && (
               <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
@@ -729,6 +399,6 @@ useEffect(() => {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </>
   )
 }

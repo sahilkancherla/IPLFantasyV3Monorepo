@@ -11,6 +11,7 @@ export default function CreateLeagueScreen() {
   const createLeague = useCreateLeague()
 
   const [name, setName] = useState('')
+  const [teamName, setTeamName] = useState('')
   const [budget, setBudget] = useState('1000')
   const [maxTeams, setMaxTeams] = useState('6')
   const [rosterSize, setRosterSize] = useState('16')
@@ -27,6 +28,10 @@ export default function CreateLeagueScreen() {
       Alert.alert('Error', 'League name is required')
       return
     }
+    if (!teamName.trim()) {
+      Alert.alert('Error', 'Your team name is required')
+      return
+    }
 
     const teams = parseInt(maxTeams, 10)
     if (isNaN(teams) || teams < 2 || teams > 6) {
@@ -37,6 +42,7 @@ export default function CreateLeagueScreen() {
     try {
       const { league } = await createLeague.mutateAsync({
         name: name.trim(),
+        teamName: teamName.trim(),
         startingBudget: parseInt(budget, 10),
         maxTeams: teams,
         rosterSize: parseInt(rosterSize, 10),
@@ -75,6 +81,12 @@ export default function CreateLeagueScreen() {
             value={name}
             onChangeText={setName}
             placeholder="My IPL Fantasy League"
+          />
+          <TextInput
+            label="Your Team Name *"
+            value={teamName}
+            onChangeText={setTeamName}
+            placeholder="e.g. Chennai Challengers"
           />
           <View className="gap-2">
             <Text className="text-gray-700 text-sm font-medium">Currency</Text>

@@ -63,11 +63,11 @@ function PlayerRow({ p, isLiveOrDone }: { p: MatchPlayer; isLiveOrDone: boolean 
 export function LeagueCurrentMatch({ leagueName, currentMatch, matchup, myPlayers, oppPlayers, userId }: Props) {
   const isHome = matchup.home_user === userId
   const myName = isHome
-    ? (matchup.home_full_name || matchup.home_username)
-    : (matchup.away_full_name || matchup.away_username)
+    ? (matchup.home_team_name || matchup.home_full_name || matchup.home_username)
+    : (matchup.away_team_name || matchup.away_full_name || matchup.away_username)
   const oppName = isHome
-    ? (matchup.away_full_name || matchup.away_username)
-    : (matchup.home_full_name || matchup.home_username)
+    ? (matchup.away_team_name || matchup.away_full_name || matchup.away_username)
+    : (matchup.home_team_name || matchup.home_full_name || matchup.home_username)
 
   const isLiveOrDone = currentMatch.status === 'live' || currentMatch.status === 'completed'
   const statusBg = currentMatch.status === 'live' ? '#fef9c3' : currentMatch.status === 'completed' ? '#f0fdf4' : '#f3f4f6'

@@ -29,8 +29,8 @@ function MatchupChip({
   onPress: () => void
 }) {
   const isMine = matchup.home_user === userId || matchup.away_user === userId
-  const leftFirst = (matchup.home_full_name || matchup.home_username).split(' ')[0]
-  const rightFirst = (matchup.away_full_name || matchup.away_username).split(' ')[0]
+  const leftFirst = matchup.home_team_name || (matchup.home_full_name || matchup.home_username).split(' ')[0]
+  const rightFirst = matchup.away_team_name || (matchup.away_full_name || matchup.away_username).split(' ')[0]
 
   return (
     <TouchableOpacity
@@ -38,13 +38,12 @@ function MatchupChip({
       activeOpacity={0.75}
       style={{
         marginRight: 10,
-        paddingHorizontal: 14,
+        paddingHorizontal: 12,
         paddingVertical: 9,
         borderRadius: 14,
         borderWidth: selected ? 2 : 1.5,
         borderColor: selected ? '#ef4444' : '#e5e7eb',
         backgroundColor: selected ? '#fff1f2' : 'white',
-        minWidth: 148,
         alignItems: 'center',
         justifyContent: 'center',
         gap: 3,
@@ -55,12 +54,12 @@ function MatchupChip({
           YOUR MATCHUP
         </Text>
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', textAlign: 'center' }} numberOfLines={1}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 65 }} numberOfLines={2}>
           {leftFirst}
         </Text>
         <Text style={{ fontSize: 10, color: '#9ca3af' }}>vs</Text>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', textAlign: 'center' }} numberOfLines={1}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 65 }} numberOfLines={2}>
           {rightFirst}
         </Text>
       </View>
@@ -68,8 +67,8 @@ function MatchupChip({
         const hp = parseFloat(String(matchup.home_points)) || 0
         const ap = parseFloat(String(matchup.away_points)) || 0
         return (hp > 0 || ap > 0 || matchup.is_final || !isMine) ? (
-          <Text style={{ fontSize: 11, color: '#6b7280', textAlign: 'center' }}>
-            {hp.toFixed(1)} – {ap.toFixed(1)}
+          <Text style={{ fontSize: 10, color: '#6b7280', textAlign: 'center' }}>
+            {hp.toFixed(1)}–{ap.toFixed(1)}
           </Text>
         ) : null
       })()}

@@ -10,10 +10,12 @@ import {
   createLeague,
   joinLeague,
   leaveLeague,
+  updateTeamName,
 } from '../db/queries/leagues.js'
 
 const createLeagueSchema = z.object({
   name: z.string().min(3).max(50),
+  teamName: z.string().min(2).max(50),
   startingBudget: z.number().int().min(100).max(10000).default(1000),
   maxSquadSize: z.number().int().min(5).max(25).default(15),
   maxTeams: z.number().int().min(2).max(6).default(6),
@@ -29,6 +31,7 @@ const createLeagueSchema = z.object({
 
 const joinLeagueSchema = z.object({
   inviteCode: z.string().length(6).toUpperCase(),
+  teamName: z.string().min(2).max(50),
 })
 
 export async function leagueRoutes(app: FastifyInstance): Promise<void> {
@@ -51,6 +54,7 @@ export async function leagueRoutes(app: FastifyInstance): Promise<void> {
     const league = await createLeague({
       name: body.data.name,
       adminId: req.authUser!.id,
+      teamName: body.data.teamName,
       startingBudget: body.data.startingBudget,
       maxSquadSize: body.data.maxSquadSize,
       maxTeams: body.data.maxTeams,
@@ -111,8 +115,21 @@ export async function leagueRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: 'Already a member of this league' })
     }
 
-    const member = await joinLeague(league.id, req.authUser!.id, league.starting_budget)
+    const member = await joinLeague(league.id, req.authUser!.id, league.starting_budget, body.data.teamName)
     return reply.code(201).send({ league, member })
+  })
+
+  // PATCH /leagues/:id/team-name
+  app.patch<{ Params: { id: string } }>('/leagues/:id/team-name', async (req, reply) => {
+    const { id } = req.params
+    const body = z.object({ teamName: z.string().min(2).max(50) }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const isMember = await isLeagueMember(id, req.authUser!.id)
+    if (!isMember) return reply.code(403).send({ error: 'Not a member of this league' })
+
+    await updateTeamName(id, req.authUser!.id, body.data.teamName)
+    return reply.send({ ok: true })
   })
 
   // DELETE /leagues/:id/leave

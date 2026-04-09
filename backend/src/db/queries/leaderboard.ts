@@ -5,6 +5,7 @@ export interface LeaderboardEntry {
   user_id: string
   total_points: number
   last_updated: string
+  team_name: string
   username: string
   display_name: string | null
   avatar_url: string | null
@@ -12,9 +13,10 @@ export interface LeaderboardEntry {
 
 export async function getLeaderboard(leagueId: string): Promise<LeaderboardEntry[]> {
   const { rows } = await pool.query<LeaderboardEntry>(
-    `SELECT lc.*, p.username, p.display_name, p.avatar_url
+    `SELECT lc.*, lm.team_name, p.username, p.display_name, p.avatar_url
      FROM leaderboard_cache lc
      JOIN profiles p ON p.id = lc.user_id
+     LEFT JOIN league_members lm ON lm.league_id = lc.league_id AND lm.user_id = lc.user_id
      WHERE lc.league_id = $1
      ORDER BY lc.total_points DESC`,
     [leagueId]

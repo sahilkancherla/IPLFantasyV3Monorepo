@@ -96,6 +96,7 @@ export function useLeaderboard(leagueId: string) {
         user_id: string
         total_points: number
         last_updated: string
+        team_name: string
         username: string
         display_name: string | null
         avatar_url: string | null

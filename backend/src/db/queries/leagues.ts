@@ -29,6 +29,7 @@ export interface LeagueMember {
   roster_count: number
   waiver_priority: number
   joined_at: string
+  team_name: string
   username: string
   full_name: string
   display_name: string | null
@@ -74,6 +75,13 @@ export async function getLeagueMembers(leagueId: string): Promise<LeagueMember[]
   return rows
 }
 
+export async function updateTeamName(leagueId: string, userId: string, teamName: string): Promise<void> {
+  await pool.query(
+    `UPDATE league_members SET team_name = $1 WHERE league_id = $2 AND user_id = $3`,
+    [teamName, leagueId, userId]
+  )
+}
+
 export async function isLeagueMember(leagueId: string, userId: string): Promise<boolean> {
   const { rows } = await pool.query(
     `SELECT 1 FROM league_members WHERE league_id = $1 AND user_id = $2`,
@@ -85,6 +93,7 @@ export async function isLeagueMember(leagueId: string, userId: string): Promise<
 export async function createLeague(data: {
   name: string
   adminId: string
+  teamName: string
   startingBudget: number
   maxSquadSize: number
   maxTeams: number
@@ -116,20 +125,20 @@ export async function createLeague(data: {
 
   // Admin auto-joins
   await pool.query(
-    `INSERT INTO league_members (league_id, user_id, remaining_budget)
-     VALUES ($1, $2, $3)`,
-    [rows[0].id, data.adminId, data.startingBudget]
+    `INSERT INTO league_members (league_id, user_id, remaining_budget, team_name)
+     VALUES ($1, $2, $3, $4)`,
+    [rows[0].id, data.adminId, data.startingBudget, data.teamName]
   )
 
   return rows[0]
 }
 
-export async function joinLeague(leagueId: string, userId: string, startingBudget: number): Promise<LeagueMember> {
+export async function joinLeague(leagueId: string, userId: string, startingBudget: number, teamName: string): Promise<LeagueMember> {
   const { rows } = await pool.query<LeagueMember>(
-    `INSERT INTO league_members (league_id, user_id, remaining_budget)
-     VALUES ($1, $2, $3)
+    `INSERT INTO league_members (league_id, user_id, remaining_budget, team_name)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [leagueId, userId, startingBudget]
+    [leagueId, userId, startingBudget, teamName]
   )
   return rows[0]
 }

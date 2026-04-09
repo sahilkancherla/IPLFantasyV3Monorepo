@@ -21,9 +21,11 @@ export interface WeeklyMatchup {
   winner_id: string | null
   is_final: boolean
   // joined fields
+  home_team_name: string
   home_full_name: string
   home_username: string
   home_avatar_url: string | null
+  away_team_name: string
   away_full_name: string
   away_username: string
   away_avatar_url: string | null
@@ -52,11 +54,15 @@ export async function getLeagueSchedule(leagueId: string): Promise<WeeklyMatchup
             wm.winner_id, wm.is_final,
             ${livePointsSubquery('home_user')} AS home_points,
             ${livePointsSubquery('away_user')} AS away_points,
+            lmh.team_name AS home_team_name,
             ph.full_name AS home_full_name, ph.username AS home_username, ph.avatar_url AS home_avatar_url,
+            lma.team_name AS away_team_name,
             pa.full_name AS away_full_name, pa.username AS away_username, pa.avatar_url AS away_avatar_url
      FROM weekly_matchups wm
      JOIN profiles ph ON ph.id = wm.home_user
      JOIN profiles pa ON pa.id = wm.away_user
+     LEFT JOIN league_members lmh ON lmh.league_id = wm.league_id AND lmh.user_id = wm.home_user
+     LEFT JOIN league_members lma ON lma.league_id = wm.league_id AND lma.user_id = wm.away_user
      WHERE wm.league_id = $1
      ORDER BY wm.week_num`,
     [leagueId]
@@ -74,11 +80,15 @@ export async function getMatchupForWeek(
             wm.winner_id, wm.is_final,
             ${livePointsSubquery('home_user')} AS home_points,
             ${livePointsSubquery('away_user')} AS away_points,
+            lmh.team_name AS home_team_name,
             ph.full_name AS home_full_name, ph.username AS home_username, ph.avatar_url AS home_avatar_url,
+            lma.team_name AS away_team_name,
             pa.full_name AS away_full_name, pa.username AS away_username, pa.avatar_url AS away_avatar_url
      FROM weekly_matchups wm
      JOIN profiles ph ON ph.id = wm.home_user
      JOIN profiles pa ON pa.id = wm.away_user
+     LEFT JOIN league_members lmh ON lmh.league_id = wm.league_id AND lmh.user_id = wm.home_user
+     LEFT JOIN league_members lma ON lma.league_id = wm.league_id AND lma.user_id = wm.away_user
      WHERE wm.league_id = $1
        AND wm.week_num  = $2
        AND (wm.home_user = $3 OR wm.away_user = $3)
