@@ -17,6 +17,7 @@ interface Props {
   leagueId: string
   userId: string
   width: number
+  overrides?: Array<{ user_id: string; week_num: number; points: number; note: string | null }>
 }
 
 function sortByRole<T extends { playerRole?: string; slot_role?: string; player_role?: string }>(arr: T[]): T[] {
@@ -38,8 +39,8 @@ function formatMatchTime(m: { start_time_utc: string | null; match_date: string 
   return m.match_date
 }
 
-export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) {
-  const isCompleted = (matchup?.is_final ?? false) || new Date(week.end_date) < new Date()
+export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides = [] }: Props) {
+  const isCompleted = (matchup?.is_final ?? false) || (week.window_end ? new Date(week.window_end) < new Date() : false)
 
   const isHome = matchup?.home_user === userId
   const dbMyPoints = matchup ? (isHome ? matchup.home_points : matchup.away_points) : null
@@ -53,6 +54,9 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
     : 'Opponent'
   const oppUsername = matchup ? (isHome ? matchup.away_full_name : matchup.home_full_name) : undefined
   const oppId = matchup ? (isHome ? matchup.away_user : matchup.home_user) : null
+
+  const myOverride = overrides.find(o => o.user_id === userId && o.week_num === week.week_num) ?? null
+  const oppOverride = oppId ? (overrides.find(o => o.user_id === oppId && o.week_num === week.week_num) ?? null) : null
 
   const { data: weekMatches, refetch: refetchWeekMatches } = useWeekMatches(week.week_num)
   const { data: myLineupData, refetch: refetchMyLineup } = useLineup(leagueId, week.week_num)
@@ -68,25 +72,30 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
   const { data: allRosters } = useAllTeams(leagueId)
   const myStartingIds = new Set(myLineup.map(e => e.player_id))
   const oppStartingIds = new Set(oppLineup.map(e => e.player_id))
-  const myBench = (allRosters ?? [])
+  const myBench = myLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === userId && !myStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
-  const oppBench = (allRosters ?? [])
+  const oppBench = oppLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === (oppId ?? '') && !oppStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
 
-  const { data: gameBreakdown, refetch: refetchBreakdown, isRefetching: isRefetchingBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null)
+  const { data: gameBreakdown, refetch: refetchBreakdown, isRefetching: isRefetchingBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null, isCompleted)
   const breakdownByMatchId = new Map((gameBreakdown?.games ?? []).map((g) => [g.matchId, g]))
 
-  const liveMyPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.myPoints, 0)
-  const liveOppPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.oppPoints, 0)
+  const liveMyPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.myPoints, 0) + (myOverride?.points ?? 0)
+  const liveOppPoints = (gameBreakdown?.games ?? []).reduce((s, g) => s + g.oppPoints, 0) + (oppOverride?.points ?? 0)
   const myPoints = gameBreakdown ? liveMyPoints : (dbMyPoints ?? 0) || 0
   const oppPoints = gameBreakdown ? liveOppPoints : (dbOppPoints ?? 0) || 0
   const hasPoints = ((myPoints ?? 0) + (oppPoints ?? 0)) > 0 || ((matchup?.home_points ?? 0) + (matchup?.away_points ?? 0)) > 0
   const isLive = !isCompleted && hasPoints
 
+  const derivedWinnerId = matchup?.winner_id ?? (
+    isCompleted && matchup && myPoints !== oppPoints
+      ? (myPoints > oppPoints ? userId : oppId)
+      : null
+  )
   const result = isCompleted
-    ? (matchup?.winner_id === userId ? 'WIN' : matchup?.winner_id ? 'LOSS' : 'TIE') as 'WIN' | 'LOSS' | 'TIE'
+    ? (derivedWinnerId === userId ? 'WIN' : derivedWinnerId ? 'LOSS' : 'TIE') as 'WIN' | 'LOSS' | 'TIE'
     : null
 
   const onRefresh = useCallback(() => {
@@ -227,10 +236,15 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width }: Props) 
         breakdownByMatchId={breakdownByMatchId}
         getMyPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.myPlayers.find(p => p.playerId === playerId)}
         getOppPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)}
+        myOverridePoints={myOverride?.points ?? null}
+        myOverrideNote={myOverride?.note ?? null}
+        oppOverridePoints={oppOverride?.points ?? null}
+        oppOverrideNote={oppOverride?.note ?? null}
         width={width}
         refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor="#ef4444" />}
         onExpandGames={() => setGamesModalOpen(true)}
         carouselKey={carouselKey}
+        onSetLineup={!lineupLocked ? openLineupModal : undefined}
       />
 
       {/* IPL Games expand modal */}

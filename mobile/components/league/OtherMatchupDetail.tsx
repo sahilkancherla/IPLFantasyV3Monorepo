@@ -28,7 +28,7 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
   const awayUsername = matchup.away_full_name
   const homePts = parseFloat(String(matchup.home_points)) || 0
   const awayPts = parseFloat(String(matchup.away_points)) || 0
-  const isCompleted = matchup.is_final || new Date(week.end_date) < new Date()
+  const isCompleted = matchup.is_final || (week.window_end ? new Date(week.window_end) < new Date() : false)
   const hasPoints = homePts > 0 || awayPts > 0 || matchup.is_final
   const isLive = !isCompleted && hasPoints
 

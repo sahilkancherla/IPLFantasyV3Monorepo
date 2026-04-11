@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react'
 import {
   View, Text, ScrollView, Alert, RefreshControl, TouchableOpacity,
   TextInput, FlatList, KeyboardAvoidingView, Platform, Modal, ActivityIndicator,
+  Animated, Dimensions,
 } from 'react-native'
-import { formatCurrency, playerBasePrice } from '../../../lib/currency'
+import { formatCurrency } from '../../../lib/currency'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { MemberList } from '../../../components/league/MemberList'
 import { Badge } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
-import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups, useUpdateTeamName } from '../../../hooks/useLeague'
+import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups, useUpdateTeamName, useLeagueOverrides, useSetOverride, useDeleteOverride, useRenameLeague } from '../../../hooks/useLeague'
 import { usePlayerInterests, useToggleInterest, useAvailablePlayers } from '../../../hooks/useAuctionInterests'
 import { useAllTeams, useLeaderboard, useDropPlayer, useAddPlayer, useAdminDropPlayer, useAdminAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
 import { useFreeAgents, type FreeAgent } from '../../../hooks/useWaivers'
@@ -20,8 +21,9 @@ import { PlayerDetailModal } from '../../../components/league/PlayerDetailModal'
 import { LoadingScreen, LoadingOverlay } from '../../../components/ui/Loading'
 import { Avatar } from '../../../components/ui/Avatar'
 import { useAuthStore } from '../../../stores/authStore'
+import { PlayerRow, roleColors, roleLabels } from '../../../components/league/PlayerRow'
 import { api } from '../../../lib/api'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminSetLineup, useUserLineup } from '../../../hooks/useLineup'
 
 
@@ -34,12 +36,6 @@ interface PlayerRow {
   nationality: string
 }
 
-const roleLabels: Record<string, string> = {
-  batsman: 'BAT',
-  bowler: 'BOW',
-  all_rounder: 'AR',
-  wicket_keeper: 'WK',
-}
 
 const ROLE_ORDER: Record<string, number> = {
   batsman: 0, wicket_keeper: 1, all_rounder: 2, bowler: 3, flex: 4,
@@ -95,6 +91,16 @@ export default function LeagueScreen() {
   const [teamNameInput, setTeamNameInput] = useState('')
   const updateTeamName = useUpdateTeamName()
 
+  // League rename state
+  const [leagueNameInput, setLeagueNameInput] = useState('')
+  const renameLeague = useRenameLeague()
+
+  // Points override state
+  const [overrideUserId, setOverrideUserId] = useState<string>('')
+  const [overrideWeek, setOverrideWeek] = useState<string>('')
+  const [overridePoints, setOverridePoints] = useState<string>('')
+  const [overrideNote, setOverrideNote] = useState<string>('')
+
   // Teams tab state
   const [teamsSubTab, setTeamsSubTab] = useState<'squads' | 'points'>('squads')
   const [selectedTeamUserId, setSelectedTeamUserId] = useState<string | null>(null)
@@ -105,6 +111,9 @@ export default function LeagueScreen() {
   const [selectedFreeAgent, setSelectedFreeAgent] = useState<FreeAgent | null>(null)
   const [dropPickerVisible, setDropPickerVisible] = useState(false)
   const [dropRoleFilter, setDropRoleFilter] = useState<string | null>(null)
+  const [dropConfirmItem, setDropConfirmItem] = useState<RosterEntry | null>(null)
+  const dropSlide = useRef(new Animated.Value(0)).current
+  const SCREEN_W = Dimensions.get('window').width
 
   // Player detail modal (active league Players tab)
   const [lpSelectedPlayer, setLpSelectedPlayer] = useState<{
@@ -128,7 +137,6 @@ export default function LeagueScreen() {
   const [lpSearch, setLpSearch] = useState('')
   const [lpRoleFilter, setLpRoleFilter] = useState<string | null>(null)
   const [lpTeamFilter, setLpTeamFilter] = useState<string | null>(null)
-  const [lpMaxPrice, setLpMaxPrice] = useState('')
   const [lpFreeAgentsOnly, setLpFreeAgentsOnly] = useState(true)
 
   const league = data?.league
@@ -148,6 +156,9 @@ export default function LeagueScreen() {
   const { data: availableData } = useAvailablePlayers((isActive || isComplete) ? id! : '')
   const { data: allRosters } = useAllTeams((isActive || isComplete) ? id! : '')
   const { data: leaderboard } = useLeaderboard((isActive || isComplete) ? id! : '')
+  const { data: overrides } = useLeagueOverrides(id!)
+  const setOverride = useSetOverride(id!)
+  const deleteOverride = useDeleteOverride(id!)
   const { data: homeData, refetch: refetchHome } = useLeagueHome(id!)
   const { data: scheduleMatchups, isLoading: matchupsLoading } = useLeagueSchedule((isActive || isComplete) ? id! : '')
   const { data: allWeeks, isLoading: weeksLoading } = useAllWeeks()
@@ -162,6 +173,45 @@ export default function LeagueScreen() {
   const { data: adminLineupData, isLoading: adminLineupLoading } = useUserLineup(
     id!, adminLineupUserId ?? '', adminLineupWeek ?? 0
   )
+
+  // Prefetch current-week matchup data so the Matchups tab loads instantly
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!id || !user || !homeData?.currentWeekNum || !scheduleMatchups) return
+    const weekNum = homeData.currentWeekNum
+
+    // My lineup for the current week
+    queryClient.prefetchQuery({
+      queryKey: ['lineup', id, weekNum],
+      queryFn: () => api.get(`/lineups/${id}?week=${weekNum}`),
+      staleTime: 60_000,
+    })
+
+    // IPL matches this week
+    queryClient.prefetchQuery({
+      queryKey: ['weekMatches', weekNum],
+      queryFn: () => api.get(`/schedule/weeks/${weekNum}/matches`),
+      staleTime: 60_000,
+    })
+
+    // Opponent lineup + game breakdown for my matchup this week
+    const myMatchup = scheduleMatchups.find(
+      m => m.week_num === weekNum && (m.home_user === user.id || m.away_user === user.id)
+    )
+    if (myMatchup) {
+      const oppId = myMatchup.home_user === user.id ? myMatchup.away_user : myMatchup.home_user
+      queryClient.prefetchQuery({
+        queryKey: ['lineup', id, oppId, weekNum],
+        queryFn: () => api.get(`/lineups/${id}/user/${oppId}?week=${weekNum}`),
+        staleTime: 60_000,
+      })
+      queryClient.prefetchQuery({
+        queryKey: ['game-breakdown', id, weekNum, oppId],
+        queryFn: () => api.get(`/lineups/${id}/game-breakdown?week=${weekNum}&opponentId=${oppId}`),
+        staleTime: 30_000,
+      })
+    }
+  }, [id, user?.id, homeData?.currentWeekNum, scheduleMatchups?.length])
 
   // Sync admin lineup data into draft when user/week changes
   useEffect(() => {
@@ -308,12 +358,8 @@ export default function LeagueScreen() {
   }
 
   // ── Add/drop handlers ──────────────────────────────────────────────────────
-  const adRoleColors: Record<string, string> = {
-    batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706',
-  }
-  const adRoleLabels: Record<string, string> = {
-    batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
-  }
+  const adRoleColors = roleColors
+  const adRoleLabels = roleLabels
   const adRoleFullLabels: Record<string, string> = {
     batsman: 'Batsman', bowler: 'Bowler', all_rounder: 'All-Rounder', wicket_keeper: 'Wicket Keeper',
   }
@@ -393,6 +439,8 @@ export default function LeagueScreen() {
       setSelectedFreeAgent(null)
       setDropPickerVisible(false)
       setDropRoleFilter(null)
+      setDropConfirmItem(null)
+      dropSlide.setValue(0)
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Failed to add player')
     }
@@ -496,6 +544,7 @@ export default function LeagueScreen() {
             weeks={allWeeks ?? []}
             currentWeekNum={homeData?.currentWeekNum ?? null}
             isLoading={matchupsLoading || weeksLoading}
+            overrides={overrides}
           />
         )}
 
@@ -503,16 +552,12 @@ export default function LeagueScreen() {
         {activeLeagueTab === 'players' && (() => {
           const allPlayers = availableData?.players ?? []
           const uniqueIplTeams = [...new Set(allPlayers.map(p => p.ipl_team))].sort()
-          const currency = league.currency
-          const maxPriceNum = lpMaxPrice ? parseInt(lpMaxPrice, 10) : null
-
           const filtered = allPlayers.filter(p => {
             if (lpFreeAgentsOnly && p.sold_to !== null) return false
             if (lpSearch && !p.name.toLowerCase().includes(lpSearch.toLowerCase()) &&
                 !p.ipl_team.toLowerCase().includes(lpSearch.toLowerCase())) return false
             if (lpRoleFilter && p.role !== lpRoleFilter) return false
             if (lpTeamFilter && p.ipl_team !== lpTeamFilter) return false
-            if (maxPriceNum !== null && !isNaN(maxPriceNum) && playerBasePrice(p, currency) > maxPriceNum) return false
             return true
           }).sort((a, b) => {
             const avgA = a.team_games_played > 0 ? a.total_points / a.team_games_played : 0
@@ -538,141 +583,126 @@ export default function LeagueScreen() {
             { label: 'BOWL', value: 'bowler' },
           ]
 
+
           return (
-            <FlatList
+            <ScrollView
               style={{ flex: 1 }}
-              data={filtered}
-              keyExtractor={p => p.player_id}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
-              ListHeaderComponent={
-                <View style={{ gap: 10, paddingTop: 12, paddingBottom: 8 }}>
-                  {/* Free agents toggle */}
-                  <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 3 }}>
-                    <TouchableOpacity
-                      onPress={() => setLpFreeAgentsOnly(true)}
-                      style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: lpFreeAgentsOnly ? 'white' : 'transparent' }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>Free Agents</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setLpFreeAgentsOnly(false)}
-                      style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: !lpFreeAgentsOnly ? 'white' : 'transparent' }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: !lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>All Players</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    value={lpSearch}
-                    onChangeText={setLpSearch}
-                    placeholder="Search by name or team…"
-                    placeholderTextColor="#9ca3af"
-                    style={{
-                      backgroundColor: '#ffffff', borderRadius: 12,
-                      paddingHorizontal: 14, paddingVertical: 10,
-                      fontSize: 14, color: '#111827',
-                      borderWidth: 1, borderColor: '#e5e7eb',
-                    }}
-                  />
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: 'row' }}>
-                      {roleChips.map(({ label, value }) => (
-                        <TouchableOpacity key={label} onPress={() => setLpRoleFilter(value)} style={chipStyle(lpRoleFilter === value)}>
-                          <Text style={chipText(lpRoleFilter === value)}>{label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: 'row' }}>
-                      <TouchableOpacity onPress={() => setLpTeamFilter(null)} style={chipStyle(lpTeamFilter === null)}>
-                        <Text style={chipText(lpTeamFilter === null)}>All IPL Teams</Text>
-                      </TouchableOpacity>
-                      {uniqueIplTeams.map(team => (
-                        <TouchableOpacity key={team} onPress={() => setLpTeamFilter(team)} style={chipStyle(lpTeamFilter === team)}>
-                          <Text style={chipText(lpTeamFilter === team)}>{team}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <View style={{
-                      flex: 1, flexDirection: 'row', alignItems: 'center',
-                      backgroundColor: '#ffffff', borderRadius: 12,
-                      borderWidth: 1, borderColor: '#e5e7eb',
-                      paddingHorizontal: 12, paddingVertical: 8,
-                    }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 13, marginRight: 4 }}>{currency === 'usd' ? 'Max $' : 'Max ₹'}</Text>
-                      <TextInput
-                        value={lpMaxPrice}
-                        onChangeText={setLpMaxPrice}
-                        placeholder="any"
-                        placeholderTextColor="#9ca3af"
-                        keyboardType="number-pad"
-                        style={{ flex: 1, fontSize: 13, color: '#111827', padding: 0 }}
-                      />
-                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>{currency === 'usd' ? '' : 'L'}</Text>
-                    </View>
-                    {(lpSearch || lpRoleFilter || lpTeamFilter || lpMaxPrice) && (
-                      <TouchableOpacity
-                        onPress={() => { setLpSearch(''); setLpRoleFilter(null); setLpTeamFilter(null); setLpMaxPrice('') }}
-                        style={{ paddingHorizontal: 10, paddingVertical: 6 }}
-                      >
-                        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Clear</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor="#ef4444" />}
+            >
+              {/* Filters */}
+              <View style={{ gap: 10, paddingTop: 12, paddingBottom: 8 }}>
+                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 3 }}>
+                  <TouchableOpacity
+                    onPress={() => setLpFreeAgentsOnly(true)}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: lpFreeAgentsOnly ? 'white' : 'transparent' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>Free Agents</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setLpFreeAgentsOnly(false)}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: !lpFreeAgentsOnly ? 'white' : 'transparent' }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: !lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>All Players</Text>
+                  </TouchableOpacity>
                 </View>
-              }
-              ListEmptyComponent={
+                <TextInput
+                  value={lpSearch}
+                  onChangeText={setLpSearch}
+                  placeholder="Search by name or team…"
+                  placeholderTextColor="#9ca3af"
+                  style={{
+                    backgroundColor: '#ffffff', borderRadius: 12,
+                    paddingHorizontal: 14, paddingVertical: 10,
+                    fontSize: 14, color: '#111827',
+                    borderWidth: 1, borderColor: '#e5e7eb',
+                  }}
+                />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row' }}>
+                    {roleChips.map(({ label, value }) => (
+                      <TouchableOpacity key={label} onPress={() => setLpRoleFilter(value)} style={chipStyle(lpRoleFilter === value)}>
+                        <Text style={chipText(lpRoleFilter === value)}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row' }}>
+                    <TouchableOpacity onPress={() => setLpTeamFilter(null)} style={chipStyle(lpTeamFilter === null)}>
+                      <Text style={chipText(lpTeamFilter === null)}>All IPL Teams</Text>
+                    </TouchableOpacity>
+                    {uniqueIplTeams.map(team => (
+                      <TouchableOpacity key={team} onPress={() => setLpTeamFilter(team)} style={chipStyle(lpTeamFilter === team)}>
+                        <Text style={chipText(lpTeamFilter === team)}>{team}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+                {(lpSearch || lpRoleFilter || lpTeamFilter) && (
+                  <TouchableOpacity
+                    onPress={() => { setLpSearch(''); setLpRoleFilter(null); setLpTeamFilter(null) }}
+                    style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6 }}
+                  >
+                    <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Flat grid with role badges */}
+              {filtered.length === 0 ? (
                 <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
                   <Text style={{ color: '#9ca3af', fontSize: 15 }}>
                     {allPlayers.length === 0 ? 'Loading players…' : 'No players found'}
                   </Text>
                 </View>
-              }
-              renderItem={({ item, index }) => {
-                const ownerMember = item.sold_to ? members.find(m => m.user_id === item.sold_to) : null
-                const ownerName = ownerMember
-                  ? (ownerMember.team_name || ownerMember.display_name || ownerMember.username)
-                  : null
-                const avgPts = item.team_games_played > 0
-                  ? (item.total_points / item.team_games_played).toFixed(1)
-                  : null
-                return (
-                  <TouchableOpacity
-                    onPress={() => setLpSelectedPlayer(item)}
-                    activeOpacity={0.7}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center',
-                      paddingVertical: 9, paddingHorizontal: 4,
-                      borderTopWidth: index === 0 ? 0 : 1, borderTopColor: '#f3f4f6',
-                      gap: 8,
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#111827', fontWeight: '600', fontSize: 13 }}>{item.name}</Text>
-                      <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', marginTop: 2 }}>
-                        <Text style={{ color: '#9ca3af', fontSize: 11 }}>{item.ipl_team}</Text>
-                        <Badge label={roleLabels[item.role] ?? item.role} color={roleBadgeColors[item.role] ?? 'gray'} />
-                        {item.nationality !== 'Indian' && <Badge label="OS" color="yellow" />}
-                      </View>
-                      {ownerName && (
-                        <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{ownerName}</Text>
-                      )}
-                    </View>
-                    <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                      {avgPts !== null ? (
-                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts} <Text style={{ color: '#9ca3af', fontWeight: '400', fontSize: 11 }}>avg pts</Text></Text>
-                      ) : (
-                        <Text style={{ color: '#9ca3af', fontSize: 12 }}>— avg pts</Text>
-                      )}
-                      <Text style={{ color: '#6b7280', fontSize: 11 }}>{formatCurrency(playerBasePrice(item, currency), currency)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                )
-              }}
-            />
+              ) : (
+                <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                  {filtered.map((item, idx) => {
+                    const avgPts = item.team_games_played > 0 && item.total_points !== 0 ? item.total_points / item.team_games_played : null
+                    const isOS = item.nationality !== 'Indian'
+                    const roleColor = adRoleColors[item.role] ?? '#6b7280'
+                    return (
+                      <TouchableOpacity
+                        key={item.player_id}
+                        onPress={() => setLpSelectedPlayer(item)}
+                        activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#f3f4f6' }}
+                      >
+                        {/* Role badge — fixed width */}
+                        <View style={{ width: 54, alignItems: 'center', justifyContent: 'center', paddingVertical: 11 }}>
+                          <View style={{ backgroundColor: roleColor + '18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }}>
+                            <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{adRoleLabels[item.role] ?? item.role}</Text>
+                          </View>
+                        </View>
+                        {/* Name + team */}
+                        <View style={{ flex: 1, paddingVertical: 11 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{item.name}</Text>
+                            {isOS && (
+                              <View style={{ backgroundColor: '#fef9c3', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, flexShrink: 0 }}>
+                                <Text style={{ color: '#b45309', fontSize: 9, fontWeight: '700' }}>OS</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.ipl_team}</Text>
+                        </View>
+                        {/* Avg pts */}
+                        {avgPts != null ? (
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                            <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                          </View>
+                        ) : (
+                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>—</Text>
+                        )}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              )}
+            </ScrollView>
           )
         })()}
 
@@ -1105,7 +1135,7 @@ export default function LeagueScreen() {
 
             const isCompleted = (weekNum: number) => {
               const weekInfo = weeks.find(w => w.week_num === weekNum)
-              if (weekInfo?.end_date && new Date(weekInfo.end_date) < new Date()) return true
+              if (weekInfo?.window_end && new Date(weekInfo.window_end) < new Date()) return true
               return byWeek[weekNum]!.every(m => m.is_final)
             }
 
@@ -1181,11 +1211,8 @@ export default function LeagueScreen() {
                       {/* Week header */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>
-                          Week {weekNum}
+                          {weekInfo?.label || `Week ${weekNum}`}
                         </Text>
-                        {weekInfo?.label ? (
-                          <Text style={{ color: '#9ca3af', fontSize: 13 }}>{weekInfo.label}</Text>
-                        ) : null}
                         {weekInfo?.week_type && weekInfo.week_type !== 'regular' && (
                           <View style={{
                             backgroundColor: weekInfo.week_type === 'finals' ? '#fef3c7' : '#fee2e2',
@@ -1214,10 +1241,18 @@ export default function LeagueScreen() {
                           : (m.home_team_name || m.home_full_name || m.home_username)
                         const myPts = isHome ? m.home_points : m.away_points
                         const oppPts = isHome ? m.away_points : m.home_points
-                        const hasResult = m.is_final
+                        const weekEnded = weekInfo?.window_end ? new Date(weekInfo.window_end) < new Date() : m.is_final
+                        const hasResult = m.is_final || weekEnded
+                        const weekStarted = weekInfo?.window_start ? new Date(weekInfo.window_start) <= new Date() : true
+                        const showPoints = weekStarted
 
+                        const winnerId = m.winner_id ?? (
+                          weekEnded && (parseFloat(String(m.home_points)) !== parseFloat(String(m.away_points)))
+                            ? (parseFloat(String(m.home_points)) > parseFloat(String(m.away_points)) ? m.home_user : m.away_user)
+                            : null
+                        )
                         const resultLabel = hasResult
-                          ? (m.winner_id === user?.id ? 'WIN' : m.winner_id ? 'LOSS' : 'TIE')
+                          ? (winnerId === user?.id ? 'WIN' : winnerId ? 'LOSS' : 'TIE')
                           : null
                         const resultBg = resultLabel === 'WIN' ? '#d1fae5' : resultLabel === 'LOSS' ? '#fee2e2' : '#f3f4f6'
                         const resultColor = resultLabel === 'WIN' ? '#16a34a' : resultLabel === 'LOSS' ? '#dc2626' : '#6b7280'
@@ -1251,9 +1286,11 @@ export default function LeagueScreen() {
                                   {isMyMatchup ? myName : (m.home_team_name || m.home_full_name || m.home_username)}
                                   {isMyMatchup ? ' ★' : ''}
                                 </Text>
-                                <Text style={{ color: isMyMatchup ? '#dc2626' : '#374151', fontWeight: '800', fontSize: 22 }}>
-                                  {isMyMatchup ? myPts : m.home_points}
-                                </Text>
+                                {showPoints && (
+                                  <Text style={{ color: isMyMatchup ? '#dc2626' : '#374151', fontWeight: '800', fontSize: 22 }}>
+                                    {isMyMatchup ? myPts : m.home_points}
+                                  </Text>
+                                )}
                               </View>
 
                               {/* Middle */}
@@ -1281,9 +1318,11 @@ export default function LeagueScreen() {
                                 <Text style={{ color: '#111827', fontWeight: '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
                                   {isMyMatchup ? oppName : (m.away_team_name || m.away_full_name || m.away_username)}
                                 </Text>
-                                <Text style={{ color: '#374151', fontWeight: '800', fontSize: 22 }}>
-                                  {isMyMatchup ? oppPts : m.away_points}
-                                </Text>
+                                {showPoints && (
+                                  <Text style={{ color: '#374151', fontWeight: '800', fontSize: 22 }}>
+                                    {isMyMatchup ? oppPts : m.away_points}
+                                  </Text>
+                                )}
                               </View>
                             </View>
                           </View>
@@ -1369,6 +1408,32 @@ export default function LeagueScreen() {
 
           {activeLeagueTab === 'admin' && isAdmin && (
             <View style={{ gap: 12 }}>
+              {/* Rename League */}
+              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
+                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Rename League</Text>
+                <TextInput
+                  value={leagueNameInput}
+                  onChangeText={setLeagueNameInput}
+                  placeholder={league?.name ?? 'League name'}
+                  placeholderTextColor="#9ca3af"
+                  style={{ backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' }}
+                />
+                <TouchableOpacity
+                  onPress={async () => {
+                    const trimmed = leagueNameInput.trim()
+                    if (!trimmed || trimmed.length < 3) return
+                    await renameLeague.mutateAsync({ leagueId: id!, name: trimmed })
+                    setLeagueNameInput('')
+                  }}
+                  disabled={renameLeague.isPending || leagueNameInput.trim().length < 3}
+                  style={{ backgroundColor: renameLeague.isPending || leagueNameInput.trim().length < 3 ? '#9ca3af' : '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                >
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+                    {renameLeague.isPending ? 'Saving…' : 'Save Name'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {scheduleMatchups && scheduleMatchups.some(m => !m.is_final) && (
                 <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
                   <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Schedule</Text>
@@ -1417,6 +1482,119 @@ export default function LeagueScreen() {
                   >
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Manage Roster</Text>
                   </TouchableOpacity>
+                </View>
+              )}
+
+              {(isActive || isComplete) && (
+                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 10 }}>
+                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Points Override</Text>
+                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Add bonus/penalty points to a member for a specific week.</Text>
+
+                  {/* Member picker */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {members.map(m => {
+                        const sel = overrideUserId === m.user_id
+                        return (
+                          <TouchableOpacity
+                            key={m.user_id}
+                            onPress={() => setOverrideUserId(m.user_id)}
+                            style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: sel ? '#111827' : 'white', borderColor: sel ? '#111827' : '#e5e7eb' }}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: sel ? 'white' : '#374151' }}>
+                              {m.team_name || m.display_name || m.username}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '600', marginBottom: 4 }}>WEEK</Text>
+                      <TextInput
+                        value={overrideWeek}
+                        onChangeText={setOverrideWeek}
+                        keyboardType="number-pad"
+                        placeholder="1"
+                        placeholderTextColor="#9ca3af"
+                        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: '#111827', backgroundColor: '#f9fafb' }}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '600', marginBottom: 4 }}>POINTS</Text>
+                      <TextInput
+                        value={overridePoints}
+                        onChangeText={setOverridePoints}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="10"
+                        placeholderTextColor="#9ca3af"
+                        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: '#111827', backgroundColor: '#f9fafb' }}
+                      />
+                    </View>
+                  </View>
+
+                  <TextInput
+                    value={overrideNote}
+                    onChangeText={setOverrideNote}
+                    placeholder="Note (optional)"
+                    placeholderTextColor="#9ca3af"
+                    style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: '#111827', backgroundColor: '#f9fafb' }}
+                  />
+
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const pts = parseFloat(overridePoints)
+                      const wk = parseInt(overrideWeek, 10)
+                      if (!overrideUserId) { Alert.alert('Error', 'Select a member'); return }
+                      if (!wk || isNaN(wk)) { Alert.alert('Error', 'Enter a valid week'); return }
+                      if (isNaN(pts)) { Alert.alert('Error', 'Enter valid points'); return }
+                      try {
+                        await setOverride.mutateAsync({ userId: overrideUserId, weekNum: wk, points: pts, note: overrideNote.trim() || undefined })
+                        setOverridePoints(''); setOverrideWeek(''); setOverrideNote(''); setOverrideUserId('')
+                        Alert.alert('Saved', 'Points override saved.')
+                      } catch (err) {
+                        Alert.alert('Error', err instanceof Error ? err.message : 'Failed')
+                      }
+                    }}
+                    disabled={setOverride.isPending}
+                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                  >
+                    {setOverride.isPending ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Save Override</Text>}
+                  </TouchableOpacity>
+
+                  {/* Existing overrides */}
+                  {(overrides ?? []).length > 0 && (
+                    <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10 }}>
+                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700' }}>EXISTING OVERRIDES</Text>
+                      {(overrides ?? []).map(o => {
+                        const m = members.find(mb => mb.user_id === o.user_id)
+                        const name = m ? (m.team_name || m.display_name || m.username) : o.user_id
+                        return (
+                          <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>
+                                Wk {o.week_num} · {name}
+                              </Text>
+                              {o.note && <Text style={{ color: '#9ca3af', fontSize: 11 }}>{o.note}</Text>}
+                            </View>
+                            <Text style={{ color: parseFloat(String(o.points)) >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 14 }}>
+                              {parseFloat(String(o.points)) >= 0 ? '+' : ''}{o.points}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => Alert.alert('Remove Override', `Remove ${o.points} pts for ${name} week ${o.week_num}?`, [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Remove', style: 'destructive', onPress: () => deleteOverride.mutate({ userId: o.user_id, weekNum: o.week_num }) },
+                              ])}
+                            >
+                              <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '600' }}>✕</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -1685,8 +1863,8 @@ export default function LeagueScreen() {
                   </View>
                 ) : (() => {
                   const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminLineupUserId)
-                  const adRoleColors2: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
-                  const adRoleLabels2: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                  const adRoleColors2 = roleColors
+                  const adRoleLabels2 = roleLabels
                   return (
                     <View style={{ gap: 10 }}>
                       <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
@@ -1818,8 +1996,8 @@ export default function LeagueScreen() {
               {/* Drop: show member roster */}
               {adminRosterUserId && adminRosterAction === 'drop' && (() => {
                 const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
-                const adRoleColors: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
-                const adRoleLabels: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                const adRoleColors = roleColors
+                const adRoleLabels = roleLabels
                 return (
                   <View style={{ gap: 8 }}>
                     <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>TAP TO DROP</Text>
@@ -1879,8 +2057,8 @@ export default function LeagueScreen() {
               {adminRosterUserId && adminRosterAction === 'add' && (() => {
                 const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
                 const rosterFull = memberRoster.length >= (league?.roster_size ?? 16)
-                const adRoleColors: Record<string, string> = { batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706' }
-                const adRoleLabels: Record<string, string> = { batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK' }
+                const adRoleColors = roleColors
+                const adRoleLabels = roleLabels
                 const filteredFa = (freeAgents ?? []).filter(p =>
                   !adminRosterFaSearch || p.name.toLowerCase().includes(adminRosterFaSearch.toLowerCase()) || p.ipl_team.toLowerCase().includes(adminRosterFaSearch.toLowerCase())
                 )
@@ -2056,47 +2234,183 @@ export default function LeagueScreen() {
         </Modal>
 
         {/* Drop picker (roster full or role limit reached) */}
-        <Modal visible={dropPickerVisible} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: 'white' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1, marginRight: 12 }}>
+        <Modal
+          visible={dropPickerVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onDismiss={() => { setDropConfirmItem(null); dropSlide.setValue(0) }}
+        >
+          <View style={{ flex: 1, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+            {/* Header */}
+            <View style={{ backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              {dropConfirmItem ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    Animated.timing(dropSlide, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => setDropConfirmItem(null))
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Text style={{ color: '#374151', fontSize: 15, fontWeight: '600' }}>← Back</Text>
+                </TouchableOpacity>
+              ) : (
                 <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Drop a Player</Text>
-                <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
-                  {dropRoleFilter
-                    ? `${adRoleFullLabels[dropRoleFilter] ?? dropRoleFilter} limit reached — drop a ${adRoleFullLabels[dropRoleFilter] ?? dropRoleFilter} to add ${selectedFreeAgent?.name}`
-                    : `Roster full — drop anyone to add ${selectedFreeAgent?.name}`}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => { setDropPickerVisible(false); setSelectedFreeAgent(null); setDropRoleFilter(null) }}>
-                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
+              )}
+              <TouchableOpacity onPress={() => { setDropPickerVisible(false); setSelectedFreeAgent(null); setDropRoleFilter(null); setDropConfirmItem(null); dropSlide.setValue(0) }}>
+                <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={dropRoleFilter ? myCurrentRoster.filter(r => r.player_role === dropRoleFilter) : myCurrentRoster}
-              keyExtractor={p => p.player_id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => confirmAddPlayer(selectedFreeAgent!.id, item.player_id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f9fafb' }}
-                >
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: adRoleColors[item.player_role] ?? '#6b7280', marginRight: 12 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#111827', fontWeight: '600', fontSize: 15 }}>{item.player_name}</Text>
-                    <Text style={{ color: '#9ca3af', fontSize: 13 }}>{item.player_ipl_team}</Text>
+
+            {/* Sliding pages container */}
+            <View style={{ flex: 1 }}>
+              {/* ── Player list page (always rendered, slides left on confirm) ── */}
+              <Animated.View style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: '#f9fafb',
+                transform: [{ translateX: dropSlide.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_W] }) }],
+              }}>
+                {/* Adding context banner */}
+                {selectedFreeAgent && (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 6 }}>
+                    <Text style={{ color: '#15803d', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Adding</Text>
+                    <PlayerRow
+                      role={selectedFreeAgent.role}
+                      name={selectedFreeAgent.name}
+                      iplTeam={selectedFreeAgent.ipl_team}
+                      backgroundColor="#f0fdf4"
+                      borderColor="#bbf7d0"
+                    />
+                    <Text style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center', paddingBottom: 6 }}>
+                      {dropRoleFilter
+                        ? `${adRoleFullLabels[dropRoleFilter]} slot full — select one to drop`
+                        : 'Roster full — select a player to drop'}
+                    </Text>
                   </View>
-                  <View style={{ backgroundColor: '#f3f4f6', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginRight: 10 }}>
-                    <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>{adRoleLabels[item.player_role] ?? item.player_role}</Text>
+                )}
+
+                {/* Squad list grouped by role — same design as Teams tab */}
+                {(() => {
+                  const ROLE_ORDER_DROP = ['batsman', 'wicket_keeper', 'all_rounder', 'bowler']
+                  const ROLE_GROUP_LABELS: Record<string, string> = {
+                    batsman: 'Batsmen', bowler: 'Bowlers', all_rounder: 'All-Rounders', wicket_keeper: 'Wicket Keepers',
+                  }
+                  const source = dropRoleFilter
+                    ? myCurrentRoster.filter(r => r.player_role === dropRoleFilter)
+                    : myCurrentRoster
+                  const byRole = ROLE_ORDER_DROP.reduce<Record<string, typeof source>>((acc, role) => {
+                    acc[role] = source.filter(r => r.player_role === role)
+                    return acc
+                  }, {})
+                  const groups = ROLE_ORDER_DROP.filter(role => (byRole[role]?.length ?? 0) > 0)
+
+                  return (
+                    <ScrollView contentContainerStyle={{ padding: 16 }}>
+                      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                        {groups.map((role, groupIdx) => {
+                          const group = byRole[role]!
+                          const roleColor = adRoleColors[role] ?? '#6b7280'
+                          return (
+                            <View key={role}>
+                              {/* Role group header */}
+                              <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                  <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{adRoleLabels[role] ?? role}</Text>
+                                </View>
+                                <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{ROLE_GROUP_LABELS[role] ?? role}</Text>
+                                <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>{group.length}</Text>
+                              </View>
+                              {group.map(item => {
+                                const avgPts = item.team_games_played > 0 ? item.total_points / item.team_games_played : null
+                                return (
+                                  <View
+                                    key={item.player_id}
+                                    style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}
+                                  >
+                                    <View style={{ flex: 1, paddingVertical: 11 }}>
+                                      <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{item.player_name}</Text>
+                                      <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
+                                    </View>
+                                    {avgPts != null ? (
+                                      <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
+                                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                                        <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                                      </View>
+                                    ) : (
+                                      <Text style={{ color: '#d1d5db', fontSize: 12, marginRight: 12 }}>—</Text>
+                                    )}
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setDropConfirmItem(item)
+                                        Animated.timing(dropSlide, { toValue: 1, duration: 250, useNativeDriver: true }).start()
+                                      }}
+                                      style={{ backgroundColor: '#fef2f2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#fecaca' }}
+                                    >
+                                      <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '700' }}>Drop</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )
+                              })}
+                            </View>
+                          )
+                        })}
+                      </View>
+                    </ScrollView>
+                  )
+                })()}
+              </Animated.View>
+
+              {/* ── Confirmation page (slides in from the right) ── */}
+              <Animated.View style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: '#f9fafb',
+                transform: [{ translateX: dropSlide.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_W, 0] }) }],
+              }}>
+                {dropConfirmItem && (
+                  <View style={{ flex: 1, padding: 20, gap: 16 }}>
+                    <Text style={{ color: '#111827', fontWeight: '700', fontSize: 16, textAlign: 'center' }}>Confirm Transaction</Text>
+
+                    {/* Adding */}
+                    {selectedFreeAgent && (
+                      <View style={{ gap: 6 }}>
+                        <Text style={{ color: '#15803d', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Adding</Text>
+                        <PlayerRow
+                          role={selectedFreeAgent.role}
+                          name={selectedFreeAgent.name}
+                          iplTeam={selectedFreeAgent.ipl_team}
+                          backgroundColor="#f0fdf4"
+                          borderColor="#bbf7d0"
+                        />
+                      </View>
+                    )}
+
+                    {/* Dropping */}
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Dropping</Text>
+                      <PlayerRow
+                        role={dropConfirmItem.player_role}
+                        name={dropConfirmItem.player_name}
+                        iplTeam={dropConfirmItem.player_ipl_team}
+                        avgPts={dropConfirmItem.team_games_played > 0 ? dropConfirmItem.total_points / dropConfirmItem.team_games_played : null}
+                        backgroundColor="#fef2f2"
+                        borderColor="#fecaca"
+                      />
+                    </View>
+
+                    {/* Confirm button */}
+                    <TouchableOpacity
+                      onPress={() => confirmAddPlayer(selectedFreeAgent!.id, dropConfirmItem.player_id)}
+                      disabled={addPlayerMutation.isPending}
+                      style={{ backgroundColor: '#dc2626', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 8 }}
+                    >
+                      {addPlayerMutation.isPending ? (
+                        <ActivityIndicator color="white" />
+                      ) : (
+                        <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Confirm</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
-                  <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '700' }}>Drop</Text>
-                </TouchableOpacity>
-              )}
-            />
-            {addPlayerMutation.isPending && (
-              <View style={{ padding: 20, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
-                <ActivityIndicator color="#dc2626" />
-                <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 8 }}>Processing…</Text>
-              </View>
-            )}
+                )}
+              </Animated.View>
+            </View>
           </View>
         </Modal>
       </View>

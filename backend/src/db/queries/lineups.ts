@@ -233,55 +233,52 @@ export async function getGameBreakdown(
        COALESCE(ms.lbw_bowled_wickets,   0)     AS lbw_bowled_wickets,
        COALESCE(ms.is_in_xi,             true)  AS is_in_xi`
 
-  // Starting lineup players for both users
-  const { rows: playerRows } = await pool.query(
-    `SELECT
-       wl.user_id,
-       wl.player_id,
-       wl.slot_role,
-       false AS is_bench,
-       ${statsSelect}
-     FROM weekly_lineups wl
-     JOIN players p ON p.id = wl.player_id
-     JOIN ipl_matches im
-       ON im.week_num = $3
-      AND p.ipl_team IN (im.home_team, im.away_team)
-     LEFT JOIN match_scores ms
-       ON ms.player_id = wl.player_id AND ms.match_id = im.match_id
-     WHERE wl.league_id = $1 AND wl.user_id IN ($2, $4) AND wl.week_num = $3
-     ORDER BY COALESCE(ms.fantasy_points, 0) DESC`,
+  // Starting lineup + bench players for both users in a single query
+  const { rows: allRows } = await pool.query(
+    `SELECT * FROM (
+       SELECT
+         wl.user_id,
+         wl.player_id,
+         wl.slot_role,
+         false AS is_bench,
+         ${statsSelect}
+       FROM weekly_lineups wl
+       JOIN players p ON p.id = wl.player_id
+       JOIN ipl_matches im
+         ON im.week_num = $3
+        AND p.ipl_team IN (im.home_team, im.away_team)
+       LEFT JOIN match_scores ms
+         ON ms.player_id = wl.player_id AND ms.match_id = im.match_id
+       WHERE wl.league_id = $1 AND wl.user_id IN ($2, $4) AND wl.week_num = $3
+
+       UNION ALL
+
+       SELECT
+         tr.user_id,
+         tr.player_id,
+         'bench' AS slot_role,
+         true AS is_bench,
+         ${statsSelect}
+       FROM team_rosters tr
+       JOIN players p ON p.id = tr.player_id
+       JOIN ipl_matches im
+         ON im.week_num = $3
+        AND p.ipl_team IN (im.home_team, im.away_team)
+       LEFT JOIN match_scores ms
+         ON ms.player_id = tr.player_id AND ms.match_id = im.match_id
+       WHERE tr.league_id = $1
+         AND tr.user_id IN ($2, $4)
+         AND NOT EXISTS (
+           SELECT 1 FROM weekly_lineups wl2
+           WHERE wl2.league_id = $1
+             AND wl2.user_id = tr.user_id
+             AND wl2.player_id = tr.player_id
+             AND wl2.week_num = $3
+         )
+     ) combined
+     ORDER BY COALESCE(points, 0) DESC`,
     [leagueId, userId, weekNum, opponentId]
   )
-
-  // Bench players (on roster but not in starting lineup this week)
-  const { rows: benchRows } = await pool.query(
-    `SELECT
-       tr.user_id,
-       tr.player_id,
-       'bench' AS slot_role,
-       true AS is_bench,
-       ${statsSelect}
-     FROM team_rosters tr
-     JOIN players p ON p.id = tr.player_id
-     JOIN ipl_matches im
-       ON im.week_num = $3
-      AND p.ipl_team IN (im.home_team, im.away_team)
-     LEFT JOIN match_scores ms
-       ON ms.player_id = tr.player_id AND ms.match_id = im.match_id
-     WHERE tr.league_id = $1
-       AND tr.user_id IN ($2, $4)
-       AND NOT EXISTS (
-         SELECT 1 FROM weekly_lineups wl2
-         WHERE wl2.league_id = $1
-           AND wl2.user_id = tr.user_id
-           AND wl2.player_id = tr.player_id
-           AND wl2.week_num = $3
-       )
-     ORDER BY COALESCE(ms.fantasy_points, 0) DESC`,
-    [leagueId, userId, weekNum, opponentId]
-  )
-
-  const allRows = [...playerRows, ...benchRows]
 
   // Group by match
   const grouped = new Map<string, { myPlayers: GamePlayer[]; oppPlayers: GamePlayer[]; myStarterPoints: number; oppStarterPoints: number }>(
@@ -393,6 +390,11 @@ export async function clearUncompletedLineups(
          WHERE wm.league_id = $1
            AND (wm.home_user = $2 OR wm.away_user = $2)
            AND wm.is_final = TRUE
+         UNION
+         SELECT iw.week_num
+         FROM ipl_weeks iw
+         WHERE iw.window_start IS NOT NULL
+           AND iw.window_start < NOW()
        )`,
     [leagueId, userId]
   )
@@ -442,6 +444,11 @@ export async function removePlayerFromUncompletedLineups(
          WHERE wm.league_id = $1
            AND (wm.home_user = $2 OR wm.away_user = $2)
            AND wm.is_final = TRUE
+         UNION
+         SELECT iw.week_num
+         FROM ipl_weeks iw
+         WHERE iw.window_start IS NOT NULL
+           AND iw.window_start < NOW()
        )`,
     [leagueId, userId, playerId]
   )

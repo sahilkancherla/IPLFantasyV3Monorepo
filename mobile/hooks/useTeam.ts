@@ -12,6 +12,8 @@ export interface RosterEntry {
   player_ipl_team: string
   player_role: string
   player_image_url: string | null
+  total_points: number
+  team_games_played: number
 }
 
 export const useTeam = (leagueId: string) => useMyTeam(leagueId)
@@ -31,6 +33,8 @@ export function useAllTeams(leagueId: string) {
     queryFn: () => api.get<{ rosters: RosterEntry[] }>(`/teams/${leagueId}/all`),
     select: (data) => data.rosters,
     enabled: !!leagueId,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 

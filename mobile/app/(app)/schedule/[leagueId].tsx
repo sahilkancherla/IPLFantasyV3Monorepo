@@ -6,8 +6,8 @@ import { useAuthStore } from '../../../stores/authStore'
 
 type Tab = 'schedule' | 'results'
 
-function isWeekCompleted(weekNum: number, weekEndDate: string | undefined, matchups: { week_num: number; is_final: boolean }[]): boolean {
-  if (weekEndDate && new Date(weekEndDate) < new Date()) return true
+function isWeekCompleted(weekNum: number, windowEnd: string | null | undefined, matchups: { week_num: number; is_final: boolean }[]): boolean {
+  if (windowEnd && new Date(windowEnd) < new Date()) return true
   const weekMatchups = matchups.filter(m => m.week_num === weekNum)
   return weekMatchups.length > 0 && weekMatchups.every(m => m.is_final)
 }
@@ -26,11 +26,11 @@ export default function ScheduleScreen() {
 
   const scheduleWeeks = weekNums.filter(wn => {
     const weekInfo = weeks?.find(w => w.week_num === wn)
-    return !isWeekCompleted(wn, weekInfo?.end_date, allMatchups)
+    return !isWeekCompleted(wn, weekInfo?.window_end, allMatchups)
   })
   const resultWeeks = weekNums.filter(wn => {
     const weekInfo = weeks?.find(w => w.week_num === wn)
-    return isWeekCompleted(wn, weekInfo?.end_date, allMatchups)
+    return isWeekCompleted(wn, weekInfo?.window_end, allMatchups)
   })
 
   const displayWeeks = activeTab === 'schedule' ? scheduleWeeks : [...resultWeeks].reverse()

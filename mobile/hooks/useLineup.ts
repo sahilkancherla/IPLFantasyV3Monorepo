@@ -31,6 +31,8 @@ export function useLineup(leagueId: string, weekNum?: number) {
     queryKey: ['lineup', leagueId, weekNum ?? 'current'],
     queryFn: () => api.get<LineupResponse>(path),
     enabled: !!leagueId,
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 
@@ -82,6 +84,8 @@ export function useUserLineup(leagueId: string, userId: string, weekNum: number)
     queryFn: () =>
       api.get<LineupResponse>(`/lineups/${leagueId}/user/${userId}?week=${weekNum}`),
     enabled: !!leagueId && !!userId && !!weekNum,
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 
@@ -127,7 +131,7 @@ export interface GameBreakdownData {
   oppPlayers: GamePlayer[]
 }
 
-export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: string | null) {
+export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: string | null, isCompleted?: boolean) {
   return useQuery({
     queryKey: ['game-breakdown', leagueId, weekNum, opponentId],
     queryFn: () =>
@@ -135,8 +139,9 @@ export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: 
         `/lineups/${leagueId}/game-breakdown?week=${weekNum}&opponentId=${opponentId}`
       ),
     enabled: !!leagueId && !!weekNum && !!opponentId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: isCompleted ? Infinity : 30_000,
+    gcTime: 30 * 60_000,
+    refetchInterval: isCompleted ? false : 60_000,
   })
 }
 
@@ -144,7 +149,8 @@ export function useMatchupBreakdown(
   leagueId: string,
   weekNum: number,
   homeUserId: string | null,
-  awayUserId: string | null
+  awayUserId: string | null,
+  isCompleted?: boolean
 ) {
   return useQuery({
     queryKey: ['game-breakdown', leagueId, weekNum, homeUserId, awayUserId],
@@ -153,8 +159,9 @@ export function useMatchupBreakdown(
         `/lineups/${leagueId}/game-breakdown?week=${weekNum}&userId=${homeUserId}&opponentId=${awayUserId}`
       ),
     enabled: !!leagueId && !!weekNum && !!homeUserId && !!awayUserId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: isCompleted ? Infinity : 30_000,
+    gcTime: 30 * 60_000,
+    refetchInterval: isCompleted ? false : 60_000,
   })
 }
 

@@ -221,8 +221,8 @@ export async function auctionRoutes(app: FastifyInstance): Promise<void> {
     const { rows } = await pool.query(
       `SELECT q.player_id, q.queue_position,
               CASE WHEN tr.player_id IS NOT NULL THEN 'sold' ELSE q.status END AS status,
-              COALESCE(tr.user_id, q.sold_to) AS sold_to,
-              COALESCE(tr.price_paid, q.sold_price) AS sold_price,
+              tr.user_id AS sold_to,
+              tr.price_paid AS sold_price,
               p.name, p.ipl_team, p.role, p.base_price, p.nationality, p.image_url,
               COALESCE(i.interest_count, 0) AS interest_count,
               COALESCE((

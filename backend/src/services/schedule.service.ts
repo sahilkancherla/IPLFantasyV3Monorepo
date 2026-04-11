@@ -14,6 +14,8 @@ export async function getCurrentWeek(): Promise<{
   end_date: string
   lock_time: string
   is_playoff: boolean
+  window_start: string | null
+  window_end: string | null
 } | null> {
   // 1. Explicit admin override
   const { rows: settings } = await pool.query(

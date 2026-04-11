@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, type TextStyle } from 'react-native'
+import { useState, useEffect, useRef } from 'react'
+import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Animated, type TextStyle } from 'react-native'
 
 export interface BreakdownStats {
   runsScored: number
@@ -155,10 +155,25 @@ export function PointsBreakdownModal({ visible, onClose, stats, total, playerNam
   const sections = SECTIONS.filter(sec => items.some(i => i.section === sec))
   const hasAny = items.length > 0
 
+  const slideAnim = useRef(new Animated.Value(500)).current
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 0,
+        speed: 20,
+      }).start()
+    } else {
+      slideAnim.setValue(500)
+    }
+  }, [visible])
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={s.sheet}>
+      <Animated.View style={[s.sheet, { transform: [{ translateY: slideAnim }] }]}>
         {/* Handle */}
         <View style={s.handle} />
 
@@ -210,7 +225,7 @@ export function PointsBreakdownModal({ visible, onClose, stats, total, playerNam
             </View>
           )}
         </ScrollView>
-      </View>
+      </Animated.View>
     </Modal>
   )
 }

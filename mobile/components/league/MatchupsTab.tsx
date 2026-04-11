@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MatchupSlide } from './MatchupSlide'
 import { OtherMatchupDetail } from './OtherMatchupDetail'
 import type { Matchup, IplWeek } from '../../hooks/useMatchup'
-import { LoadingScreen } from '../ui/Loading'
 
 interface Props {
   leagueId: string
@@ -13,6 +12,7 @@ interface Props {
   weeks: IplWeek[]
   currentWeekNum: number | null
   isLoading?: boolean
+  overrides?: Array<{ user_id: string; week_num: number; points: number; note: string | null }>
 }
 
 // ── Small card in the horizontal strip ───────────────────────────────────────
@@ -55,11 +55,11 @@ function MatchupChip({
         </Text>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 65 }} numberOfLines={2}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 58 }} numberOfLines={2}>
           {leftFirst}
         </Text>
         <Text style={{ fontSize: 10, color: '#9ca3af' }}>vs</Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 65 }} numberOfLines={2}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 58 }} numberOfLines={2}>
           {rightFirst}
         </Text>
       </View>
@@ -78,7 +78,7 @@ function MatchupChip({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum, isLoading }: Props) {
+export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum, isLoading, overrides }: Props) {
   const { width: screenWidth } = useWindowDimensions()
   const { bottom: bottomInset } = useSafeAreaInsets()
   const listRef = useRef<FlatList>(null)
@@ -135,7 +135,29 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
     : []
 
   if (isLoading) {
-    return <LoadingScreen message="Loading schedule…" />
+    return (
+      <View style={{ flex: 1 }}>
+        {/* Skeleton strip */}
+        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: 'white', flexDirection: 'row', paddingHorizontal: 16, gap: 10 }}>
+          {[0, 1, 2].map(i => (
+            <View key={i} style={{ width: 130, height: 60, borderRadius: 14, backgroundColor: '#f3f4f6' }} />
+          ))}
+        </View>
+        {/* Skeleton content */}
+        <View style={{ flex: 1, padding: 20, gap: 14 }}>
+          <View style={{ height: 28, width: 160, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
+          <View style={{ height: 140, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
+          <View style={{ height: 80, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
+          <View style={{ height: 200, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
+        </View>
+        {/* Skeleton nav */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: 'white' }}>
+          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
+          <View style={{ width: 80, height: 20, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
+          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
+        </View>
+      </View>
+    )
   }
 
   if (slides.length === 0) {
@@ -214,6 +236,7 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
               leagueId={leagueId}
               userId={userId}
               width={screenWidth}
+              overrides={overrides}
             />
           )}
         />

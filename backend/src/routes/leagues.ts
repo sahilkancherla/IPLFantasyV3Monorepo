@@ -119,6 +119,21 @@ export async function leagueRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ league, member })
   })
 
+  // PATCH /leagues/:id/name — admin renames the league
+  app.patch<{ Params: { id: string } }>('/leagues/:id/name', async (req, reply) => {
+    const { id } = req.params
+    const league = await getLeagueById(id)
+    if (!league) return reply.code(404).send({ error: 'League not found' })
+    if (league.admin_id !== req.authUser!.id) return reply.code(403).send({ error: 'Admin only' })
+
+    const body = z.object({ name: z.string().min(3).max(50) }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const { pool } = await import('../db/client.js')
+    await pool.query(`UPDATE leagues SET name = $1 WHERE id = $2`, [body.data.name, id])
+    return reply.send({ ok: true })
+  })
+
   // PATCH /leagues/:id/team-name
   app.patch<{ Params: { id: string } }>('/leagues/:id/team-name', async (req, reply) => {
     const { id } = req.params
@@ -278,6 +293,73 @@ export async function leagueRoutes(app: FastifyInstance): Promise<void> {
       throw err
     }
 
+    return reply.code(204).send()
+  })
+
+  // GET /leagues/:id/overrides — fetch all points overrides for the league (members only)
+  app.get<{ Params: { id: string } }>('/leagues/:id/overrides', async (req, reply) => {
+    const { id } = req.params
+    const isMember = await isLeagueMember(id, req.authUser!.id)
+    if (!isMember) return reply.code(403).send({ error: 'Not a member' })
+
+    const { pool } = await import('../db/client.js')
+    const { rows } = await pool.query(
+      `SELECT id, user_id, week_num, points, note, created_at
+       FROM league_points_overrides
+       WHERE league_id = $1
+       ORDER BY week_num, user_id`,
+      [id]
+    )
+    return reply.send({ overrides: rows })
+  })
+
+  // PUT /leagues/:id/overrides — upsert a points override (admin only)
+  app.put<{ Params: { id: string } }>('/leagues/:id/overrides', async (req, reply) => {
+    const { id } = req.params
+    const league = await getLeagueById(id)
+    if (!league) return reply.code(404).send({ error: 'League not found' })
+    if (league.admin_id !== req.authUser!.id) return reply.code(403).send({ error: 'Admin only' })
+
+    const body = z.object({
+      userId: z.string().uuid(),
+      weekNum: z.number().int().min(1),
+      points: z.number(),
+      note: z.string().max(200).optional(),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const { userId, weekNum, points, note } = body.data
+    const { pool } = await import('../db/client.js')
+    const { rows } = await pool.query(
+      `INSERT INTO league_points_overrides (league_id, user_id, week_num, points, note)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (league_id, user_id, week_num)
+       DO UPDATE SET points = $4, note = $5, created_at = NOW()
+       RETURNING *`,
+      [id, userId, weekNum, points, note ?? null]
+    )
+    return reply.send({ override: rows[0] })
+  })
+
+  // DELETE /leagues/:id/overrides — remove a points override (admin only)
+  app.delete<{ Params: { id: string } }>('/leagues/:id/overrides', async (req, reply) => {
+    const { id } = req.params
+    const league = await getLeagueById(id)
+    if (!league) return reply.code(404).send({ error: 'League not found' })
+    if (league.admin_id !== req.authUser!.id) return reply.code(403).send({ error: 'Admin only' })
+
+    const body = z.object({
+      userId: z.string().uuid(),
+      weekNum: z.number().int().min(1),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const { userId, weekNum } = body.data
+    const { pool } = await import('../db/client.js')
+    await pool.query(
+      `DELETE FROM league_points_overrides WHERE league_id = $1 AND user_id = $2 AND week_num = $3`,
+      [id, userId, weekNum]
+    )
     return reply.code(204).send()
   })
 }

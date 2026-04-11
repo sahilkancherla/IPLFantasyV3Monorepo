@@ -69,6 +69,18 @@ export function useJoinLeague() {
   })
 }
 
+export function useRenameLeague() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ leagueId, name }: { leagueId: string; name: string }) =>
+      api.patch(`/leagues/${leagueId}/name`, { name }),
+    onSuccess: (_data, { leagueId }) => {
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['leagues'] })
+    },
+  })
+}
+
 export function useUpdateTeamName() {
   const queryClient = useQueryClient()
 
@@ -136,6 +148,51 @@ export function useGenerateSchedule() {
       api.post<{ matchups: unknown[] }>(`/schedule/${leagueId}/generate`, {}),
     onSuccess: (_data, leagueId) => {
       queryClient.invalidateQueries({ queryKey: ['schedule', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['league-home', leagueId] })
+    },
+  })
+}
+
+export interface PointsOverride {
+  id: string
+  user_id: string
+  week_num: number
+  points: number
+  note: string | null
+}
+
+export function useLeagueOverrides(leagueId: string) {
+  return useQuery({
+    queryKey: ['overrides', leagueId],
+    queryFn: () => api.get<{ overrides: PointsOverride[] }>(`/leagues/${leagueId}/overrides`),
+    select: (d) => d.overrides.map(o => ({ ...o, points: parseFloat(String(o.points)) })),
+    enabled: !!leagueId,
+  })
+}
+
+export function useSetOverride(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { userId: string; weekNum: number; points: number; note?: string }) =>
+      api.put(`/leagues/${leagueId}/overrides`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['overrides', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['schedule', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['matchup', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['league-home', leagueId] })
+    },
+  })
+}
+
+export function useDeleteOverride(leagueId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { userId: string; weekNum: number }) =>
+      api.delete(`/leagues/${leagueId}/overrides`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['overrides', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['schedule', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['matchup', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['league-home', leagueId] })
     },
   })

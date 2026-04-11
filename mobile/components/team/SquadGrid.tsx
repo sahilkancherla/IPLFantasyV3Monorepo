@@ -46,13 +46,6 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
   return (
     <>
       <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-        {/* Dark header */}
-        <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10 }}>
-          <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-            My Squad · {roster.length} player{roster.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-
         {allGroups.map((role, groupIdx) => {
           const group = byRole[role] ?? roster.filter(r => r.player_role === role)
           const roleColor = ROLE_COLORS[role] ?? '#6b7280'
@@ -65,7 +58,7 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
               <View style={{
                 backgroundColor: '#f9fafb',
                 paddingHorizontal: 16, paddingVertical: 7,
-                borderTopWidth: 1, borderTopColor: '#f3f4f6',
+                borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: '#f3f4f6',
                 flexDirection: 'row', alignItems: 'center', gap: 8,
               }}>
                 <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -77,28 +70,35 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
                 </Text>
               </View>
 
-              {group.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  onPress={() => setSelectedPlayer(item)}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    paddingLeft: 16, paddingRight: 8,
-                    borderTopWidth: 1, borderTopColor: '#f3f4f6',
-                  }}
-                >
-                  <View style={{ flex: 1, paddingVertical: 11 }}>
-                    <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
-                      {item.player_name}
-                    </Text>
-                    <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
-                  </View>
-                  <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginRight: 10 }}>
-                    {formatCurrency(item.price_paid, currency)}
-                  </Text>
-                  <Text style={{ color: '#d1d5db', fontSize: 16, paddingVertical: 11, paddingHorizontal: 6 }}>›</Text>
-                </TouchableOpacity>
-              ))}
+              {group.map((item) => {
+                const avgPts = item.team_games_played > 0 ? item.total_points / item.team_games_played : null
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => setSelectedPlayer(item)}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingLeft: 16, paddingRight: 12,
+                      borderTopWidth: 1, borderTopColor: '#f3f4f6',
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingVertical: 11 }}>
+                      <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                        {item.player_name}
+                      </Text>
+                      <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
+                    </View>
+                    {avgPts != null ? (
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                        <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                      </View>
+                    ) : (
+                      <Text style={{ color: '#d1d5db', fontSize: 12 }}>—</Text>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
             </View>
           )
         })}

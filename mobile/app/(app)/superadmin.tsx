@@ -424,23 +424,45 @@ function MatchDetailModal({ matchId, onClose }: MatchDetailProps) {
                   paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#111827',
                 }}
               />
-              <TouchableOpacity
-                onPress={handleImport}
-                disabled={importScorecard.isPending || !scorecardUrl.trim()}
-                style={{
-                  backgroundColor: scorecardUrl.trim() ? '#111827' : '#e5e7eb',
-                  borderRadius: 10, paddingVertical: 12, alignItems: 'center',
-                }}
-              >
-                {importScorecard.isPending ? (
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <ActivityIndicator color="white" />
-                    <Text style={{ color: 'white', fontWeight: '700' }}>Importing… (up to 30s)</Text>
-                  </View>
-                ) : (
-                  <Text style={{ color: scorecardUrl.trim() ? 'white' : '#9ca3af', fontWeight: '700' }}>Import Scorecard</Text>
-                )}
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!matchId || !scorecardUrl.trim()) return
+                    patchMatch.mutate({ matchId, data: { scorecardUrl: scorecardUrl.trim() } }, {
+                      onSuccess: () => Alert.alert('Saved', 'Scorecard URL saved.'),
+                      onError: (e) => Alert.alert('Error', (e as Error).message),
+                    })
+                  }}
+                  disabled={patchMatch.isPending || !scorecardUrl.trim()}
+                  style={{
+                    flex: 1, backgroundColor: scorecardUrl.trim() ? '#f9fafb' : '#f3f4f6',
+                    borderRadius: 10, paddingVertical: 12, alignItems: 'center',
+                    borderWidth: 1, borderColor: scorecardUrl.trim() ? '#e5e7eb' : '#f3f4f6',
+                  }}
+                >
+                  {patchMatch.isPending
+                    ? <ActivityIndicator color="#111827" />
+                    : <Text style={{ color: scorecardUrl.trim() ? '#111827' : '#9ca3af', fontWeight: '700' }}>Save URL</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleImport}
+                  disabled={importScorecard.isPending || !scorecardUrl.trim()}
+                  style={{
+                    flex: 2, backgroundColor: scorecardUrl.trim() ? '#111827' : '#e5e7eb',
+                    borderRadius: 10, paddingVertical: 12, alignItems: 'center',
+                  }}
+                >
+                  {importScorecard.isPending ? (
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      <ActivityIndicator color="white" />
+                      <Text style={{ color: 'white', fontWeight: '700' }}>Importing…</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: scorecardUrl.trim() ? 'white' : '#9ca3af', fontWeight: '700' }}>Import Scorecard</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Clear stats */}

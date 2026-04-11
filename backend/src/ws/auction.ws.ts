@@ -160,9 +160,9 @@ export async function registerAuctionWebSocket(app: FastifyInstance): Promise<vo
           // Get member info with profile
           const { rows } = await pool.query<{
             user_id: string; remaining_budget: number; roster_count: number;
-            username: string; display_name: string | null; avatar_url: string | null
+            team_name: string; username: string; display_name: string | null; avatar_url: string | null
           }>(
-            `SELECT lm.user_id, lm.remaining_budget, lm.roster_count,
+            `SELECT lm.user_id, lm.remaining_budget, lm.roster_count, lm.team_name,
                     p.username, p.display_name, p.avatar_url
              FROM league_members lm
              JOIN profiles p ON p.id = lm.user_id
@@ -198,6 +198,7 @@ export async function registerAuctionWebSocket(app: FastifyInstance): Promise<vo
             roster_count: rows[0].roster_count,
             waiver_priority: 0,
             joined_at: '',
+            team_name: rows[0].team_name ?? '',
             username: rows[0].username,
             full_name: '',
             display_name: rows[0].display_name,

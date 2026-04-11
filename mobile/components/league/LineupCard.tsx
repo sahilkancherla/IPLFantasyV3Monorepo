@@ -284,6 +284,10 @@ interface DualLineupCardProps {
   breakdownByMatchId: Map<string, GameBreakdownData>
   getMyPlayerStats: (matchId: string, playerId: string) => GamePlayer | undefined
   getOppPlayerStats: (matchId: string, playerId: string) => GamePlayer | undefined
+  myOverridePoints?: number | null
+  myOverrideNote?: string | null
+  oppOverridePoints?: number | null
+  oppOverrideNote?: string | null
 }
 
 export function DualLineupCard({
@@ -292,6 +296,8 @@ export function DualLineupCard({
   myBench = [], oppBench = [],
   weekMatches, breakdownByMatchId,
   getMyPlayerStats, getOppPlayerStats,
+  myOverridePoints, myOverrideNote,
+  oppOverridePoints, oppOverrideNote,
 }: DualLineupCardProps) {
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
   type WeekModal = { entry: BenchEntry; getStats: (matchId: string, playerId: string) => GamePlayer | undefined; isBench?: boolean }
@@ -403,9 +409,14 @@ export function DualLineupCard({
         {/* Split header */}
         <View style={{ flexDirection: 'row' }}>
           <View style={{ flex: 1, backgroundColor: '#1f2937', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: 'white', fontWeight: '700', fontSize: 12, flex: 1 }} numberOfLines={1}>
-              {myName} ★
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
+                {myName} ★
+              </Text>
+              {myLineup.length === 0 && (
+                <Text style={{ color: '#f87171', fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
+              )}
+            </View>
             {myHeaderAction}
           </View>
           <View style={{ width: 1, backgroundColor: '#374151' }} />
@@ -413,6 +424,9 @@ export function DualLineupCard({
             <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
               {oppName}
             </Text>
+            {oppLineup.length === 0 && (
+              <Text style={{ color: '#9ca3af', fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
+            )}
           </View>
         </View>
 
@@ -453,6 +467,44 @@ export function DualLineupCard({
             ))}
           </View>
         )}
+
+        {/* Admin points override row */}
+        {(myOverridePoints != null || oppOverridePoints != null) && (() => {
+          const myPts = myOverridePoints != null ? parseFloat(String(myOverridePoints)) : null
+          const oppPts = oppOverridePoints != null ? parseFloat(String(oppOverridePoints)) : null
+          return (
+          <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+            <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>BONUS</Text>
+            </View>
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+              {/* My override */}
+              <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 10 }}>
+                {myPts != null ? (
+                  <>
+                    <Text style={{ color: myPts >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 13 }}>
+                      {myPts >= 0 ? '+' : ''}{myPts.toFixed(1)} pts
+                    </Text>
+                    {myOverrideNote ? <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{myOverrideNote}</Text> : null}
+                  </>
+                ) : null}
+              </View>
+              <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
+              {/* Opp override */}
+              <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 10, alignItems: 'flex-end' }}>
+                {oppPts != null ? (
+                  <>
+                    <Text style={{ color: oppPts >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 13 }}>
+                      {oppPts >= 0 ? '+' : ''}{oppPts.toFixed(1)} pts
+                    </Text>
+                    {oppOverrideNote ? <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2, textAlign: 'right' }} numberOfLines={2}>{oppOverrideNote}</Text> : null}
+                  </>
+                ) : null}
+              </View>
+            </View>
+          </View>
+          )
+        })()}
 
         {myLineup.length === 0 && oppLineup.length === 0 && (
           <View style={{ padding: 20, alignItems: 'center' }}>

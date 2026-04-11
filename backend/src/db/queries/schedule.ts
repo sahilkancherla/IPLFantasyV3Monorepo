@@ -8,6 +8,10 @@ export interface IplWeek {
   end_date: string
   lock_time: string
   is_playoff: boolean
+  window_start: string | null
+  window_end: string | null
+  week_type?: string
+  status?: string
 }
 
 export interface WeeklyMatchup {
@@ -32,7 +36,8 @@ export interface WeeklyMatchup {
 }
 
 // Subquery that computes live fantasy points for one user in one week
-// by summing match_scores for all their lineup players whose team plays that week.
+// by summing match_scores for all their lineup players whose team plays that week,
+// plus any admin points override for that user/week.
 const livePointsSubquery = (userCol: string) => `
   COALESCE((
     SELECT SUM(ms.fantasy_points)
@@ -46,6 +51,13 @@ const livePointsSubquery = (userCol: string) => `
     WHERE wl.league_id = wm.league_id
       AND wl.user_id   = wm.${userCol}
       AND wl.week_num  = wm.week_num
+  ), 0)
+  + COALESCE((
+    SELECT lpo.points
+    FROM league_points_overrides lpo
+    WHERE lpo.league_id = wm.league_id
+      AND lpo.user_id   = wm.${userCol}
+      AND lpo.week_num  = wm.week_num
   ), 0)`
 
 export async function getLeagueSchedule(leagueId: string): Promise<WeeklyMatchup[]> {

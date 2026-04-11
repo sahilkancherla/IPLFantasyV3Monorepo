@@ -886,6 +886,24 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const ex = statsMap.get(id) ?? { playerId: id, scorecardName: b.scorecardName, isInXI: true, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, isOut: false, dismissalText: '', catches: 0, stumpings: 0, runOutsDirect: 0, runOutsIndirect: 0, lbwBowledWickets: 0 } as ScorecardStat
       statsMap.set(id, { ...ex, wickets: b.wickets, ballsBowled: b.ballsBowled, runsConceded: b.runsConceded, maidens: b.maidens, lbwBowledWickets: lbwBowledMap.get(id) ?? 0 })
     }
+    // Add zero-stat entries for pure fielders (caught/stumped/run-out) who never batted or bowled.
+    // Without this, their dismissal credits are computed but never saved because they're not in statsMap.
+    const allFielderIds = new Set<string>([
+      ...catches.keys(), ...stumpings.keys(), ...runOutsDirect.keys(), ...runOutsIndir.keys(),
+    ])
+    for (const fielderId of allFielderIds) {
+      if (!statsMap.has(fielderId)) {
+        // Reverse-look up the scorecard name from nameToUUID
+        const scorecardName = [...nameToUUID.entries()].find(([, id]) => id === fielderId)?.[0] ?? fielderId
+        statsMap.set(fielderId, {
+          playerId: fielderId, scorecardName, isInXI: true,
+          runs: 0, ballsFaced: 0, fours: 0, sixes: 0, isOut: false, dismissalText: '',
+          wickets: 0, ballsBowled: 0, runsConceded: 0, maidens: 0, lbwBowledWickets: 0,
+          catches: 0, stumpings: 0, runOutsDirect: 0, runOutsIndirect: 0,
+        })
+      }
+    }
+
     const matched: ScorecardStat[] = [...statsMap.values()].map(s => ({
       ...s,
       catches:         catches.get(s.playerId)       ?? 0,

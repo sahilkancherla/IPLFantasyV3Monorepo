@@ -4,14 +4,12 @@ import { api } from '../lib/api'
 export interface IplWeek {
   week_num: number
   label: string
-  start_date: string
-  end_date: string
   lock_time: string
   is_playoff: boolean
   week_type?: string
   status?: string
-  window_start?: string | null
-  window_end?: string | null
+  window_start: string | null
+  window_end: string | null
 }
 
 export interface Matchup {
@@ -57,6 +55,8 @@ export function useLeagueSchedule(leagueId: string) {
     queryFn: () => api.get<{ matchups: Matchup[] }>(`/schedule/${leagueId}`),
     enabled: !!leagueId,
     select: (data) => data.matchups,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 
@@ -79,6 +79,7 @@ export function useWeekMatches(weekNum: number | null) {
     enabled: weekNum !== null,
     select: (data) => data.matches,
     staleTime: 60_000,
+    gcTime: 30 * 60_000,
   })
 }
 

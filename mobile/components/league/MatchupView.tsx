@@ -21,10 +21,68 @@ function sortByRole<T extends { slot_role?: string; playerRole?: string }>(arr: 
   )
 }
 
-function formatWeekDate(d: string): string {
-  const parts = d.slice(0, 10).split('-').map(Number)
-  const dt = new Date(parts[0], parts[1] - 1, parts[2])
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function formatWeekDate(d: string | null | undefined): string {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
+function useCountdown(lockTime: string) {
+  const [timeLeft, setTimeLeft] = useState(() => Math.max(0, new Date(lockTime).getTime() - Date.now()))
+  useEffect(() => {
+    if (timeLeft <= 0) return
+    const id = setInterval(() => {
+      setTimeLeft(Math.max(0, new Date(lockTime).getTime() - Date.now()))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lockTime])
+  return timeLeft
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'Locked'
+  const totalSecs = Math.floor(ms / 1000)
+  const d = Math.floor(totalSecs / 86400)
+  const h = Math.floor((totalSecs % 86400) / 3600)
+  const m = Math.floor((totalSecs % 3600) / 60)
+  const s = totalSecs % 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m ${s}s`
+  return `${m}m ${s}s`
+}
+
+function LineupWarningBanner({ lockTime, onSetLineup }: { lockTime: string; onSetLineup: () => void }) {
+  const timeLeft = useCountdown(lockTime)
+  const countdown = formatCountdown(timeLeft)
+  const urgent = timeLeft < 60 * 60 * 1000 // < 1 hour
+
+  return (
+    <View style={{
+      backgroundColor: urgent ? '#fff7ed' : '#fffbeb',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: urgent ? '#fed7aa' : '#fde68a',
+      padding: 14,
+      gap: 10,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ backgroundColor: urgent ? '#ea580c' : '#d97706', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+          <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>LINEUP NOT SET</Text>
+        </View>
+        <Text style={{ color: urgent ? '#9a3412' : '#92400e', fontSize: 12, fontWeight: '600' }}>
+          Locks in {countdown}
+        </Text>
+      </View>
+      <Text style={{ color: urgent ? '#9a3412' : '#78350f', fontSize: 13 }}>
+        You haven't set your lineup for this week. Set it before the lock time to earn points.
+      </Text>
+      <TouchableOpacity
+        onPress={onSetLineup}
+        style={{ backgroundColor: urgent ? '#ea580c' : '#d97706', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+      >
+        <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Set Lineup</Text>
+      </TouchableOpacity>
+    </View>
+  )
 }
 
 // ── Game card content (shared between measurement layer and live carousel) ────
@@ -156,12 +214,18 @@ export interface MatchupViewProps {
   getOppPlayerStats: (matchId: string, playerId: string) => GamePlayer | undefined
   myBench?: BenchEntry[]
   oppBench?: BenchEntry[]
+  myOverridePoints?: number | null
+  myOverrideNote?: string | null
+  oppOverridePoints?: number | null
+  oppOverrideNote?: string | null
   width: number
   refreshControl?: React.ComponentProps<typeof ScrollView>['refreshControl']
   /** If provided, shows an Expand button in the IPL Games header */
   onExpandGames?: () => void
   /** Bump this key to reset the carousel (e.g. after lineup modal dismisses) */
   carouselKey?: number
+  /** Called when the "Set Lineup" button in the warning banner is tapped */
+  onSetLineup?: () => void
 }
 
 export function MatchupView({
@@ -170,8 +234,10 @@ export function MatchupView({
   myLineup, oppLineup, lineupLocked, lineupHeaderAction,
   weekMatches, breakdownByMatchId, getMyPlayerStats, getOppPlayerStats,
   myBench, oppBench,
-  width, refreshControl, onExpandGames, carouselKey = 0,
+  myOverridePoints, myOverrideNote, oppOverridePoints, oppOverrideNote,
+  width, refreshControl, onExpandGames, carouselKey = 0, onSetLineup,
 }: MatchupViewProps) {
+  const showLineupWarning = !isCompleted && lineupLocked === false && myLineup.length === 0 && !!onSetLineup
   const isPending = !isCompleted && !isLive
   const [activeGameIndex, setActiveGameIndex] = useState(0)
   const gameListRef = useRef<ScrollView>(null)
@@ -203,16 +269,30 @@ export function MatchupView({
     }).start()
   }, [activeGameIndex, cardHeights])
 
+  const targetGameIndex = useCallback((matches: IplMatch[]) => {
+    const liveIdx = matches.findIndex(m => m.status === 'live')
+    const upcomingIdx = matches.findIndex(m => m.status === 'upcoming')
+    return liveIdx >= 0 ? liveIdx : upcomingIdx >= 0 ? upcomingIdx : 0
+  }, [])
+
   useEffect(() => {
     if (!weekMatches || weekMatches.length === 0) return
-    const liveIdx = weekMatches.findIndex(m => m.status === 'live')
-    const upcomingIdx = weekMatches.findIndex(m => m.status === 'upcoming')
-    const target = liveIdx >= 0 ? liveIdx : upcomingIdx >= 0 ? upcomingIdx : 0
+    const target = targetGameIndex(weekMatches)
     setActiveGameIndex(target)
-    if (target > 0) {
+    // If carousel is already mounted (data arrived after first render), scroll now.
+    // If not mounted yet, contentOffset on the ScrollView will handle the initial position.
+    if (carouselReady && target > 0) {
       setTimeout(() => gameListRef.current?.scrollTo({ x: target * (width - 64), animated: false }), 50)
     }
   }, [weekMatches, week.status])
+
+  // When the carousel first becomes ready, ensure it's at the correct position.
+  // This handles the case where weekMatches was cached and activeGameIndex was
+  // already set before the ScrollView mounted.
+  useEffect(() => {
+    if (!carouselReady || activeGameIndex === 0) return
+    setTimeout(() => gameListRef.current?.scrollTo({ x: activeGameIndex * (width - 64), animated: false }), 50)
+  }, [carouselReady])
 
   const onGameScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const idx = Math.round(e.nativeEvent.contentOffset.x / (width - 64))
@@ -261,13 +341,18 @@ export function MatchupView({
             {week.label}
           </Text>
           <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
-            {formatWeekDate(week.start_date)} – {formatWeekDate(week.end_date)}
+            {formatWeekDate(week.window_start)} – {formatWeekDate(week.window_end)}
           </Text>
         </View>
         <View style={{ backgroundColor: statusStyle.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 0 }}>
           <Text style={{ color: statusStyle.color, fontSize: 11, fontWeight: '700' }}>{statusLabel}</Text>
         </View>
       </View>
+
+      {/* Lineup warning banner */}
+      {showLineupWarning && (
+        <LineupWarningBanner lockTime={week.lock_time} onSetLineup={onSetLineup!} />
+      )}
 
       {/* Score overview */}
       <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
@@ -387,6 +472,7 @@ export function MatchupView({
                   onScroll={onGameScroll}
                   style={{ width: width - 64 }}
                   contentContainerStyle={{ alignItems: 'flex-start' }}
+                  contentOffset={{ x: activeGameIndex * (width - 64), y: 0 }}
                 >
                   {cardProps.map(({ item, myPlayers, oppPlayers }, idx) => (
                     <View key={item.id} style={{ width: width - 64 }} onLayout={recordHeight(idx)}>
@@ -425,6 +511,10 @@ export function MatchupView({
         breakdownByMatchId={breakdownByMatchId}
         getMyPlayerStats={getMyPlayerStats}
         getOppPlayerStats={getOppPlayerStats}
+        myOverridePoints={myOverridePoints}
+        myOverrideNote={myOverrideNote}
+        oppOverridePoints={oppOverridePoints}
+        oppOverrideNote={oppOverrideNote}
       />
     </ScrollView>
   )
