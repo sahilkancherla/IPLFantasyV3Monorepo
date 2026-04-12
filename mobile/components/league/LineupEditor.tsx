@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { View, Text, TouchableOpacity, Modal, FlatList } from 'react-native'
+import { NavButton } from '../ui/NavButton'
 import { useMyTeam } from '../../hooks/useTeam'
 import { useSetLineup } from '../../hooks/useLineup'
 import type { LineupEntry } from '../../hooks/useLineup'
@@ -269,20 +270,23 @@ export function LineupEditor({ leagueId, weekNum, locked, lineup }: Props) {
         <View style={{ flex: 1, backgroundColor: 'white' }}>
           {/* Modal header */}
           <View style={{
-            padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
-            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            paddingHorizontal: 16, paddingVertical: 14,
+            borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
+            flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
           }}>
-            <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>
-              Select {activeSlot ? ROLE_LABELS[activeSlot.role].replace(/s$/, '') : ''}
-            </Text>
-            <TouchableOpacity onPress={() => setActiveIdx(null)}>
-              <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
-            </TouchableOpacity>
+            <NavButton label="Cancel" onPress={() => setActiveIdx(null)} />
           </View>
 
           <FlatList
             data={eligiblePlayers}
             keyExtractor={p => p.player_id}
+            ListHeaderComponent={
+              <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 }}>
+                <Text style={{ fontWeight: '800', fontSize: 22, color: '#111827' }}>
+                  Select {activeSlot ? ROLE_LABELS[activeSlot.role].replace(/s$/, '') : ''}
+                </Text>
+              </View>
+            }
             renderItem={({ item }) => {
               const isSelected = activeSlot?.player?.player_id === item.player_id
               const isUsedElsewhere = !isSelected && assignedIds.has(item.player_id)

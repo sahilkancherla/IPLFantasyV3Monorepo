@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Animated, type TextStyle } from 'react-native'
+import { NavButton } from './NavButton'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER,
+  BORDER_DEFAULT,
+  BG_CARD, BG_PAGE,
+  SUCCESS,
+  PRIMARY,
+} from '../../constants/colors'
 
 export interface BreakdownStats {
   runsScored: number
@@ -179,19 +187,17 @@ export function PointsBreakdownModal({ visible, onClose, stats, total, playerNam
 
         {/* Header */}
         <View style={s.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.title}>Points Breakdown</Text>
-            {playerName ? <Text style={s.subtitle}>{playerName}</Text> : null}
-          </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={s.closeBtn}>Done</Text>
-          </TouchableOpacity>
+          <NavButton label="← Back" onPress={onClose} />
         </View>
 
         <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={s.title}>Points Breakdown</Text>
+            {playerName ? <Text style={s.subtitle}>{playerName}</Text> : null}
+          </View>
           {!hasAny ? (
             <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-              <Text style={{ color: '#9ca3af', fontSize: 14 }}>No stats recorded for this match</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No stats recorded for this match</Text>
             </View>
           ) : (
             sections.map(sec => {
@@ -283,7 +289,7 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'white',
+    backgroundColor: BG_CARD,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 10,
@@ -298,30 +304,25 @@ const s = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    marginBottom: 16,
+    borderBottomColor: BORDER_DEFAULT,
+    marginBottom: 0,
   },
   title: {
-    color: '#111827',
+    color: TEXT_PRIMARY,
     fontSize: 17,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#6b7280',
+    color: TEXT_MUTED,
     fontSize: 13,
     marginTop: 2,
   },
-  closeBtn: {
-    color: '#6b7280',
-    fontSize: 15,
-    fontWeight: '600',
-  },
   sectionLabel: {
-    color: '#9ca3af',
+    color: TEXT_PLACEHOLDER,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -332,15 +333,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
+    borderBottomColor: BG_PAGE,
   },
   rowLabel: {
-    color: '#374151',
+    color: TEXT_SECONDARY,
     fontSize: 14,
     fontWeight: '500',
   },
   rowDetail: {
-    color: '#9ca3af',
+    color: TEXT_PLACEHOLDER,
     fontSize: 12,
     marginTop: 1,
   },
@@ -350,20 +351,20 @@ const s = StyleSheet.create({
     minWidth: 40,
     textAlign: 'right',
   },
-  positive: { color: '#16a34a' },
-  negative: { color: '#dc2626' },
-  neutral:  { color: '#9ca3af' },
+  positive: { color: SUCCESS },
+  negative: { color: PRIMARY },
+  neutral:  { color: TEXT_PLACEHOLDER },
   totalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 14,
     borderTopWidth: 2,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: BORDER_DEFAULT,
     marginTop: 4,
   },
   totalLabel: {
     flex: 1,
-    color: '#111827',
+    color: TEXT_PRIMARY,
     fontSize: 15,
     fontWeight: '700',
   },

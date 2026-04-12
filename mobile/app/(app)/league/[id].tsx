@@ -4,12 +4,24 @@ import {
   TextInput, FlatList, KeyboardAvoidingView, Platform, Modal, ActivityIndicator,
   Animated, Dimensions,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatCurrency } from '../../../lib/currency'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_PAGE, BG_CARD,
+  PRIMARY, PRIMARY_SOFT, PRIMARY_BG, PRIMARY_BORDER, PRIMARY_SUBTLE,
+  SUCCESS, SUCCESS_BG, SUCCESS_SUBTLE,
+  WARNING_DARK, WARNING_BG, WARNING_DARKER,
+  INFO_DARK, INFO_SUBTLE,
+  BG_DARK_HEADER,
+  roleColors as importedRoleColors,
+} from '../../../constants/colors'
 import { MemberList } from '../../../components/league/MemberList'
 import { Badge } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
-import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups, useUpdateTeamName, useLeagueOverrides, useSetOverride, useDeleteOverride, useRenameLeague } from '../../../hooks/useLeague'
+import { useLeague, useLeaveLeague, useAdvanceLeagueStatus, useDeleteAuction, useDeleteLeague, useUpdateWeekMatchups, useUpdateTeamName, useLeagueOverrides, useSetOverride, useDeleteOverride, useRenameLeague, useUpdateLeagueLimits } from '../../../hooks/useLeague'
 import { usePlayerInterests, useToggleInterest, useAvailablePlayers } from '../../../hooks/useAuctionInterests'
 import { useAllTeams, useLeaderboard, useDropPlayer, useAddPlayer, useAdminDropPlayer, useAdminAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
 import { useFreeAgents, type FreeAgent } from '../../../hooks/useWaivers'
@@ -22,6 +34,9 @@ import { LoadingScreen, LoadingOverlay } from '../../../components/ui/Loading'
 import { Avatar } from '../../../components/ui/Avatar'
 import { useAuthStore } from '../../../stores/authStore'
 import { PlayerRow, roleColors, roleLabels } from '../../../components/league/PlayerRow'
+import { NavButton } from '../../../components/ui/NavButton'
+import { SearchBar } from '../../../components/ui/SearchBar'
+import { SegmentedControl } from '../../../components/ui/SegmentedControl'
 import { api } from '../../../lib/api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdminSetLineup, useUserLineup } from '../../../hooks/useLineup'
@@ -66,6 +81,7 @@ const roleBadgeColors: Record<string, 'blue' | 'red' | 'green' | 'yellow'> = {
 export default function LeagueScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const { top: topInset } = useSafeAreaInsets()
   const { user } = useAuthStore()
   const { data, isLoading, refetch, isRefetching } = useLeague(id!)
   const leaveLeague = useLeaveLeague()
@@ -95,6 +111,15 @@ export default function LeagueScreen() {
   const [leagueNameInput, setLeagueNameInput] = useState('')
   const renameLeague = useRenameLeague()
 
+  // Squad limits state (initialised from league data when available)
+  const updateLeagueLimits = useUpdateLeagueLimits()
+  const [limitsMaxTeams, setLimitsMaxTeams] = useState('')
+  const [limitsRosterSize, setLimitsRosterSize] = useState('')
+  const [limitsMaxBatsmen, setLimitsMaxBatsmen] = useState('')
+  const [limitsMaxWK, setLimitsMaxWK] = useState('')
+  const [limitsMaxAR, setLimitsMaxAR] = useState('')
+  const [limitsMaxBowlers, setLimitsMaxBowlers] = useState('')
+
   // Points override state
   const [overrideUserId, setOverrideUserId] = useState<string>('')
   const [overrideWeek, setOverrideWeek] = useState<string>('')
@@ -112,6 +137,7 @@ export default function LeagueScreen() {
   const [dropPickerVisible, setDropPickerVisible] = useState(false)
   const [dropRoleFilter, setDropRoleFilter] = useState<string | null>(null)
   const [dropConfirmItem, setDropConfirmItem] = useState<RosterEntry | null>(null)
+  const dropConfirmItemRef = useRef<RosterEntry | null>(null)
   const dropSlide = useRef(new Animated.Value(0)).current
   const SCREEN_W = Dimensions.get('window').width
 
@@ -119,6 +145,7 @@ export default function LeagueScreen() {
   const [lpSelectedPlayer, setLpSelectedPlayer] = useState<{
     player_id: string; name: string; ipl_team: string; role: string
     nationality: string; base_price: number; sold_to: string | null
+    total_points: number; team_games_played: number
   } | null>(null)
 
   // Admin Set Lineup state
@@ -293,29 +320,28 @@ export default function LeagueScreen() {
         style={{
           flexDirection: 'row', alignItems: 'center', gap: 12,
           paddingVertical: 12, paddingHorizontal: 16,
-          borderTopWidth: index > 0 ? 1 : 0, borderTopColor: '#f3f4f6',
-          backgroundColor: isInterested ? '#f0fdf4' : 'white',
+          borderTopWidth: index > 0 ? 1 : 0, borderTopColor: BORDER_DEFAULT,
+          backgroundColor: isInterested ? SUCCESS_BG : BG_CARD,
         }}
       >
         <View style={{
           width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-          backgroundColor: isInterested ? '#16a34a' : '#f3f4f6',
+          backgroundColor: isInterested ? SUCCESS : BORDER_DEFAULT,
           flexShrink: 0,
         }}>
-          <Text style={{ fontSize: 13, color: isInterested ? 'white' : '#9ca3af' }}>
+          <Text style={{ fontSize: 13, color: isInterested ? 'white' : TEXT_PLACEHOLDER }}>
             {isInterested ? '★' : '☆'}
           </Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{item.name}</Text>
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14 }}>{item.name}</Text>
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 12 }}>{item.ipl_team}</Text>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{item.ipl_team}</Text>
             <Badge label={roleLabels[item.role] ?? item.role} color={roleBadgeColors[item.role] ?? 'gray'} />
             {item.nationality !== 'Indian' && <Badge label="OS" color="yellow" />}
-            <Text style={{ color: '#9ca3af', fontSize: 12 }}>{formatCurrency(item.base_price, league!.currency)}</Text>
           </View>
         </View>
-        {count > 1 && <Text style={{ color: '#9ca3af', fontSize: 11 }}>{count} want</Text>}
+        {count > 1 && <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{count} want</Text>}
       </TouchableOpacity>
     )
   }
@@ -496,23 +522,35 @@ export default function LeagueScreen() {
     ]
 
     return (
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
         <Stack.Screen options={{
-          title: league.name,
-          headerBackVisible: false,
-          headerLeft: () => (
-            <Text
-              onPress={() => router.back()}
-              style={{ color: '#9ca3af', fontSize: 14 }}
-            >← Home</Text>
-          ),
+          headerShown: false,
         }} />
+        {/* Fully custom header — avoids native UIBarButtonItem circle on iOS */}
+        <View style={{
+          backgroundColor: BG_CARD,
+          paddingTop: topInset,
+          borderBottomWidth: 1,
+          borderBottomColor: BORDER_MEDIUM,
+          flexDirection: 'row',
+          alignItems: 'center',
+          height: topInset + 44,
+          paddingHorizontal: 16,
+        }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.75}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: BORDER_DEFAULT }}
+          >
+            <Text style={{ color: TEXT_SECONDARY, fontWeight: '600', fontSize: 14 }}>← All Leagues</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Tab bar */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', flexGrow: 0 }}
+          style={{ backgroundColor: BG_CARD, borderBottomWidth: 1, borderBottomColor: BORDER_MEDIUM, flexGrow: 0 }}
           contentContainerStyle={{ flexDirection: 'row' }}
         >
           {leagueTabs.map(tab => (
@@ -522,12 +560,12 @@ export default function LeagueScreen() {
               style={{
                 paddingHorizontal: 16, paddingVertical: 12,
                 borderBottomWidth: 2,
-                borderBottomColor: activeLeagueTab === tab.key ? '#dc2626' : 'transparent',
+                borderBottomColor: activeLeagueTab === tab.key ? PRIMARY : 'transparent',
               }}
             >
               <Text style={{
                 fontSize: 13, fontWeight: '600',
-                color: activeLeagueTab === tab.key ? '#dc2626' : '#9ca3af',
+                color: activeLeagueTab === tab.key ? PRIMARY : TEXT_PLACEHOLDER,
               }}>
                 {tab.label}
               </Text>
@@ -567,13 +605,13 @@ export default function LeagueScreen() {
 
           const chipStyle = (active: boolean) => ({
             paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20,
-            backgroundColor: active ? '#dc2626' : '#ffffff',
-            borderWidth: 1, borderColor: active ? '#dc2626' : '#e5e7eb',
+            backgroundColor: active ? PRIMARY : BG_CARD,
+            borderWidth: 1, borderColor: active ? PRIMARY : BORDER_MEDIUM,
             marginRight: 7,
           })
           const chipText = (active: boolean) => ({
             fontSize: 12, fontWeight: '600' as const,
-            color: active ? '#ffffff' : '#374151',
+            color: active ? BG_CARD : TEXT_SECONDARY,
           })
           const roleChips = [
             { label: 'All', value: null },
@@ -589,35 +627,22 @@ export default function LeagueScreen() {
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
-              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor="#ef4444" />}
+              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor={PRIMARY_SOFT} />}
             >
               {/* Filters */}
-              <View style={{ gap: 10, paddingTop: 12, paddingBottom: 8 }}>
-                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 3 }}>
-                  <TouchableOpacity
-                    onPress={() => setLpFreeAgentsOnly(true)}
-                    style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: lpFreeAgentsOnly ? 'white' : 'transparent' }}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>Free Agents</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setLpFreeAgentsOnly(false)}
-                    style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center', backgroundColor: !lpFreeAgentsOnly ? 'white' : 'transparent' }}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: !lpFreeAgentsOnly ? '#111827' : '#9ca3af' }}>All Players</Text>
-                  </TouchableOpacity>
-                </View>
-                <TextInput
+              <View style={{ gap: 10, paddingTop: 16, paddingBottom: 8 }}>
+                <SegmentedControl
+                  segments={[
+                    { key: 'fa', label: 'Free Agents' },
+                    { key: 'all', label: 'All Players' },
+                  ]}
+                  value={lpFreeAgentsOnly ? 'fa' : 'all'}
+                  onChange={k => setLpFreeAgentsOnly(k === 'fa')}
+                />
+                <SearchBar
                   value={lpSearch}
                   onChangeText={setLpSearch}
                   placeholder="Search by name or team…"
-                  placeholderTextColor="#9ca3af"
-                  style={{
-                    backgroundColor: '#ffffff', borderRadius: 12,
-                    paddingHorizontal: 14, paddingVertical: 10,
-                    fontSize: 14, color: '#111827',
-                    borderWidth: 1, borderColor: '#e5e7eb',
-                  }}
                 />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: 'row' }}>
@@ -626,6 +651,14 @@ export default function LeagueScreen() {
                         <Text style={chipText(lpRoleFilter === value)}>{label}</Text>
                       </TouchableOpacity>
                     ))}
+                    {(lpSearch || lpRoleFilter || lpTeamFilter) && (
+                      <TouchableOpacity
+                        onPress={() => { setLpSearch(''); setLpRoleFilter(null); setLpTeamFilter(null) }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, justifyContent: 'center' }}
+                      >
+                        <Text style={{ color: PRIMARY_SOFT, fontSize: 12, fontWeight: '600' }}>Clear</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </ScrollView>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -640,35 +673,27 @@ export default function LeagueScreen() {
                     ))}
                   </View>
                 </ScrollView>
-                {(lpSearch || lpRoleFilter || lpTeamFilter) && (
-                  <TouchableOpacity
-                    onPress={() => { setLpSearch(''); setLpRoleFilter(null); setLpTeamFilter(null) }}
-                    style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6 }}
-                  >
-                    <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Clear</Text>
-                  </TouchableOpacity>
-                )}
               </View>
 
               {/* Flat grid with role badges */}
               {filtered.length === 0 ? (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
-                  <Text style={{ color: '#9ca3af', fontSize: 15 }}>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: BORDER_DEFAULT }}>
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>
                     {allPlayers.length === 0 ? 'Loading players…' : 'No players found'}
                   </Text>
                 </View>
               ) : (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                   {filtered.map((item, idx) => {
                     const avgPts = item.team_games_played > 0 && item.total_points !== 0 ? item.total_points / item.team_games_played : null
                     const isOS = item.nationality !== 'Indian'
-                    const roleColor = adRoleColors[item.role] ?? '#6b7280'
+                    const roleColor = adRoleColors[item.role] ?? TEXT_MUTED
                     return (
                       <TouchableOpacity
                         key={item.player_id}
                         onPress={() => setLpSelectedPlayer(item)}
                         activeOpacity={0.7}
-                        style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: '#f3f4f6' }}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: BORDER_DEFAULT }}
                       >
                         {/* Role badge — fixed width */}
                         <View style={{ width: 54, alignItems: 'center', justifyContent: 'center', paddingVertical: 11 }}>
@@ -679,23 +704,23 @@ export default function LeagueScreen() {
                         {/* Name + team */}
                         <View style={{ flex: 1, paddingVertical: 11 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{item.name}</Text>
+                            <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{item.name}</Text>
                             {isOS && (
-                              <View style={{ backgroundColor: '#fef9c3', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, flexShrink: 0 }}>
-                                <Text style={{ color: '#b45309', fontSize: 9, fontWeight: '700' }}>OS</Text>
+                              <View style={{ backgroundColor: WARNING_BG, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, flexShrink: 0 }}>
+                                <Text style={{ color: WARNING_DARK, fontSize: 9, fontWeight: '700' }}>OS</Text>
                               </View>
                             )}
                           </View>
-                          <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.ipl_team}</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.ipl_team}</Text>
                         </View>
                         {/* Avg pts */}
                         {avgPts != null ? (
                           <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
-                            <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                            <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                           </View>
                         ) : (
-                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>—</Text>
+                          <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>—</Text>
                         )}
                       </TouchableOpacity>
                     )
@@ -711,7 +736,7 @@ export default function LeagueScreen() {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor="#ef4444" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor={PRIMARY_SOFT} />}
         >
           {activeLeagueTab === 'home' && (() => {
             const { currentMatch, matchup, roster, currentWeekNum, myPlayers: rawMyPlayers = [], oppPlayers: rawOppPlayers = [], myWeekPoints = 0, oppWeekPoints = 0 } = homeData ?? {}
@@ -735,8 +760,12 @@ export default function LeagueScreen() {
             const oppPoints = oppWeekPoints || 0
 
             const matchStatus = currentMatch?.status ?? (currentMatch?.is_completed ? 'completed' : 'pending')
-            const statusBg = matchStatus === 'live' ? '#fef9c3' : matchStatus === 'completed' ? '#f0fdf4' : matchStatus === 'upcoming' ? '#dbeafe' : '#f3f4f6'
-            const statusColor = matchStatus === 'live' ? '#b45309' : matchStatus === 'completed' ? '#16a34a' : matchStatus === 'upcoming' ? '#1d4ed8' : '#6b7280'
+            const { bg: statusBg, text: statusColor } = (() => {
+              if (matchStatus === 'live') return { bg: WARNING_BG, text: WARNING_DARK }
+              if (matchStatus === 'completed') return { bg: SUCCESS_SUBTLE, text: SUCCESS }
+              if (matchStatus === 'upcoming') return { bg: INFO_SUBTLE, text: INFO_DARK }
+              return { bg: BORDER_DEFAULT, text: TEXT_MUTED }
+            })()
             const statusLabel = matchStatus === 'live' ? 'LIVE' : matchStatus === 'completed' ? 'FINAL' : matchStatus === 'upcoming' ? 'NEXT UP' : 'UPCOMING'
             const isLiveOrDone = matchStatus === 'live' || matchStatus === 'completed'
 
@@ -771,8 +800,8 @@ export default function LeagueScreen() {
             return (
               <View style={{ gap: 16 }}>
                 {/* ── Combined Matchup + Current Match card ── */}
-                <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-                  <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10 }}>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+                  <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 16, paddingVertical: 10 }}>
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
                       {currentWeekNum ? `Week ${currentWeekNum}` : 'This Week'}
                     </Text>
@@ -784,18 +813,18 @@ export default function LeagueScreen() {
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
                           <Avatar uri={user?.avatar_url ?? null} name={user?.display_name ?? user?.username} size={44} />
-                          <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
+                          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
                             {user?.display_name ?? user?.username}
                           </Text>
-                          <Text style={{ color: '#dc2626', fontWeight: '800', fontSize: 28 }}>{Number(myPoints || 0).toFixed(1)}</Text>
-                          <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>
+                          <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 28 }}>{Number(myPoints || 0).toFixed(1)}</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
                         </View>
 
                         <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
-                          <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 16 }}>VS</Text>
+                          <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 16 }}>VS</Text>
                           {matchup.is_final && (
-                            <View style={{ marginTop: 6, backgroundColor: matchup.winner_id === user?.id ? '#d1fae5' : matchup.winner_id ? '#fee2e2' : '#f3f4f6', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: matchup.winner_id === user?.id ? '#16a34a' : matchup.winner_id ? '#dc2626' : '#6b7280' }}>
+                            <View style={{ marginTop: 6, backgroundColor: matchup.winner_id === user?.id ? SUCCESS_SUBTLE : matchup.winner_id ? PRIMARY_SUBTLE : BORDER_DEFAULT, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: matchup.winner_id === user?.id ? SUCCESS : matchup.winner_id ? PRIMARY : TEXT_MUTED }}>
                                 {matchup.winner_id === user?.id ? 'WIN' : matchup.winner_id ? 'LOSS' : 'TIE'}
                               </Text>
                             </View>
@@ -804,40 +833,40 @@ export default function LeagueScreen() {
 
                         <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
                           <Avatar uri={null} name={oppName ?? ''} size={44} />
-                          <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
+                          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
                             {oppName}
                           </Text>
-                          <Text style={{ color: '#374151', fontWeight: '800', fontSize: 28 }}>{Number(oppPoints || 0).toFixed(1)}</Text>
-                          <Text style={{ color: '#9ca3af', fontSize: 11 }}>pts</Text>
+                          <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 28 }}>{Number(oppPoints || 0).toFixed(1)}</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
                         </View>
                       </View>
                     </View>
                   ) : (
                     <View style={{ padding: 20, alignItems: 'center' }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 14 }}>No matchup scheduled yet</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No matchup scheduled yet</Text>
                     </View>
                   )}
 
                   {/* Current match section — inside same card */}
                   {currentMatch && (
-                    <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', padding: 14, gap: 10 }}>
+                    <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, padding: 14, gap: 10 }}>
                       {/* Status + match number */}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View style={{ backgroundColor: statusBg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
                           <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{statusLabel}</Text>
                         </View>
                         {currentMatch.match_number != null && (
-                          <Text style={{ color: '#d1d5db', fontSize: 11 }}>Match {currentMatch.match_number}</Text>
+                          <Text style={{ color: TEXT_DISABLED, fontSize: 11 }}>Match {currentMatch.match_number}</Text>
                         )}
                       </View>
 
                       {/* Teams */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+                        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
                           {currentMatch.home_team}
                         </Text>
-                        <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 12 }}>vs</Text>
-                        <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+                        <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 12 }}>vs</Text>
+                        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
                           {currentMatch.away_team}
                         </Text>
                       </View>
@@ -845,67 +874,67 @@ export default function LeagueScreen() {
                       {/* Date + venue */}
                       <View style={{ gap: 2 }}>
                         {matchDateStr && (
-                          <Text style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>{matchDateStr}</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{matchDateStr}</Text>
                         )}
                         {currentMatch.venue != null && (
-                          <Text style={{ color: '#d1d5db', fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
+                          <Text style={{ color: TEXT_DISABLED, fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
                             {currentMatch.venue}
                           </Text>
                         )}
                       </View>
 
                       {/* Players in this game */}
-                      <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, gap: 10 }}>
+                      <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 10, gap: 10 }}>
                         {!hasPlayers ? (
                           <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
-                            <Text style={{ color: '#d1d5db', fontSize: 12 }}>No lineup players in this match</Text>
+                            <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No lineup players in this match</Text>
                           </View>
                         ) : (
                           <>
                             {myPlayers.length > 0 && (
                               <View style={{ gap: 6 }}>
-                                <Text style={{ color: '#dc2626', fontSize: 10, fontWeight: '700' }}>{myName ?? 'You'}</Text>
+                                <Text style={{ color: PRIMARY, fontSize: 10, fontWeight: '700' }}>{myName ?? 'You'}</Text>
                                 {myPlayers.map((p: any) => (
                                   <View key={p.playerId} style={{ gap: 1 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', width: 28 }}>
+                                      <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
                                         {roleLabels[p.playerRole] ?? p.playerRole}
                                       </Text>
-                                      <Text style={{ flex: 1, color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                                      <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                                         {p.playerName}
                                       </Text>
-                                      <Text style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                                      <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
                                         {p.points > 0 ? `+${p.points.toFixed(1)}` : '\u2014'}
                                       </Text>
                                     </View>
                                     {isLiveOrDone && gameStatLine(p) !== '' && (
-                                      <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
+                                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
                                     )}
                                   </View>
                                 ))}
                               </View>
                             )}
                             {myPlayers.length > 0 && oppPlayers.length > 0 && (
-                              <View style={{ height: 1, backgroundColor: '#f3f4f6' }} />
+                              <View style={{ height: 1, backgroundColor: BORDER_DEFAULT }} />
                             )}
                             {oppPlayers.length > 0 && (
                               <View style={{ gap: 6 }}>
-                                <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700' }}>{oppName ?? 'Opponent'}</Text>
+                                <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700' }}>{oppName ?? 'Opponent'}</Text>
                                 {oppPlayers.map((p: any) => (
                                   <View key={p.playerId} style={{ gap: 1 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', width: 28 }}>
+                                      <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
                                         {roleLabels[p.playerRole] ?? p.playerRole}
                                       </Text>
-                                      <Text style={{ flex: 1, color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                                      <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                                         {p.playerName}
                                       </Text>
-                                      <Text style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                                      <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
                                         {p.points > 0 ? `+${p.points.toFixed(1)}` : '\u2014'}
                                       </Text>
                                     </View>
                                     {isLiveOrDone && gameStatLine(p) !== '' && (
-                                      <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
+                                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
                                     )}
                                   </View>
                                 ))}
@@ -922,8 +951,8 @@ export default function LeagueScreen() {
                 <View style={{ gap: 10 }}>
                   {roster && roster.length > 0
                     ? <SquadGrid roster={roster} currency={currency} />
-                    : <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
-                        <Text style={{ color: '#9ca3af', fontSize: 14 }}>No players acquired yet</Text>
+                    : <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: BORDER_DEFAULT }}>
+                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No players acquired yet</Text>
                       </View>
                   }
                 </View>
@@ -949,22 +978,14 @@ export default function LeagueScreen() {
             return (
               <View style={{ gap: 12 }}>
                 {/* Sub-tab toggle */}
-                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4 }}>
-                  {(['squads', 'points'] as const).map(sub => (
-                    <TouchableOpacity
-                      key={sub}
-                      onPress={() => setTeamsSubTab(sub)}
-                      style={{
-                        flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center',
-                        backgroundColor: teamsSubTab === sub ? '#ffffff' : 'transparent',
-                      }}
-                    >
-                      <Text style={{ fontWeight: '600', fontSize: 14, color: teamsSubTab === sub ? '#111827' : '#9ca3af' }}>
-                        {sub === 'squads' ? 'Squads' : 'Points Table'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <SegmentedControl
+                  segments={[
+                    { key: 'squads', label: 'Squads' },
+                    { key: 'points', label: 'Points Table' },
+                  ]}
+                  value={teamsSubTab}
+                  onChange={setTeamsSubTab}
+                />
 
                 {/* ── Squads sub-tab ── */}
                 {teamsSubTab === 'squads' && (
@@ -981,16 +1002,16 @@ export default function LeagueScreen() {
                               onPress={() => setSelectedTeamUserId(m.user_id)}
                               style={{
                                 paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                                backgroundColor: isSelected ? '#dc2626' : 'white',
-                                borderWidth: 1, borderColor: isSelected ? '#dc2626' : '#e5e7eb',
+                                backgroundColor: isSelected ? PRIMARY : BG_CARD,
+                                borderWidth: 1, borderColor: isSelected ? PRIMARY : BORDER_MEDIUM,
                                 alignItems: 'center',
                               }}
                             >
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? 'white' : '#374151' }}>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? 'white' : TEXT_SECONDARY }}>
                                 {m.team_name || m.display_name || m.username}{isMe ? ' (You)' : ''}
                               </Text>
                               {m.team_name && (
-                                <Text style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.75)' : '#9ca3af' }}>
+                                <Text style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.75)' : TEXT_PLACEHOLDER }}>
                                   {m.display_name ?? m.username}
                                 </Text>
                               )}
@@ -1003,8 +1024,8 @@ export default function LeagueScreen() {
                     {/* Team card */}
                     {selectedMember && (
                       <View style={{
-                        backgroundColor: 'white', borderRadius: 16, padding: 16,
-                        borderWidth: 1, borderColor: '#f3f4f6', gap: 12,
+                        backgroundColor: BG_CARD, borderRadius: 16, padding: 16,
+                        borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 12,
                       }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                           <Avatar
@@ -1013,23 +1034,22 @@ export default function LeagueScreen() {
                             size={44}
                           />
                           <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 18 }}>
+                            <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 18 }}>
                               {selectedMember.team_name || selectedMember.display_name || selectedMember.username}
                               {selectedMember.user_id === user?.id ? ' (You)' : ''}
                             </Text>
                             {selectedMember.team_name && (
-                              <Text style={{ color: '#6b7280', fontSize: 13 }}>
+                              <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>
                                 {selectedMember.display_name ?? selectedMember.username}
                               </Text>
                             )}
-                            <Text style={{ color: '#9ca3af', fontSize: 13 }}>
+                            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13 }}>
                               {selectedRoster.length} / {league.roster_size} players
                             </Text>
                           </View>
                         </View>
                         <View style={{ flexDirection: 'row', gap: 0 }}>
                           {[
-                            { label: 'Purse Left', value: formatCurrency(selectedMember.remaining_budget, currency) },
                             { label: 'Total Pts', value: pointsMap[selectedMember.user_id] != null ? String(pointsMap[selectedMember.user_id]) : '—' },
                             { label: 'Record', value: '—' },
                           ].map(({ label, value }, i, arr) => (
@@ -1038,11 +1058,11 @@ export default function LeagueScreen() {
                               style={{
                                 flex: 1, alignItems: 'center',
                                 borderRightWidth: i < arr.length - 1 ? 1 : 0,
-                                borderRightColor: '#f3f4f6',
+                                borderRightColor: BORDER_DEFAULT,
                               }}
                             >
-                              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 18 }}>{value}</Text>
-                              <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>{label}</Text>
+                              <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 18 }}>{value}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2 }}>{label}</Text>
                             </View>
                           ))}
                         </View>
@@ -1060,14 +1080,13 @@ export default function LeagueScreen() {
 
                 {/* ── Points Table sub-tab ── */}
                 {teamsSubTab === 'points' && (
-                  <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                  <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                     {/* Header row */}
-                    <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                      <Text style={{ width: 28, color: '#9ca3af', fontSize: 11, fontWeight: '700' }}>#</Text>
-                      <Text style={{ flex: 1, color: '#9ca3af', fontSize: 11, fontWeight: '700' }}>TEAM</Text>
-                      <Text style={{ width: 52, color: '#9ca3af', fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PLAYERS</Text>
-                      <Text style={{ width: 72, color: '#9ca3af', fontSize: 11, fontWeight: '700', textAlign: 'right' }}>BUDGET</Text>
-                      <Text style={{ width: 48, color: '#9ca3af', fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PTS</Text>
+                    <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: BG_PAGE, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT }}>
+                      <Text style={{ width: 28, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>#</Text>
+                      <Text style={{ flex: 1, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>TEAM</Text>
+                      <Text style={{ width: 52, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PLAYERS</Text>
+                      <Text style={{ width: 48, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PTS</Text>
                     </View>
 
                     {/* Sorted rows */}
@@ -1083,33 +1102,30 @@ export default function LeagueScreen() {
                             style={{
                               flexDirection: 'row', alignItems: 'center',
                               paddingVertical: 12, paddingHorizontal: 16,
-                              borderTopWidth: i === 0 ? 0 : 1, borderTopColor: '#f9fafb',
-                              backgroundColor: isMe ? '#fef2f2' : 'white',
+                              borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BG_PAGE,
+                              backgroundColor: isMe ? PRIMARY_BG : BG_CARD,
                             }}
                           >
-                            <Text style={{ width: 28, color: i < 3 ? '#dc2626' : '#9ca3af', fontSize: 13, fontWeight: '700' }}>
+                            <Text style={{ width: 28, color: i < 3 ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
                               {i + 1}
                             </Text>
                             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                               <Avatar uri={m.avatar_url} name={m.team_name || m.display_name || m.username} size={28} />
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#111827', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                                <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
                                   {m.team_name || m.display_name || m.username}{isMe ? ' ★' : ''}
                                 </Text>
                                 {m.team_name && (
-                                  <Text style={{ color: '#9ca3af', fontSize: 11 }} numberOfLines={1}>
+                                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }} numberOfLines={1}>
                                     {m.display_name ?? m.username}
                                   </Text>
                                 )}
                               </View>
                             </View>
-                            <Text style={{ width: 52, color: '#6b7280', fontSize: 13, textAlign: 'right' }}>
+                            <Text style={{ width: 52, color: TEXT_MUTED, fontSize: 13, textAlign: 'right' }}>
                               {m.roster_count}
                             </Text>
-                            <Text style={{ width: 72, color: '#6b7280', fontSize: 12, textAlign: 'right' }} numberOfLines={1}>
-                              {formatCurrency(m.remaining_budget, currency)}
-                            </Text>
-                            <Text style={{ width: 48, color: pts != null ? '#111827' : '#d1d5db', fontSize: 14, fontWeight: '700', textAlign: 'right' }}>
+                            <Text style={{ width: 48, color: pts != null ? TEXT_PRIMARY : TEXT_DISABLED, fontSize: 14, fontWeight: '700', textAlign: 'right' }}>
                               {pts != null ? pts : '—'}
                             </Text>
                           </View>
@@ -1145,8 +1161,8 @@ export default function LeagueScreen() {
 
             if (allWeekNums.length === 0) {
               return (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
-                  <Text style={{ color: '#9ca3af', fontSize: 15 }}>No schedule generated yet</Text>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: BORDER_DEFAULT }}>
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>No schedule generated yet</Text>
                 </View>
               )
             }
@@ -1154,50 +1170,18 @@ export default function LeagueScreen() {
             return (
               <View style={{ gap: 16 }}>
                 {/* Sub-tabs */}
-                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4, gap: 4 }}>
-                  {([
+                <SegmentedControl
+                  segments={[
                     { key: 'upcoming', label: 'Schedule', count: upcomingWeeks.length },
                     { key: 'results',  label: 'Results',  count: resultWeeks.length },
-                  ] as { key: 'upcoming' | 'results'; label: string; count: number }[]).map(tab => (
-                    <TouchableOpacity
-                      key={tab.key}
-                      onPress={() => setScheduleSubTab(tab.key)}
-                      style={{
-                        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                        gap: 6, paddingVertical: 8, borderRadius: 9,
-                        backgroundColor: scheduleSubTab === tab.key ? 'white' : 'transparent',
-                        shadowColor: '#000',
-                        shadowOpacity: scheduleSubTab === tab.key ? 0.06 : 0,
-                        shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
-                        elevation: scheduleSubTab === tab.key ? 2 : 0,
-                      }}
-                    >
-                      <Text style={{
-                        fontSize: 14, fontWeight: scheduleSubTab === tab.key ? '700' : '500',
-                        color: scheduleSubTab === tab.key ? '#111827' : '#6b7280',
-                      }}>
-                        {tab.label}
-                      </Text>
-                      {tab.count > 0 && (
-                        <View style={{
-                          backgroundColor: scheduleSubTab === tab.key ? '#fee2e2' : '#e5e7eb',
-                          borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1,
-                        }}>
-                          <Text style={{
-                            fontSize: 11, fontWeight: '700',
-                            color: scheduleSubTab === tab.key ? '#dc2626' : '#9ca3af',
-                          }}>
-                            {tab.count}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                  ]}
+                  value={scheduleSubTab}
+                  onChange={setScheduleSubTab}
+                />
 
                 {weekNums.length === 0 && (
-                  <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' }}>
-                    <Text style={{ color: '#9ca3af', fontSize: 15 }}>
+                  <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: BORDER_DEFAULT }}>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>
                       {scheduleSubTab === 'upcoming' ? 'No upcoming games' : 'No completed weeks yet'}
                     </Text>
                   </View>
@@ -1210,17 +1194,17 @@ export default function LeagueScreen() {
                     <View key={weekNum} style={{ gap: 8 }}>
                       {/* Week header */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>
+                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>
                           {weekInfo?.label || `Week ${weekNum}`}
                         </Text>
                         {weekInfo?.week_type && weekInfo.week_type !== 'regular' && (
                           <View style={{
-                            backgroundColor: weekInfo.week_type === 'finals' ? '#fef3c7' : '#fee2e2',
+                            backgroundColor: weekInfo.week_type === 'finals' ? WARNING_BG : PRIMARY_SUBTLE,
                             borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2,
                           }}>
                             <Text style={{
                               fontSize: 10, fontWeight: '700',
-                              color: weekInfo.week_type === 'finals' ? '#b45309' : '#dc2626',
+                              color: weekInfo.week_type === 'finals' ? WARNING_DARK : PRIMARY,
                               textTransform: 'uppercase',
                             }}>
                               {weekInfo.week_type}
@@ -1254,22 +1238,22 @@ export default function LeagueScreen() {
                         const resultLabel = hasResult
                           ? (winnerId === user?.id ? 'WIN' : winnerId ? 'LOSS' : 'TIE')
                           : null
-                        const resultBg = resultLabel === 'WIN' ? '#d1fae5' : resultLabel === 'LOSS' ? '#fee2e2' : '#f3f4f6'
-                        const resultColor = resultLabel === 'WIN' ? '#16a34a' : resultLabel === 'LOSS' ? '#dc2626' : '#6b7280'
+                        const resultBg = resultLabel === 'WIN' ? SUCCESS_SUBTLE : resultLabel === 'LOSS' ? PRIMARY_SUBTLE : BORDER_DEFAULT
+                        const resultColor = resultLabel === 'WIN' ? SUCCESS : resultLabel === 'LOSS' ? PRIMARY : TEXT_MUTED
 
                         return (
                           <View
                             key={m.id}
                             style={{
-                              backgroundColor: 'white',
+                              backgroundColor: BG_CARD,
                               borderRadius: 14,
                               borderWidth: 1,
-                              borderColor: isMyMatchup ? '#fca5a5' : '#f3f4f6',
+                              borderColor: isMyMatchup ? '#fca5a5' : BORDER_DEFAULT,
                               overflow: 'hidden',
                             }}
                           >
                             {isMyMatchup && (
-                              <View style={{ backgroundColor: '#dc2626', paddingHorizontal: 14, paddingVertical: 5 }}>
+                              <View style={{ backgroundColor: PRIMARY, paddingHorizontal: 14, paddingVertical: 5 }}>
                                 <Text style={{ color: 'white', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>YOUR MATCHUP</Text>
                               </View>
                             )}
@@ -1282,12 +1266,12 @@ export default function LeagueScreen() {
                                   name={isMyMatchup ? myName : (m.home_team_name || m.home_full_name || m.home_username)}
                                   size={36}
                                 />
-                                <Text style={{ color: '#111827', fontWeight: isMyMatchup ? '700' : '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
+                                <Text style={{ color: TEXT_PRIMARY, fontWeight: isMyMatchup ? '700' : '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
                                   {isMyMatchup ? myName : (m.home_team_name || m.home_full_name || m.home_username)}
                                   {isMyMatchup ? ' ★' : ''}
                                 </Text>
                                 {showPoints && (
-                                  <Text style={{ color: isMyMatchup ? '#dc2626' : '#374151', fontWeight: '800', fontSize: 22 }}>
+                                  <Text style={{ color: isMyMatchup ? PRIMARY : TEXT_SECONDARY, fontWeight: '800', fontSize: 22 }}>
                                     {isMyMatchup ? myPts : m.home_points}
                                   </Text>
                                 )}
@@ -1295,15 +1279,15 @@ export default function LeagueScreen() {
 
                               {/* Middle */}
                               <View style={{ alignItems: 'center', gap: 4 }}>
-                                <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 13 }}>VS</Text>
+                                <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 13 }}>VS</Text>
                                 {resultLabel && isMyMatchup && (
                                   <View style={{ backgroundColor: resultBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
                                     <Text style={{ fontSize: 10, fontWeight: '700', color: resultColor }}>{resultLabel}</Text>
                                   </View>
                                 )}
                                 {hasResult && !isMyMatchup && (
-                                  <View style={{ backgroundColor: '#f3f4f6', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#6b7280' }}>FINAL</Text>
+                                  <View style={{ backgroundColor: BORDER_DEFAULT, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_MUTED }}>FINAL</Text>
                                   </View>
                                 )}
                               </View>
@@ -1315,11 +1299,11 @@ export default function LeagueScreen() {
                                   name={isMyMatchup ? oppName : (m.away_team_name || m.away_full_name || m.away_username)}
                                   size={36}
                                 />
-                                <Text style={{ color: '#111827', fontWeight: '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
+                                <Text style={{ color: TEXT_PRIMARY, fontWeight: '500', fontSize: 12, textAlign: 'center' }} numberOfLines={1}>
                                   {isMyMatchup ? oppName : (m.away_team_name || m.away_full_name || m.away_username)}
                                 </Text>
                                 {showPoints && (
-                                  <Text style={{ color: '#374151', fontWeight: '800', fontSize: 22 }}>
+                                  <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 22 }}>
                                     {isMyMatchup ? oppPts : m.away_points}
                                   </Text>
                                 )}
@@ -1337,41 +1321,37 @@ export default function LeagueScreen() {
 
           {activeLeagueTab === 'settings' && (
             <View style={{ gap: 12 }}>
-              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 12 }}>
-                <Text style={{ fontWeight: '700', fontSize: 16, color: '#111827' }}>League Info</Text>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 12 }}>
+                <Text style={{ fontWeight: '700', fontSize: 16, color: TEXT_PRIMARY }}>League Info</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                   <View>
-                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>Invite Code</Text>
-                    <Text style={{ color: '#dc2626', fontWeight: '700', fontFamily: 'monospace', fontSize: 16, letterSpacing: 2 }}>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>Invite Code</Text>
+                    <Text style={{ color: PRIMARY, fontWeight: '700', fontFamily: 'monospace', fontSize: 16, letterSpacing: 2 }}>
                       {league.invite_code}
                     </Text>
                   </View>
                   <View>
-                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>Budget</Text>
-                    <Text style={{ color: '#111827', fontWeight: '600' }}>{formatCurrency(league.starting_budget, league.currency)}</Text>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>Teams</Text>
+                    <Text style={{ color: TEXT_PRIMARY, fontWeight: '600' }}>{members.length}/{league.max_teams}</Text>
                   </View>
                   <View>
-                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>Teams</Text>
-                    <Text style={{ color: '#111827', fontWeight: '600' }}>{members.length}/{league.max_teams}</Text>
-                  </View>
-                  <View>
-                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>Roster Size</Text>
-                    <Text style={{ color: '#111827', fontWeight: '600' }}>{league.roster_size}</Text>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>Roster Size</Text>
+                    <Text style={{ color: TEXT_PRIMARY, fontWeight: '600' }}>{league.roster_size}</Text>
                   </View>
                 </View>
               </View>
 
-              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 10 }}>
-                <Text style={{ fontWeight: '700', fontSize: 16, color: '#111827' }}>Team Name</Text>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 10 }}>
+                <Text style={{ fontWeight: '700', fontSize: 16, color: TEXT_PRIMARY }}>Team Name</Text>
                 <TextInput
                   value={teamNameInput}
                   onChangeText={setTeamNameInput}
                   placeholder={members.find(m => m.user_id === user?.id)?.team_name || 'Your team name'}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={TEXT_PLACEHOLDER}
                   style={{
-                    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10,
+                    borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 10,
                     paddingHorizontal: 12, paddingVertical: 10,
-                    fontSize: 15, color: '#111827', backgroundColor: '#f9fafb',
+                    fontSize: 15, color: TEXT_PRIMARY, backgroundColor: BG_PAGE,
                   }}
                   maxLength={50}
                 />
@@ -1389,13 +1369,13 @@ export default function LeagueScreen() {
                   }}
                   disabled={!teamNameInput.trim() || updateTeamName.isPending}
                   style={{
-                    backgroundColor: !teamNameInput.trim() ? '#e5e7eb' : '#111827',
+                    backgroundColor: !teamNameInput.trim() ? BORDER_MEDIUM : TEXT_PRIMARY,
                     borderRadius: 10, paddingVertical: 11, alignItems: 'center',
                   }}
                 >
                   {updateTeamName.isPending
                     ? <ActivityIndicator color="white" />
-                    : <Text style={{ color: !teamNameInput.trim() ? '#9ca3af' : 'white', fontWeight: '700', fontSize: 14 }}>Save Team Name</Text>
+                    : <Text style={{ color: !teamNameInput.trim() ? TEXT_PLACEHOLDER : 'white', fontWeight: '700', fontSize: 14 }}>Save Team Name</Text>
                   }
                 </TouchableOpacity>
               </View>
@@ -1409,14 +1389,14 @@ export default function LeagueScreen() {
           {activeLeagueTab === 'admin' && isAdmin && (
             <View style={{ gap: 12 }}>
               {/* Rename League */}
-              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
-                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Rename League</Text>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 8 }}>
+                <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Rename League</Text>
                 <TextInput
                   value={leagueNameInput}
                   onChangeText={setLeagueNameInput}
                   placeholder={league?.name ?? 'League name'}
-                  placeholderTextColor="#9ca3af"
-                  style={{ backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' }}
+                  placeholderTextColor={TEXT_PLACEHOLDER}
+                  style={{ backgroundColor: BG_PAGE, borderRadius: 10, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT_PRIMARY }}
                 />
                 <TouchableOpacity
                   onPress={async () => {
@@ -1426,7 +1406,7 @@ export default function LeagueScreen() {
                     setLeagueNameInput('')
                   }}
                   disabled={renameLeague.isPending || leagueNameInput.trim().length < 3}
-                  style={{ backgroundColor: renameLeague.isPending || leagueNameInput.trim().length < 3 ? '#9ca3af' : '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                  style={{ backgroundColor: renameLeague.isPending || leagueNameInput.trim().length < 3 ? TEXT_PLACEHOLDER : TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                 >
                   <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
                     {renameLeague.isPending ? 'Saving…' : 'Save Name'}
@@ -1434,15 +1414,80 @@ export default function LeagueScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Squad Limits */}
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 12 }}>
+                <View style={{ gap: 2 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Squad Limits</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Current: {league?.max_teams}T · {league?.roster_size} roster · {league?.max_batsmen}B / {league?.max_wicket_keepers}WK / {league?.max_all_rounders}AR / {league?.max_bowlers}BOW</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>Max Teams</Text>
+                    <TextInput value={limitsMaxTeams} onChangeText={setLimitsMaxTeams} keyboardType="numeric" placeholder={String(league?.max_teams ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>Roster Size</Text>
+                    <TextInput value={limitsRosterSize} onChangeText={setLimitsRosterSize} keyboardType="numeric" placeholder={String(league?.roster_size ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                </View>
+                <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>Max slots per role</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>Batsmen</Text>
+                    <TextInput value={limitsMaxBatsmen} onChangeText={setLimitsMaxBatsmen} keyboardType="numeric" placeholder={String(league?.max_batsmen ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>Wicket-Keepers</Text>
+                    <TextInput value={limitsMaxWK} onChangeText={setLimitsMaxWK} keyboardType="numeric" placeholder={String(league?.max_wicket_keepers ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>All-Rounders</Text>
+                    <TextInput value={limitsMaxAR} onChangeText={setLimitsMaxAR} keyboardType="numeric" placeholder={String(league?.max_all_rounders ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>Bowlers</Text>
+                    <TextInput value={limitsMaxBowlers} onChangeText={setLimitsMaxBowlers} keyboardType="numeric" placeholder={String(league?.max_bowlers ?? '')} placeholderTextColor={TEXT_PLACEHOLDER} style={{ backgroundColor: BG_PAGE, borderRadius: 8, borderWidth: 1, borderColor: BORDER_MEDIUM, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: TEXT_PRIMARY }} />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  disabled={updateLeagueLimits.isPending}
+                  onPress={async () => {
+                    const payload: Record<string, number> = {}
+                    if (limitsMaxTeams.trim())   payload.maxTeams         = parseInt(limitsMaxTeams, 10)
+                    if (limitsRosterSize.trim())  payload.rosterSize       = parseInt(limitsRosterSize, 10)
+                    if (limitsMaxBatsmen.trim())  payload.maxBatsmen       = parseInt(limitsMaxBatsmen, 10)
+                    if (limitsMaxWK.trim())       payload.maxWicketKeepers = parseInt(limitsMaxWK, 10)
+                    if (limitsMaxAR.trim())       payload.maxAllRounders   = parseInt(limitsMaxAR, 10)
+                    if (limitsMaxBowlers.trim())  payload.maxBowlers       = parseInt(limitsMaxBowlers, 10)
+                    if (Object.keys(payload).length === 0) return
+                    try {
+                      await updateLeagueLimits.mutateAsync({ leagueId: id!, ...payload })
+                      setLimitsMaxTeams(''); setLimitsRosterSize('')
+                      setLimitsMaxBatsmen(''); setLimitsMaxWK('')
+                      setLimitsMaxAR(''); setLimitsMaxBowlers('')
+                    } catch (err: unknown) {
+                      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update limits')
+                    }
+                  }}
+                  style={{ backgroundColor: updateLeagueLimits.isPending ? TEXT_PLACEHOLDER : TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                >
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>
+                    {updateLeagueLimits.isPending ? 'Saving…' : 'Save Limits'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {scheduleMatchups && scheduleMatchups.some(m => !m.is_final) && (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
-                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Schedule</Text>
-                  <Text style={{ color: '#6b7280', fontSize: 13 }}>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 8 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Schedule</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>
                     Change who plays who for any week that hasn't been finalized.
                   </Text>
                   <TouchableOpacity
                     onPress={() => setScheduleAdjustOpen(true)}
-                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                    style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                   >
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Adjust Schedule</Text>
                   </TouchableOpacity>
@@ -1450,9 +1495,9 @@ export default function LeagueScreen() {
               )}
 
               {(isActive || isComplete) && (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
-                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Member Lineups</Text>
-                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Set a lineup for any league member.</Text>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 8 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Member Lineups</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Set a lineup for any league member.</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setAdminLineupUserId(null)
@@ -1460,7 +1505,7 @@ export default function LeagueScreen() {
                       setAdminLineupDraft([])
                       setAdminLineupOpen(true)
                     }}
-                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                    style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                   >
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Set Lineup</Text>
                   </TouchableOpacity>
@@ -1468,9 +1513,9 @@ export default function LeagueScreen() {
               )}
 
               {(isActive || isComplete) && (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 8 }}>
-                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Roster Management</Text>
-                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Add or drop a player from any league member's roster.</Text>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 8 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Roster Management</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Add or drop a player from any league member's roster.</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setAdminRosterUserId(null)
@@ -1478,7 +1523,7 @@ export default function LeagueScreen() {
                       setAdminRosterFaSearch('')
                       setAdminRosterOpen(true)
                     }}
-                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                    style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                   >
                     <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Manage Roster</Text>
                   </TouchableOpacity>
@@ -1486,9 +1531,9 @@ export default function LeagueScreen() {
               )}
 
               {(isActive || isComplete) && (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', gap: 10 }}>
-                  <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Points Override</Text>
-                  <Text style={{ color: '#6b7280', fontSize: 13 }}>Add bonus/penalty points to a member for a specific week.</Text>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, gap: 10 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Points Override</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Add bonus/penalty points to a member for a specific week.</Text>
 
                   {/* Member picker */}
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1499,9 +1544,9 @@ export default function LeagueScreen() {
                           <TouchableOpacity
                             key={m.user_id}
                             onPress={() => setOverrideUserId(m.user_id)}
-                            style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: sel ? '#111827' : 'white', borderColor: sel ? '#111827' : '#e5e7eb' }}
+                            style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: sel ? TEXT_PRIMARY : BG_CARD, borderColor: sel ? TEXT_PRIMARY : BORDER_MEDIUM }}
                           >
-                            <Text style={{ fontSize: 12, fontWeight: '600', color: sel ? 'white' : '#374151' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: sel ? 'white' : TEXT_SECONDARY }}>
                               {m.team_name || m.display_name || m.username}
                             </Text>
                           </TouchableOpacity>
@@ -1512,25 +1557,25 @@ export default function LeagueScreen() {
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '600', marginBottom: 4 }}>WEEK</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>WEEK</Text>
                       <TextInput
                         value={overrideWeek}
                         onChangeText={setOverrideWeek}
                         keyboardType="number-pad"
                         placeholder="1"
-                        placeholderTextColor="#9ca3af"
-                        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: '#111827', backgroundColor: '#f9fafb' }}
+                        placeholderTextColor={TEXT_PLACEHOLDER}
+                        style={{ borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: TEXT_PRIMARY, backgroundColor: BG_PAGE }}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '600', marginBottom: 4 }}>POINTS</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '600', marginBottom: 4 }}>POINTS</Text>
                       <TextInput
                         value={overridePoints}
                         onChangeText={setOverridePoints}
                         keyboardType="numbers-and-punctuation"
                         placeholder="10"
-                        placeholderTextColor="#9ca3af"
-                        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: '#111827', backgroundColor: '#f9fafb' }}
+                        placeholderTextColor={TEXT_PLACEHOLDER}
+                        style={{ borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: TEXT_PRIMARY, backgroundColor: BG_PAGE }}
                       />
                     </View>
                   </View>
@@ -1539,8 +1584,8 @@ export default function LeagueScreen() {
                     value={overrideNote}
                     onChangeText={setOverrideNote}
                     placeholder="Note (optional)"
-                    placeholderTextColor="#9ca3af"
-                    style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: '#111827', backgroundColor: '#f9fafb' }}
+                    placeholderTextColor={TEXT_PLACEHOLDER}
+                    style={{ borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: TEXT_PRIMARY, backgroundColor: BG_PAGE }}
                   />
 
                   <TouchableOpacity
@@ -1559,27 +1604,27 @@ export default function LeagueScreen() {
                       }
                     }}
                     disabled={setOverride.isPending}
-                    style={{ backgroundColor: '#111827', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+                    style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
                   >
                     {setOverride.isPending ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Save Override</Text>}
                   </TouchableOpacity>
 
                   {/* Existing overrides */}
                   {(overrides ?? []).length > 0 && (
-                    <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10 }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700' }}>EXISTING OVERRIDES</Text>
+                    <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 10 }}>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>EXISTING OVERRIDES</Text>
                       {(overrides ?? []).map(o => {
                         const m = members.find(mb => mb.user_id === o.user_id)
                         const name = m ? (m.team_name || m.display_name || m.username) : o.user_id
                         return (
                           <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>
+                              <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }}>
                                 Wk {o.week_num} · {name}
                               </Text>
-                              {o.note && <Text style={{ color: '#9ca3af', fontSize: 11 }}>{o.note}</Text>}
+                              {o.note && <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{o.note}</Text>}
                             </View>
-                            <Text style={{ color: parseFloat(String(o.points)) >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 14 }}>
+                            <Text style={{ color: parseFloat(String(o.points)) >= 0 ? SUCCESS : PRIMARY, fontWeight: '700', fontSize: 14 }}>
                               {parseFloat(String(o.points)) >= 0 ? '+' : ''}{o.points}
                             </Text>
                             <TouchableOpacity
@@ -1588,7 +1633,7 @@ export default function LeagueScreen() {
                                 { text: 'Remove', style: 'destructive', onPress: () => deleteOverride.mutate({ userId: o.user_id, weekNum: o.week_num }) },
                               ])}
                             >
-                              <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '600' }}>✕</Text>
+                              <Text style={{ color: PRIMARY, fontSize: 13, fontWeight: '600' }}>✕</Text>
                             </TouchableOpacity>
                           </View>
                         )
@@ -1598,8 +1643,8 @@ export default function LeagueScreen() {
                 </View>
               )}
 
-              <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#fee2e2', gap: 8 }}>
-                <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 15 }}>Danger Zone</Text>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: PRIMARY_SUBTLE, gap: 8 }}>
+                <Text style={{ color: PRIMARY, fontWeight: '700', fontSize: 15 }}>Danger Zone</Text>
                 <Button
                   label="Reset Auction"
                   variant="danger"
@@ -1620,14 +1665,12 @@ export default function LeagueScreen() {
 
         {/* Adjust Schedule Modal */}
         <Modal visible={scheduleAdjustOpen} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
-              <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Adjust Schedule</Text>
-              <TouchableOpacity onPress={() => { setScheduleAdjustOpen(false); setScheduleEditWeek(null) }}>
-                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Done</Text>
-              </TouchableOpacity>
+          <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', backgroundColor: BG_CARD }}>
+              <NavButton label="Close" onPress={() => { setScheduleAdjustOpen(false); setScheduleEditWeek(null) }} />
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <Text style={{ fontWeight: '800', fontSize: 22, color: TEXT_PRIMARY }}>Adjust Schedule</Text>
               {(() => {
                 const allMatchups = scheduleMatchups ?? []
                 const weekNums = Array.from(new Set(allMatchups.map(m => m.week_num))).sort((a, b) => a - b)
@@ -1637,7 +1680,7 @@ export default function LeagueScreen() {
                 if (unfinishedWeeks.length === 0) {
                   return (
                     <View style={{ alignItems: 'center', paddingTop: 40 }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 14 }}>No adjustable weeks remaining.</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No adjustable weeks remaining.</Text>
                     </View>
                   )
                 }
@@ -1646,9 +1689,9 @@ export default function LeagueScreen() {
                   const isEditing = scheduleEditWeek === wn
                   const drafts = scheduleEdits[wn] ?? {}
                   return (
-                    <View key={wn} style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 15 }}>Week {wn}</Text>
+                    <View key={wn} style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT }}>
+                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 15 }}>Week {wn}</Text>
                         {!isEditing ? (
                           <TouchableOpacity
                             onPress={() => {
@@ -1659,17 +1702,17 @@ export default function LeagueScreen() {
                               setScheduleEdits(prev => ({ ...prev, [wn]: seed }))
                               setScheduleEditWeek(wn)
                             }}
-                            style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#f3f4f6', borderRadius: 8 }}
+                            style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BORDER_DEFAULT, borderRadius: 8 }}
                           >
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600' }}>Edit</Text>
+                            <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '600' }}>Edit</Text>
                           </TouchableOpacity>
                         ) : (
                           <View style={{ flexDirection: 'row', gap: 8 }}>
                             <TouchableOpacity
                               onPress={() => setScheduleEditWeek(null)}
-                              style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#f3f4f6', borderRadius: 8 }}
+                              style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BORDER_DEFAULT, borderRadius: 8 }}
                             >
-                              <Text style={{ color: '#6b7280', fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+                              <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
@@ -1705,7 +1748,7 @@ export default function LeagueScreen() {
                                   onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save'),
                                 })
                               }}
-                              style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#dc2626', borderRadius: 8 }}
+                              style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: PRIMARY, borderRadius: 8 }}
                             >
                               <Text style={{ color: 'white', fontSize: 13, fontWeight: '600' }}>
                                 {updateWeekMatchups.isPending ? 'Saving…' : 'Save'}
@@ -1723,16 +1766,16 @@ export default function LeagueScreen() {
                         const awayName = members.find(mb => mb.user_id === awayUser)?.display_name
                           || members.find(mb => mb.user_id === awayUser)?.username || awayUser
                         return (
-                          <View key={m.id} style={{ borderTopWidth: mi > 0 ? 1 : 0, borderTopColor: '#f3f4f6' }}>
-                            <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 14, paddingVertical: 6 }}>
-                              <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '600' }}>Matchup {mi + 1}</Text>
+                          <View key={m.id} style={{ borderTopWidth: mi > 0 ? 1 : 0, borderTopColor: BORDER_DEFAULT }}>
+                            <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 14, paddingVertical: 6 }}>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '600' }}>Matchup {mi + 1}</Text>
                             </View>
                             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 10 }}>
                               {isEditing ? (
                                 <>
                                   <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '600', marginBottom: 4 }}>HOME</Text>
-                                    <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                    <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '600', marginBottom: 4 }}>HOME</Text>
+                                    <View style={{ borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 8, overflow: 'hidden' }}>
                                       {members.map((mb, mbi) => (
                                         <TouchableOpacity
                                           key={mb.user_id}
@@ -1742,21 +1785,21 @@ export default function LeagueScreen() {
                                           }))}
                                           style={{
                                             paddingHorizontal: 10, paddingVertical: 8,
-                                            backgroundColor: homeUser === mb.user_id ? '#dc2626' : 'white',
-                                            borderTopWidth: mbi > 0 ? 1 : 0, borderTopColor: '#f3f4f6',
+                                            backgroundColor: homeUser === mb.user_id ? PRIMARY : BG_CARD,
+                                            borderTopWidth: mbi > 0 ? 1 : 0, borderTopColor: BORDER_DEFAULT,
                                           }}
                                         >
-                                          <Text style={{ fontSize: 12, fontWeight: homeUser === mb.user_id ? '700' : '400', color: homeUser === mb.user_id ? 'white' : '#374151' }} numberOfLines={1}>
+                                          <Text style={{ fontSize: 12, fontWeight: homeUser === mb.user_id ? '700' : '400', color: homeUser === mb.user_id ? 'white' : TEXT_SECONDARY }} numberOfLines={1}>
                                             {mb.display_name || mb.username}
                                           </Text>
                                         </TouchableOpacity>
                                       ))}
                                     </View>
                                   </View>
-                                  <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 13 }}>vs</Text>
+                                  <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 13 }}>vs</Text>
                                   <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '600', marginBottom: 4 }}>AWAY</Text>
-                                    <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                                    <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '600', marginBottom: 4 }}>AWAY</Text>
+                                    <View style={{ borderWidth: 1, borderColor: BORDER_MEDIUM, borderRadius: 8, overflow: 'hidden' }}>
                                       {members.map((mb, mbi) => (
                                         <TouchableOpacity
                                           key={mb.user_id}
@@ -1766,11 +1809,11 @@ export default function LeagueScreen() {
                                           }))}
                                           style={{
                                             paddingHorizontal: 10, paddingVertical: 8,
-                                            backgroundColor: awayUser === mb.user_id ? '#1f2937' : 'white',
-                                            borderTopWidth: mbi > 0 ? 1 : 0, borderTopColor: '#f3f4f6',
+                                            backgroundColor: awayUser === mb.user_id ? BG_DARK_HEADER : BG_CARD,
+                                            borderTopWidth: mbi > 0 ? 1 : 0, borderTopColor: BORDER_DEFAULT,
                                           }}
                                         >
-                                          <Text style={{ fontSize: 12, fontWeight: awayUser === mb.user_id ? '700' : '400', color: awayUser === mb.user_id ? 'white' : '#374151' }} numberOfLines={1}>
+                                          <Text style={{ fontSize: 12, fontWeight: awayUser === mb.user_id ? '700' : '400', color: awayUser === mb.user_id ? 'white' : TEXT_SECONDARY }} numberOfLines={1}>
                                             {mb.display_name || mb.username}
                                           </Text>
                                         </TouchableOpacity>
@@ -1780,9 +1823,9 @@ export default function LeagueScreen() {
                                 </>
                               ) : (
                                 <>
-                                  <Text style={{ flex: 1, color: '#374151', fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{homeName}</Text>
-                                  <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 13 }}>vs</Text>
-                                  <Text style={{ flex: 1, color: '#374151', fontSize: 14, fontWeight: '600', textAlign: 'right' }} numberOfLines={1}>{awayName}</Text>
+                                  <Text style={{ flex: 1, color: TEXT_SECONDARY, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{homeName}</Text>
+                                  <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 13 }}>vs</Text>
+                                  <Text style={{ flex: 1, color: TEXT_SECONDARY, fontSize: 14, fontWeight: '600', textAlign: 'right' }} numberOfLines={1}>{awayName}</Text>
                                 </>
                               )}
                             </View>
@@ -1799,22 +1842,21 @@ export default function LeagueScreen() {
 
         {/* Admin Set Lineup Modal */}
         <Modal visible={adminLineupOpen} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
-              <View>
-                <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Set Member Lineup</Text>
-                {adminLineupUserId && adminLineupWeek && (
-                  <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>{adminLineupDraft.length} selected</Text>
-                )}
-              </View>
-              <TouchableOpacity onPress={() => setAdminLineupOpen(false)}>
-                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Done</Text>
-              </TouchableOpacity>
+          <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', backgroundColor: BG_CARD }}>
+              <NavButton label="Close" onPress={() => setAdminLineupOpen(false)} />
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+              {/* Title */}
+              <View style={{ gap: 2 }}>
+                <Text style={{ fontWeight: '800', fontSize: 22, color: TEXT_PRIMARY }}>Set Member Lineup</Text>
+                {adminLineupUserId && adminLineupWeek && (
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13 }}>{adminLineupDraft.length} selected</Text>
+                )}
+              </View>
               {/* Member picker */}
               <View style={{ gap: 8 }}>
-                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
+                <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {members.map(m => {
                     const name = m.display_name || m.username
@@ -1823,9 +1865,9 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         key={m.user_id}
                         onPress={() => { setAdminLineupUserId(m.user_id); setAdminLineupDraft([]) }}
-                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? TEXT_PRIMARY : BG_CARD, borderWidth: 1, borderColor: selected ? TEXT_PRIMARY : BORDER_MEDIUM }}
                       >
-                        <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>{name}</Text>
+                        <Text style={{ color: selected ? 'white' : TEXT_SECONDARY, fontWeight: '600', fontSize: 13 }}>{name}</Text>
                       </TouchableOpacity>
                     )
                   })}
@@ -1835,7 +1877,7 @@ export default function LeagueScreen() {
               {/* Week picker */}
               {adminLineupUserId && (
                 <View style={{ gap: 8 }}>
-                  <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT WEEK</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT WEEK</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {Array.from(new Set((scheduleMatchups ?? []).map(m => m.week_num))).sort((a, b) => a - b).map(wn => {
@@ -1844,9 +1886,9 @@ export default function LeagueScreen() {
                           <TouchableOpacity
                             key={wn}
                             onPress={() => setAdminLineupWeek(wn)}
-                            style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                            style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? TEXT_PRIMARY : BG_CARD, borderWidth: 1, borderColor: selected ? TEXT_PRIMARY : BORDER_MEDIUM }}
                           >
-                            <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>Week {wn}</Text>
+                            <Text style={{ color: selected ? 'white' : TEXT_SECONDARY, fontWeight: '600', fontSize: 13 }}>Week {wn}</Text>
                           </TouchableOpacity>
                         )
                       })}
@@ -1863,18 +1905,18 @@ export default function LeagueScreen() {
                   </View>
                 ) : (() => {
                   const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminLineupUserId)
-                  const adRoleColors2 = roleColors
+                  const adRoleColors2 = importedRoleColors
                   const adRoleLabels2 = roleLabels
                   return (
                     <View style={{ gap: 10 }}>
-                      <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                      <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
                         TAP TO ADD / REMOVE  •  {adminLineupDraft.length}/11
                       </Text>
-                      <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                      <View style={{ backgroundColor: BG_CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                         {memberRoster.map((player, idx) => {
                           const inLineup = adminLineupDraft.some(e => e.playerId === player.player_id)
                           const entry = adminLineupDraft.find(e => e.playerId === player.player_id)
-                          const roleColor = adRoleColors2[player.player_role] ?? '#6b7280'
+                          const roleColor = adRoleColors2[player.player_role] ?? TEXT_MUTED
                           const roleLabel = adRoleLabels2[player.player_role] ?? player.player_role
                           return (
                             <TouchableOpacity
@@ -1884,25 +1926,25 @@ export default function LeagueScreen() {
                               style={{
                                 flexDirection: 'row', alignItems: 'center',
                                 paddingHorizontal: 14, paddingVertical: 13,
-                                borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                                borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: BG_PAGE,
                                 opacity: (!inLineup && adminLineupDraft.length >= 11) ? 0.35 : 1,
                               }}
                             >
                               <View style={{
                                 width: 24, height: 24, borderRadius: 12, borderWidth: 2,
-                                borderColor: inLineup ? '#16a34a' : '#d1d5db',
-                                backgroundColor: inLineup ? '#16a34a' : 'transparent',
+                                borderColor: inLineup ? SUCCESS : TEXT_DISABLED,
+                                backgroundColor: inLineup ? SUCCESS : 'transparent',
                                 alignItems: 'center', justifyContent: 'center', marginRight: 12,
                               }}>
                                 {inLineup && <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>✓</Text>}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
-                                <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.player_ipl_team}</Text>
+                                <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
+                                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{player.player_ipl_team}</Text>
                               </View>
                               {inLineup && entry?.slotRole === 'flex' && (
-                                <View style={{ backgroundColor: '#6b728018', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3, marginRight: 8 }}>
-                                  <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>FLEX</Text>
+                                <View style={{ backgroundColor: TEXT_MUTED + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3, marginRight: 8 }}>
+                                  <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '700' }}>FLEX</Text>
                                 </View>
                               )}
                               <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
@@ -1913,7 +1955,7 @@ export default function LeagueScreen() {
                         })}
                         {memberRoster.length === 0 && (
                           <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                            <Text style={{ color: '#9ca3af', fontSize: 14 }}>No players on this member's roster</Text>
+                            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No players on this member's roster</Text>
                           </View>
                         )}
                       </View>
@@ -1921,12 +1963,12 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         onPress={handleAdminSaveLineup}
                         disabled={adminSetLineup.isPending || adminLineupDraft.length === 0}
-                        style={{ backgroundColor: adminLineupDraft.length > 0 ? '#dc2626' : '#e5e7eb', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+                        style={{ backgroundColor: adminLineupDraft.length > 0 ? PRIMARY : BORDER_MEDIUM, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                       >
                         {adminSetLineup.isPending ? (
                           <ActivityIndicator color="white" />
                         ) : (
-                          <Text style={{ color: adminLineupDraft.length > 0 ? 'white' : '#9ca3af', fontWeight: '700', fontSize: 15 }}>
+                          <Text style={{ color: adminLineupDraft.length > 0 ? 'white' : TEXT_PLACEHOLDER, fontWeight: '700', fontSize: 15 }}>
                             {`Save Lineup (${adminLineupDraft.length}/11)`}
                           </Text>
                         )}
@@ -1941,17 +1983,15 @@ export default function LeagueScreen() {
 
         {/* Admin Roster Management Modal */}
         <Modal visible={adminRosterOpen} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
-              <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Roster Management</Text>
-              <TouchableOpacity onPress={() => setAdminRosterOpen(false)}>
-                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Done</Text>
-              </TouchableOpacity>
+          <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', backgroundColor: BG_CARD }}>
+              <NavButton label="Close" onPress={() => setAdminRosterOpen(false)} />
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+              <Text style={{ fontWeight: '800', fontSize: 22, color: TEXT_PRIMARY }}>Roster Management</Text>
               {/* Member picker */}
               <View style={{ gap: 8 }}>
-                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
+                <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>SELECT MEMBER</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {members.map(m => {
                     const name = m.display_name || m.username
@@ -1960,9 +2000,9 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         key={m.user_id}
                         onPress={() => { setAdminRosterUserId(m.user_id); setAdminRosterAction(null); setAdminRosterFaSearch('') }}
-                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? '#111827' : 'white', borderWidth: 1, borderColor: selected ? '#111827' : '#e5e7eb' }}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: selected ? TEXT_PRIMARY : BG_CARD, borderWidth: 1, borderColor: selected ? TEXT_PRIMARY : BORDER_MEDIUM }}
                       >
-                        <Text style={{ color: selected ? 'white' : '#374151', fontWeight: '600', fontSize: 13 }}>{name}</Text>
+                        <Text style={{ color: selected ? 'white' : TEXT_SECONDARY, fontWeight: '600', fontSize: 13 }}>{name}</Text>
                       </TouchableOpacity>
                     )
                   })}
@@ -1972,7 +2012,7 @@ export default function LeagueScreen() {
               {/* Action picker */}
               {adminRosterUserId && (
                 <View style={{ gap: 8 }}>
-                  <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>ACTION</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>ACTION</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     {(['drop', 'add'] as const).map(action => (
                       <TouchableOpacity
@@ -1980,11 +2020,11 @@ export default function LeagueScreen() {
                         onPress={() => { setAdminRosterAction(action); setAdminRosterFaSearch('') }}
                         style={{
                           flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
-                          backgroundColor: adminRosterAction === action ? '#111827' : 'white',
-                          borderWidth: 1, borderColor: adminRosterAction === action ? '#111827' : '#e5e7eb',
+                          backgroundColor: adminRosterAction === action ? TEXT_PRIMARY : BG_CARD,
+                          borderWidth: 1, borderColor: adminRosterAction === action ? TEXT_PRIMARY : BORDER_MEDIUM,
                         }}
                       >
-                        <Text style={{ color: adminRosterAction === action ? 'white' : '#374151', fontWeight: '700', fontSize: 14 }}>
+                        <Text style={{ color: adminRosterAction === action ? 'white' : TEXT_SECONDARY, fontWeight: '700', fontSize: 14 }}>
                           {action === 'drop' ? 'Drop Player' : 'Add Player'}
                         </Text>
                       </TouchableOpacity>
@@ -1996,18 +2036,18 @@ export default function LeagueScreen() {
               {/* Drop: show member roster */}
               {adminRosterUserId && adminRosterAction === 'drop' && (() => {
                 const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
-                const adRoleColors = roleColors
+                const adRoleColors = importedRoleColors
                 const adRoleLabels = roleLabels
                 return (
                   <View style={{ gap: 8 }}>
-                    <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>TAP TO DROP</Text>
-                    <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>TAP TO DROP</Text>
+                    <View style={{ backgroundColor: BG_CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                       {memberRoster.length === 0 ? (
                         <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                          <Text style={{ color: '#9ca3af', fontSize: 14 }}>No players on this roster</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No players on this roster</Text>
                         </View>
                       ) : memberRoster.map((player, idx) => {
-                        const roleColor = adRoleColors[player.player_role] ?? '#6b7280'
+                        const roleColor = adRoleColors[player.player_role] ?? TEXT_MUTED
                         const roleLabel = adRoleLabels[player.player_role] ?? player.player_role
                         return (
                           <TouchableOpacity
@@ -2035,12 +2075,12 @@ export default function LeagueScreen() {
                             style={{
                               flexDirection: 'row', alignItems: 'center',
                               paddingHorizontal: 14, paddingVertical: 13,
-                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: BG_PAGE,
                             }}
                           >
                             <View style={{ flex: 1 }}>
-                              <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
-                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.player_ipl_team}</Text>
+                              <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14 }}>{player.player_name}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{player.player_ipl_team}</Text>
                             </View>
                             <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
                               <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
@@ -2057,7 +2097,7 @@ export default function LeagueScreen() {
               {adminRosterUserId && adminRosterAction === 'add' && (() => {
                 const memberRoster = (allRosters ?? []).filter(r => r.user_id === adminRosterUserId)
                 const rosterFull = memberRoster.length >= (league?.roster_size ?? 16)
-                const adRoleColors = roleColors
+                const adRoleColors = importedRoleColors
                 const adRoleLabels = roleLabels
                 const filteredFa = (freeAgents ?? []).filter(p =>
                   !adminRosterFaSearch || p.name.toLowerCase().includes(adminRosterFaSearch.toLowerCase()) || p.ipl_team.toLowerCase().includes(adminRosterFaSearch.toLowerCase())
@@ -2065,24 +2105,22 @@ export default function LeagueScreen() {
                 return (
                   <View style={{ gap: 8 }}>
                     {rosterFull && (
-                      <View style={{ backgroundColor: '#fef3c7', borderRadius: 10, padding: 12 }}>
-                        <Text style={{ color: '#92400e', fontSize: 13, fontWeight: '600' }}>Roster is full — adding a player will require dropping one first.</Text>
+                      <View style={{ backgroundColor: WARNING_BG, borderRadius: 10, padding: 12 }}>
+                        <Text style={{ color: WARNING_DARKER, fontSize: 13, fontWeight: '600' }}>Roster is full — adding a player will require dropping one first.</Text>
                       </View>
                     )}
-                    <TextInput
+                    <SearchBar
                       value={adminRosterFaSearch}
                       onChangeText={setAdminRosterFaSearch}
                       placeholder="Search free agents…"
-                      placeholderTextColor="#9ca3af"
-                      style={{ backgroundColor: 'white', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' }}
                     />
-                    <View style={{ backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                    <View style={{ backgroundColor: BG_CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                       {filteredFa.length === 0 ? (
                         <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                          <Text style={{ color: '#9ca3af', fontSize: 14 }}>No free agents found</Text>
+                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No free agents found</Text>
                         </View>
                       ) : filteredFa.slice(0, 50).map((player, idx) => {
-                        const roleColor = adRoleColors[player.role] ?? '#6b7280'
+                        const roleColor = adRoleColors[player.role] ?? TEXT_MUTED
                         const roleLabel = adRoleLabels[player.role] ?? player.role
                         return (
                           <TouchableOpacity
@@ -2117,12 +2155,12 @@ export default function LeagueScreen() {
                             style={{
                               flexDirection: 'row', alignItems: 'center',
                               paddingHorizontal: 14, paddingVertical: 13,
-                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#f9fafb',
+                              borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: BG_PAGE,
                             }}
                           >
                             <View style={{ flex: 1 }}>
-                              <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14 }}>{player.name}</Text>
-                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{player.ipl_team}</Text>
+                              <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14 }}>{player.name}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{player.ipl_team}</Text>
                             </View>
                             <View style={{ backgroundColor: roleColor + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 }}>
                               <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
@@ -2153,6 +2191,8 @@ export default function LeagueScreen() {
             role: lpSelectedPlayer.role,
             nationality: lpSelectedPlayer.nationality,
             base_price: lpSelectedPlayer.base_price,
+            total_points: lpSelectedPlayer.total_points,
+            team_games_played: lpSelectedPlayer.team_games_played,
           } : null}
           playerId={lpSelectedPlayer?.player_id}
           currency={league.currency}
@@ -2173,31 +2213,24 @@ export default function LeagueScreen() {
 
         {/* Free agent picker */}
         <Modal visible={addModalVisible} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: 'white' }}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Add Free Agent</Text>
-                <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
-                  {rosterFull ? 'Roster full — you must also drop a player' : `${myCurrentRoster.length} / ${league.roster_size} roster spots used`}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setAddModalVisible(false)}>
-                <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
+          <View style={{ flex: 1, backgroundColor: BG_CARD }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <NavButton label="Cancel" onPress={() => setAddModalVisible(false)} />
             </View>
-            <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-              <TextInput
+            <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}>
+              <Text style={{ fontWeight: '800', fontSize: 22, color: TEXT_PRIMARY }}>Add Free Agent</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13, marginTop: 2, marginBottom: 12 }}>
+                {rosterFull ? 'Roster full — you must also drop a player' : `${myCurrentRoster.length} / ${league.roster_size} roster spots used`}
+              </Text>
+              <SearchBar
                 value={faSearch}
                 onChangeText={setFaSearch}
                 placeholder="Search by name or team…"
-                placeholderTextColor="#9ca3af"
-                style={{ backgroundColor: '#f9fafb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827', borderWidth: 1, borderColor: '#f3f4f6' }}
-                autoCapitalize="none"
               />
             </View>
             {faLoading ? (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator color="#dc2626" />
+                <ActivityIndicator color={PRIMARY} />
               </View>
             ) : (
               <FlatList
@@ -2206,24 +2239,24 @@ export default function LeagueScreen() {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     onPress={() => handleSelectFreeAgent(item)}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f9fafb' }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BG_PAGE }}
                   >
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: adRoleColors[item.role] ?? '#6b7280', marginRight: 12 }} />
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: adRoleColors[item.role] ?? TEXT_MUTED, marginRight: 12 }} />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#111827', fontWeight: '600', fontSize: 15 }}>{item.name}</Text>
-                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>{item.ipl_team}</Text>
+                      <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 15 }}>{item.name}</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13 }}>{item.ipl_team}</Text>
                     </View>
-                    <View style={{ backgroundColor: '#f3f4f6', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginRight: 10 }}>
-                      <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>{adRoleLabels[item.role] ?? item.role}</Text>
+                    <View style={{ backgroundColor: BORDER_DEFAULT, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginRight: 10 }}>
+                      <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '700' }}>{adRoleLabels[item.role] ?? item.role}</Text>
                     </View>
-                    <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600' }}>
+                    <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '600' }}>
                       {formatCurrency(item.base_price, league.currency)}
                     </Text>
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={
                   <View style={{ padding: 48, alignItems: 'center' }}>
-                    <Text style={{ color: '#9ca3af', fontSize: 15 }}>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>
                       {faSearch ? 'No players match your search' : 'No free agents available'}
                     </Text>
                   </View>
@@ -2238,26 +2271,22 @@ export default function LeagueScreen() {
           visible={dropPickerVisible}
           animationType="slide"
           presentationStyle="pageSheet"
-          onDismiss={() => { setDropConfirmItem(null); dropSlide.setValue(0) }}
+          onDismiss={() => { setDropConfirmItem(null); dropConfirmItemRef.current = null; dropSlide.setValue(0) }}
         >
-          <View style={{ flex: 1, backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+          <View style={{ flex: 1, backgroundColor: BG_PAGE, overflow: 'hidden' }}>
             {/* Header */}
-            <View style={{ backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ backgroundColor: BG_CARD, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               {dropConfirmItem ? (
-                <TouchableOpacity
+                <NavButton
+                  label="← Back"
                   onPress={() => {
                     Animated.timing(dropSlide, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => setDropConfirmItem(null))
                   }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Text style={{ color: '#374151', fontSize: 15, fontWeight: '600' }}>← Back</Text>
-                </TouchableOpacity>
+                />
               ) : (
-                <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Drop a Player</Text>
+                <View />
               )}
-              <TouchableOpacity onPress={() => { setDropPickerVisible(false); setSelectedFreeAgent(null); setDropRoleFilter(null); setDropConfirmItem(null); dropSlide.setValue(0) }}>
-                <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
+              <NavButton label="Cancel" onPress={() => { setDropPickerVisible(false); setSelectedFreeAgent(null); setDropRoleFilter(null); setDropConfirmItem(null); dropConfirmItemRef.current = null; dropSlide.setValue(0) }} />
             </View>
 
             {/* Sliding pages container */}
@@ -2265,9 +2294,10 @@ export default function LeagueScreen() {
               {/* ── Player list page (always rendered, slides left on confirm) ── */}
               <Animated.View style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: '#f9fafb',
+                backgroundColor: BG_PAGE,
                 transform: [{ translateX: dropSlide.interpolate({ inputRange: [0, 1], outputRange: [0, -SCREEN_W] }) }],
               }}>
+                <Text style={{ fontWeight: '800', fontSize: 22, color: TEXT_PRIMARY, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}>Drop a Player</Text>
                 {/* Adding context banner */}
                 {selectedFreeAgent && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, gap: 6 }}>
@@ -2276,10 +2306,10 @@ export default function LeagueScreen() {
                       role={selectedFreeAgent.role}
                       name={selectedFreeAgent.name}
                       iplTeam={selectedFreeAgent.ipl_team}
-                      backgroundColor="#f0fdf4"
+                      backgroundColor={SUCCESS_BG}
                       borderColor="#bbf7d0"
                     />
-                    <Text style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center', paddingBottom: 6 }}>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12, textAlign: 'center', paddingBottom: 6 }}>
                       {dropRoleFilter
                         ? `${adRoleFullLabels[dropRoleFilter]} slot full — select one to drop`
                         : 'Roster full — select a player to drop'}
@@ -2304,47 +2334,48 @@ export default function LeagueScreen() {
 
                   return (
                     <ScrollView contentContainerStyle={{ padding: 16 }}>
-                      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+                      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
                         {groups.map((role, groupIdx) => {
                           const group = byRole[role]!
-                          const roleColor = adRoleColors[role] ?? '#6b7280'
+                          const roleColor = adRoleColors[role] ?? TEXT_MUTED
                           return (
                             <View key={role}>
                               {/* Role group header */}
-                              <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                                   <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{adRoleLabels[role] ?? role}</Text>
                                 </View>
-                                <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{ROLE_GROUP_LABELS[role] ?? role}</Text>
-                                <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>{group.length}</Text>
+                                <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>{ROLE_GROUP_LABELS[role] ?? role}</Text>
+                                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginLeft: 'auto' }}>{group.length}</Text>
                               </View>
                               {group.map(item => {
                                 const avgPts = item.team_games_played > 0 ? item.total_points / item.team_games_played : null
                                 return (
                                   <View
                                     key={item.player_id}
-                                    style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 12, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}
                                   >
                                     <View style={{ flex: 1, paddingVertical: 11 }}>
-                                      <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{item.player_name}</Text>
-                                      <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
+                                      <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{item.player_name}</Text>
+                                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
                                     </View>
                                     {avgPts != null ? (
                                       <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
-                                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
-                                        <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                                       </View>
                                     ) : (
-                                      <Text style={{ color: '#d1d5db', fontSize: 12, marginRight: 12 }}>—</Text>
+                                      <Text style={{ color: TEXT_DISABLED, fontSize: 12, marginRight: 12 }}>—</Text>
                                     )}
                                     <TouchableOpacity
                                       onPress={() => {
+                                        dropConfirmItemRef.current = item
                                         setDropConfirmItem(item)
                                         Animated.timing(dropSlide, { toValue: 1, duration: 250, useNativeDriver: true }).start()
                                       }}
-                                      style={{ backgroundColor: '#fef2f2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#fecaca' }}
+                                      style={{ backgroundColor: PRIMARY_BG, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: PRIMARY_BORDER }}
                                     >
-                                      <Text style={{ color: '#dc2626', fontSize: 13, fontWeight: '700' }}>Drop</Text>
+                                      <Text style={{ color: PRIMARY, fontSize: 13, fontWeight: '700' }}>Drop</Text>
                                     </TouchableOpacity>
                                   </View>
                                 )
@@ -2361,54 +2392,60 @@ export default function LeagueScreen() {
               {/* ── Confirmation page (slides in from the right) ── */}
               <Animated.View style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                backgroundColor: '#f9fafb',
+                backgroundColor: BG_PAGE,
                 transform: [{ translateX: dropSlide.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_W, 0] }) }],
               }}>
-                {dropConfirmItem && (
-                  <View style={{ flex: 1, padding: 20, gap: 16 }}>
-                    <Text style={{ color: '#111827', fontWeight: '700', fontSize: 16, textAlign: 'center' }}>Confirm Transaction</Text>
+                {(() => {
+                  // Use ref as fallback so content is available on every animation frame,
+                  // even before the async state update commits.
+                  const item = dropConfirmItem ?? dropConfirmItemRef.current
+                  if (!item) return null
+                  return (
+                    <View style={{ flex: 1, padding: 20, gap: 16 }}>
+                      <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 16, textAlign: 'center' }}>Confirm Transaction</Text>
 
-                    {/* Adding */}
-                    {selectedFreeAgent && (
+                      {/* Adding */}
+                      {selectedFreeAgent && (
+                        <View style={{ gap: 6 }}>
+                          <Text style={{ color: '#15803d', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Adding</Text>
+                          <PlayerRow
+                            role={selectedFreeAgent.role}
+                            name={selectedFreeAgent.name}
+                            iplTeam={selectedFreeAgent.ipl_team}
+                            backgroundColor={SUCCESS_BG}
+                            borderColor="#bbf7d0"
+                          />
+                        </View>
+                      )}
+
+                      {/* Dropping */}
                       <View style={{ gap: 6 }}>
-                        <Text style={{ color: '#15803d', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Adding</Text>
+                        <Text style={{ color: PRIMARY, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Dropping</Text>
                         <PlayerRow
-                          role={selectedFreeAgent.role}
-                          name={selectedFreeAgent.name}
-                          iplTeam={selectedFreeAgent.ipl_team}
-                          backgroundColor="#f0fdf4"
-                          borderColor="#bbf7d0"
+                          role={item.player_role}
+                          name={item.player_name}
+                          iplTeam={item.player_ipl_team}
+                          avgPts={item.team_games_played > 0 ? item.total_points / item.team_games_played : null}
+                          backgroundColor={PRIMARY_BG}
+                          borderColor={PRIMARY_BORDER}
                         />
                       </View>
-                    )}
 
-                    {/* Dropping */}
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>Dropping</Text>
-                      <PlayerRow
-                        role={dropConfirmItem.player_role}
-                        name={dropConfirmItem.player_name}
-                        iplTeam={dropConfirmItem.player_ipl_team}
-                        avgPts={dropConfirmItem.team_games_played > 0 ? dropConfirmItem.total_points / dropConfirmItem.team_games_played : null}
-                        backgroundColor="#fef2f2"
-                        borderColor="#fecaca"
-                      />
+                      {/* Confirm button */}
+                      <TouchableOpacity
+                        onPress={() => confirmAddPlayer(selectedFreeAgent!.id, item.player_id)}
+                        disabled={addPlayerMutation.isPending}
+                        style={{ backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 8 }}
+                      >
+                        {addPlayerMutation.isPending ? (
+                          <ActivityIndicator color="white" />
+                        ) : (
+                          <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Confirm</Text>
+                        )}
+                      </TouchableOpacity>
                     </View>
-
-                    {/* Confirm button */}
-                    <TouchableOpacity
-                      onPress={() => confirmAddPlayer(selectedFreeAgent!.id, dropConfirmItem.player_id)}
-                      disabled={addPlayerMutation.isPending}
-                      style={{ backgroundColor: '#dc2626', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 8 }}
-                    >
-                      {addPlayerMutation.isPending ? (
-                        <ActivityIndicator color="white" />
-                      ) : (
-                        <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Confirm</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
+                  )
+                })()}
               </Animated.View>
             </View>
           </View>
@@ -2428,7 +2465,7 @@ export default function LeagueScreen() {
         ref={scrollRef}
         className="flex-1 bg-gray-50"
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#ef4444" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={PRIMARY_SOFT} />}
       >
         <View className="p-4 gap-4">
           {/* Header */}
@@ -2447,10 +2484,6 @@ export default function LeagueScreen() {
             </View>
 
             <View className="flex-row flex-wrap gap-4">
-              <View>
-                <Text className="text-gray-400 text-xs">Budget</Text>
-                <Text className="text-gray-900 font-medium">{formatCurrency(league.starting_budget, league.currency)}</Text>
-              </View>
               <View>
                 <Text className="text-gray-400 text-xs">Teams</Text>
                 <Text className="text-gray-900 font-medium">{members.length}/{league.max_teams}</Text>
@@ -2472,8 +2505,6 @@ export default function LeagueScreen() {
             <MemberList
               members={members}
               adminId={league.admin_id}
-              startingBudget={league.starting_budget}
-              currency={league.currency}
             />
           </View>
 
@@ -2481,29 +2512,27 @@ export default function LeagueScreen() {
           {isDraftPending && (
             <View
               onLayout={(e) => setWishlistY(e.nativeEvent.layout.y)}
-              style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, overflow: 'hidden' }}
+              style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, overflow: 'hidden' }}
             >
               <View style={{ padding: 16, gap: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flex: 1, marginRight: 12, gap: 2 }}>
-                    <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }}>Draft Wishlist</Text>
-                    <Text style={{ color: '#9ca3af', fontSize: 12 }}>
+                    <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 17 }}>Draft Wishlist</Text>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>
                       Tap players you want — they'll be called up first in the draft.
                     </Text>
                   </View>
                   {myInterests.size > 0 && (
-                    <View style={{ backgroundColor: '#16a34a', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, flexShrink: 0 }}>
+                    <View style={{ backgroundColor: SUCCESS, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, flexShrink: 0 }}>
                       <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>{myInterests.size} added</Text>
                     </View>
                   )}
                 </View>
-                <TextInput
+                <SearchBar
                   value={playerSearch}
                   onChangeText={setPlayerSearch}
                   onFocus={() => scrollRef.current?.scrollTo({ y: wishlistY, animated: true })}
-                  placeholder="Search by name or team..."
-                  placeholderTextColor="#9ca3af"
-                  style={{ backgroundColor: '#f3f4f6', color: '#111827', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, borderWidth: 1, borderColor: '#e5e7eb' }}
+                  placeholder="Search by name or team…"
                 />
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -2512,9 +2541,9 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         key={label}
                         onPress={() => setPlayerRoleFilter(value)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerRoleFilter === value ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerRoleFilter === value ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerRoleFilter === value ? PRIMARY : BORDER_DEFAULT, borderWidth: 1, borderColor: playerRoleFilter === value ? PRIMARY : BORDER_MEDIUM, marginRight: 6 }}
                       >
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerRoleFilter === value ? '#ffffff' : '#6b7280' }}>{label}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerRoleFilter === value ? BG_CARD : TEXT_MUTED }}>{label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -2524,17 +2553,17 @@ export default function LeagueScreen() {
                   <View style={{ flexDirection: 'row' }}>
                     <TouchableOpacity
                       onPress={() => setPlayerTeamFilter(null)}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === null ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerTeamFilter === null ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === null ? PRIMARY : BORDER_DEFAULT, borderWidth: 1, borderColor: playerTeamFilter === null ? PRIMARY : BORDER_MEDIUM, marginRight: 6 }}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === null ? '#ffffff' : '#6b7280' }}>All Teams</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === null ? BG_CARD : TEXT_MUTED }}>All Teams</Text>
                     </TouchableOpacity>
                     {[...new Set((playersData ?? []).map(p => p.ipl_team))].sort().map(team => (
                       <TouchableOpacity
                         key={team}
                         onPress={() => setPlayerTeamFilter(team)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === team ? '#dc2626' : '#f3f4f6', borderWidth: 1, borderColor: playerTeamFilter === team ? '#dc2626' : '#e5e7eb', marginRight: 6 }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: playerTeamFilter === team ? PRIMARY : BORDER_DEFAULT, borderWidth: 1, borderColor: playerTeamFilter === team ? PRIMARY : BORDER_MEDIUM, marginRight: 6 }}
                       >
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === team ? '#ffffff' : '#6b7280' }}>{team}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: playerTeamFilter === team ? BG_CARD : TEXT_MUTED }}>{team}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -2543,11 +2572,11 @@ export default function LeagueScreen() {
 
               {!playersData ? (
                 <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                  <Text style={{ color: '#9ca3af' }}>Loading players...</Text>
+                  <Text style={{ color: TEXT_PLACEHOLDER }}>Loading players...</Text>
                 </View>
               ) : filteredPlayers.length === 0 ? (
                 <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                  <Text style={{ color: '#9ca3af' }}>No players found</Text>
+                  <Text style={{ color: TEXT_PLACEHOLDER }}>No players found</Text>
                 </View>
               ) : (
                 <>
@@ -2556,9 +2585,9 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         onPress={() => setInterestedCollapsed(c => !c)}
                         activeOpacity={0.7}
-                        style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6', borderBottomWidth: interestedCollapsed ? 0 : 1, borderBottomColor: '#bbf7d0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                        style={{ backgroundColor: SUCCESS_BG, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, borderBottomWidth: interestedCollapsed ? 0 : 1, borderBottomColor: '#bbf7d0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
                       >
-                        <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        <Text style={{ color: SUCCESS, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
                           INTERESTED PLAYERS ({interested.length})
                         </Text>
                         <Text style={{ color: '#4ade80', fontSize: 12 }}>{interestedCollapsed ? '▼' : '▲'}</Text>
@@ -2572,12 +2601,12 @@ export default function LeagueScreen() {
                       <TouchableOpacity
                         onPress={() => setAllPlayersCollapsed(c => !c)}
                         activeOpacity={0.7}
-                        style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6', borderBottomWidth: allPlayersCollapsed ? 0 : 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                        style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, borderBottomWidth: allPlayersCollapsed ? 0 : 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
                       >
-                        <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
                           ALL PLAYERS ({others.length})
                         </Text>
-                        <Text style={{ color: '#9ca3af', fontSize: 12 }}>{allPlayersCollapsed ? '▼' : '▲'}</Text>
+                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{allPlayersCollapsed ? '▼' : '▲'}</Text>
                       </TouchableOpacity>
                       {!allPlayersCollapsed && others.map((p, i) => renderPlayer(p, i, 'others'))}
                     </>

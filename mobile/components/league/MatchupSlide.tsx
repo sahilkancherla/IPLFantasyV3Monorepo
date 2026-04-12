@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Modal, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native'
+import { NavButton } from '../ui/NavButton'
 import { useState, useCallback } from 'react'
 import { useLineup, useUserLineup, useSetLineup, useGameBreakdown } from '../../hooks/useLineup'
 import type { LineupEntry } from '../../hooks/useLineup'
@@ -8,6 +9,13 @@ import { useWeekMatches } from '../../hooks/useMatchup'
 import { useMyTeam, useAllTeams } from '../../hooks/useTeam'
 import { ROLE_ORDER } from './LineupCard'
 import { MatchupView } from './MatchupView'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT,
+  BG_PAGE, BG_CARD, BG_DARK_HEADER,
+  PRIMARY, PRIMARY_SOFT, PRIMARY_BORDER, PRIMARY_SUBTLE,
+  matchStatusColors,
+} from '../../constants/colors'
 
 const EMPTY_LINEUP: LineupEntry[] = []
 
@@ -190,12 +198,12 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
         contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-          <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10 }}>
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+          <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 16, paddingVertical: 10 }}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Matchup</Text>
           </View>
           <View style={{ padding: 32, alignItems: 'center' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 15 }}>Bye week — no matchup</Text>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>Bye week — no matchup</Text>
           </View>
         </View>
       </ScrollView>
@@ -205,7 +213,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   const lineupHeaderAction = !lineupLocked ? (
     <TouchableOpacity
       onPress={openLineupModal}
-      style={{ backgroundColor: '#dc2626', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}
+      style={{ backgroundColor: PRIMARY, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}
     >
       <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>
         {myLineup.length === 0 ? 'Set' : 'Edit'}
@@ -241,7 +249,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
         oppOverridePoints={oppOverride?.points ?? null}
         oppOverrideNote={oppOverride?.note ?? null}
         width={width}
-        refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor="#ef4444" />}
+        refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor={PRIMARY_SOFT} />}
         onExpandGames={() => setGamesModalOpen(true)}
         carouselKey={carouselKey}
         onSetLineup={!lineupLocked ? openLineupModal : undefined}
@@ -249,12 +257,9 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
 
       {/* IPL Games expand modal */}
       <Modal visible={gamesModalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGamesModalOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-          <View style={{ backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }}>IPL Games This Week</Text>
-            <TouchableOpacity onPress={() => setGamesModalOpen(false)}>
-              <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Done</Text>
-            </TouchableOpacity>
+        <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+          <View style={{ backgroundColor: BG_CARD, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
+            <NavButton label="Done" onPress={() => setGamesModalOpen(false)} />
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
             {!isPending && matchup && oppId && (
@@ -278,13 +283,11 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
         onRequestClose={() => setLineupModalOpen(false)}
         onDismiss={() => setCarouselKey(k => k + 1)}
       >
-        <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-          <View style={{ backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14 }}>
+        <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+          <View style={{ backgroundColor: BG_CARD, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', flex: 1 }}>
-              <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17, flex: 1 }}>Set Lineup — Week {week.week_num}</Text>
-              <TouchableOpacity onPress={() => setLineupModalOpen(false)}>
-                <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
+              <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 17, flex: 1 }}>Set Lineup — Week {week.week_num}</Text>
+              <NavButton label="Cancel" onPress={() => setLineupModalOpen(false)} />
             </View>
             <View style={{ flexDirection: 'row', marginTop: 14, gap: 6 }}>
               {[
@@ -293,9 +296,9 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
               ].map(({ label, filled, total }) => {
                 const full = filled >= total
                 return (
-                  <View key={label} style={{ flex: 1, alignItems: 'center', backgroundColor: full ? '#fff5f5' : '#f9fafb', borderRadius: 8, paddingVertical: 6, borderWidth: 1, borderColor: full ? '#fecaca' : '#f3f4f6' }}>
-                    <Text style={{ color: full ? '#dc2626' : '#9ca3af', fontSize: 10, fontWeight: '700' }}>{label}</Text>
-                    <Text style={{ color: full ? '#dc2626' : '#374151', fontSize: 13, fontWeight: '700', marginTop: 2 }}>{filled}/{total}</Text>
+                  <View key={label} style={{ flex: 1, alignItems: 'center', backgroundColor: full ? '#fff5f5' : BG_PAGE, borderRadius: 8, paddingVertical: 6, borderWidth: 1, borderColor: full ? PRIMARY_BORDER : BORDER_DEFAULT }}>
+                    <Text style={{ color: full ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 10, fontWeight: '700' }}>{label}</Text>
+                    <Text style={{ color: full ? PRIMARY : TEXT_SECONDARY, fontSize: 13, fontWeight: '700', marginTop: 2 }}>{filled}/{total}</Text>
                   </View>
                 )
               })}
@@ -309,16 +312,16 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
               const chosen = selections[slot.role]
               const atCap = chosen.length >= slot.count
               return (
-                <View key={slot.role} style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-                  <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ color: '#374151', fontWeight: '700', fontSize: 13 }}>{slot.label}</Text>
-                    <Text style={{ color: atCap ? '#dc2626' : '#9ca3af', fontSize: 12, fontWeight: '600' }}>
+                <View key={slot.role} style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+                  <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: TEXT_SECONDARY, fontWeight: '700', fontSize: 13 }}>{slot.label}</Text>
+                    <Text style={{ color: atCap ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '600' }}>
                       {chosen.length}/{slot.count}
                     </Text>
                   </View>
                   {players.length === 0 ? (
                     <View style={{ padding: 16, alignItems: 'center' }}>
-                      <Text style={{ color: '#d1d5db', fontSize: 13 }}>No players available</Text>
+                      <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>No players available</Text>
                     </View>
                   ) : players.map((p, i) => {
                     const isSelected = chosen.includes(p.player_id) || selections.flex.includes(p.player_id)
@@ -327,8 +330,8 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
                     const games = gamesForTeam(p.player_ipl_team)
                     const gamesRemaining = gamesRemainingForTeam(p.player_ipl_team)
                     return (
-                      <View key={p.player_id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#f3f4f6', opacity: isDisabled ? 0.4 : 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSelected ? '#fff5f5' : 'white' }}>
+                      <View key={p.player_id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: BORDER_DEFAULT, opacity: isDisabled ? 0.4 : 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSelected ? '#fff5f5' : BG_CARD }}>
                           <TouchableOpacity
                             onPress={() => togglePlayer(slot.role, p.player_id, slot.count)}
                             disabled={isDisabled}
@@ -336,17 +339,17 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
                           >
                             <View style={{
                               width: 22, height: 22, borderRadius: 11, borderWidth: 2,
-                              borderColor: isSelected ? '#dc2626' : '#d1d5db',
-                              backgroundColor: isSelected ? '#dc2626' : 'white',
+                              borderColor: isSelected ? PRIMARY : TEXT_DISABLED,
+                              backgroundColor: isSelected ? PRIMARY : BG_CARD,
                               alignItems: 'center', justifyContent: 'center', marginRight: 12,
                             }}>
                               {isSelected && <Text style={{ color: 'white', fontSize: 13, fontWeight: '800', lineHeight: 16 }}>✓</Text>}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ color: '#111827', fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+                              <Text style={{ color: TEXT_PRIMARY, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
                                 {p.player_name}
                               </Text>
-                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{p.player_ipl_team}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{p.player_ipl_team}</Text>
                             </View>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -354,32 +357,31 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
                             onPress={() => setExpandedModal(prev => { const s = new Set(prev); isExpanded ? s.delete(p.player_id) : s.add(p.player_id); return s })}
                           >
                             {gamesRemaining.length > 0 && (
-                              <View style={{ backgroundColor: '#fee2e2', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                                <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>{gamesRemaining.length}</Text>
+                              <View style={{ backgroundColor: PRIMARY_SUBTLE, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
+                                <Text style={{ color: PRIMARY, fontSize: 11, fontWeight: '700' }}>{gamesRemaining.length}</Text>
                               </View>
                             )}
-                            <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
+                            <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
                           </TouchableOpacity>
                         </View>
                         {isExpanded && (
-                          <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 8, gap: 10 }}>
+                          <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 14, paddingBottom: 14, paddingTop: 8, gap: 10 }}>
                             {games.length === 0 ? (
-                              <Text style={{ color: '#d1d5db', fontSize: 12 }}>No games this week</Text>
+                              <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No games this week</Text>
                             ) : games.map(m => {
                               const opp = m.home_team === p.player_ipl_team ? m.away_team : m.home_team
-                              const isHome = m.home_team === p.player_ipl_team
-                              const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : m.status === 'upcoming' ? '#1d4ed8' : '#6b7280'
-                              const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : m.status === 'upcoming' ? '#dbeafe' : '#f3f4f6'
+                              const isHomeGame = m.home_team === p.player_ipl_team
+                              const { text: statusColor, bg: statusBg } = matchStatusColors(m.status)
                               const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : m.status === 'upcoming' ? 'NEXT' : 'UPCOMING'
                               return (
                                 <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                   <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 }}>
                                     <Text style={{ color: statusColor, fontSize: 9, fontWeight: '700' }}>{statusLabel}</Text>
                                   </View>
-                                  <Text style={{ color: '#374151', fontSize: 12, fontWeight: '500', flex: 1 }}>
-                                    {isHome ? 'vs' : '@'} {opp}
+                                  <Text style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '500', flex: 1 }}>
+                                    {isHomeGame ? 'vs' : '@'} {opp}
                                   </Text>
-                                  <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
+                                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{formatMatchTime(m)}</Text>
                                 </View>
                               )
                             })}
@@ -393,16 +395,16 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
             })}
           </ScrollView>
 
-          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: BG_CARD, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
             {setLineupMutation.isError && (
-              <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+              <Text style={{ color: PRIMARY, fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
                 {(setLineupMutation.error as Error)?.message ?? 'Failed to save lineup'}
               </Text>
             )}
             <TouchableOpacity
               onPress={submitLineup}
               disabled={setLineupMutation.isPending}
-              style={{ backgroundColor: '#dc2626', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+              style={{ backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
             >
               {setLineupMutation.isPending ? (
                 <ActivityIndicator color="white" />

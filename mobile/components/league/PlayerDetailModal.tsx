@@ -1,9 +1,21 @@
 import { useState } from 'react'
 import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator } from 'react-native'
+import { NavButton } from '../ui/NavButton'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { formatCurrency, type Currency } from '../../lib/currency'
 import { usePlayerStats, usePlayerUpcoming } from '../../hooks/useLineup'
 import type { PlayerMatchStat, PlayerUpcomingMatch } from '../../hooks/useLineup'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_PAGE, BG_CARD, BG_SUBTLE,
+  PRIMARY, PRIMARY_BG, PRIMARY_BORDER,
+  SUCCESS, SUCCESS_BG, SUCCESS_BORDER, SUCCESS_DARK,
+  WARNING_DARK, WARNING_BG,
+  INFO_DARK, INFO_BG, INFO_BORDER,
+  roleColors,
+  matchStatusColors,
+} from '../../constants/colors'
 
 const ROLE_SHORT: Record<string, string> = {
   batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
@@ -11,17 +23,17 @@ const ROLE_SHORT: Record<string, string> = {
 const ROLE_FULL: Record<string, string> = {
   batsman: 'Batsman', bowler: 'Bowler', all_rounder: 'All-Rounder', wicket_keeper: 'Wicket Keeper',
 }
-const ROLE_COLORS: Record<string, string> = {
-  batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706',
-}
+const ROLE_COLORS: Record<string, string> = roleColors
 
 export interface PlayerDetailInfo {
   name: string
   ipl_team: string
   role: string
   nationality?: string
-  /** Price the user paid (squad view) */
-  price_paid?: number
+  /** Total fantasy points scored (squad view) */
+  total_points?: number
+  /** Number of games the player's IPL team has played (for avg calc) */
+  team_games_played?: number
   /** Base auction price (available players view) */
   base_price?: number
   /** Sold price if sold in auction */
@@ -79,7 +91,7 @@ function UpcomingGames({ playerId }: { playerId: string }) {
   if (isLoading) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <ActivityIndicator color="#dc2626" />
+        <ActivityIndicator color={PRIMARY} />
       </View>
     )
   }
@@ -87,9 +99,9 @@ function UpcomingGames({ playerId }: { playerId: string }) {
   if (!matches || matches.length === 0) {
     return (
       <View style={{ gap: 8 }}>
-        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Upcoming Games</Text>
+        <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '700' }}>Upcoming Games</Text>
         <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-          <Text style={{ color: '#d1d5db', fontSize: 14 }}>No upcoming games scheduled</Text>
+          <Text style={{ color: TEXT_DISABLED, fontSize: 14 }}>No upcoming games scheduled</Text>
         </View>
       </View>
     )
@@ -100,16 +112,7 @@ function UpcomingGames({ playerId }: { playerId: string }) {
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Upcoming Games</Text>
-        {hasMore && (
-          <TouchableOpacity onPress={() => setExpanded(v => !v)}>
-            <Text style={{ color: '#dc2626', fontSize: 12, fontWeight: '600' }}>
-              {expanded ? 'Show Less' : `See All (${matches.length})`}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '700', marginBottom: 2 }}>Upcoming Games</Text>
       {visible.map((m: PlayerUpcomingMatch) => {
         const isHome = m.homeTeam === m.playerIplTeam
         const opp = isHome ? m.awayTeam : m.homeTeam
@@ -123,25 +126,28 @@ function UpcomingGames({ playerId }: { playerId: string }) {
           : new Date(m.matchDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         return (
           <View key={m.matchId} style={{
-            backgroundColor: isNext ? '#eff6ff' : '#f9fafb',
+            backgroundColor: isNext ? INFO_BG : BG_PAGE,
             borderRadius: 12, borderWidth: 1,
-            borderColor: isNext ? '#bfdbfe' : '#f3f4f6',
+            borderColor: isNext ? INFO_BORDER : BORDER_DEFAULT,
             padding: 12,
             flexDirection: 'row', alignItems: 'center', gap: 10,
           }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }}>
+              <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }}>
                 {isHome ? 'vs' : '@'} {opp}
               </Text>
-              <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>{dateStr}</Text>
-              {m.venue && <Text style={{ color: '#9ca3af', fontSize: 11 }}>{m.venue}</Text>}
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2 }}>{dateStr}</Text>
+              {m.venue && <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{m.venue}</Text>}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              {m.weekLabel && (
+                <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>{m.weekLabel}</Text>
+              )}
               {m.matchNumber != null && (
-                <Text style={{ color: '#d1d5db', fontSize: 11 }}>M{m.matchNumber}</Text>
+                <Text style={{ color: TEXT_DISABLED, fontSize: 11 }}>M{m.matchNumber}</Text>
               )}
               {isNext && (
-                <View style={{ backgroundColor: '#1d4ed8', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <View style={{ backgroundColor: INFO_DARK, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>NEXT</Text>
                 </View>
               )}
@@ -149,6 +155,13 @@ function UpcomingGames({ playerId }: { playerId: string }) {
           </View>
         )
       })}
+      {hasMore && (
+        <TouchableOpacity onPress={() => setExpanded(v => !v)} style={{ alignItems: 'center', paddingVertical: 6 }}>
+          <Text style={{ color: PRIMARY, fontSize: 12, fontWeight: '600' }}>
+            {expanded ? 'Show Less' : `See All (${matches.length})`}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -160,7 +173,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
   if (isLoading) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-        <ActivityIndicator color="#dc2626" />
+        <ActivityIndicator color={PRIMARY} />
       </View>
     )
   }
@@ -176,7 +189,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
   if (!stats || stats.length === 0) {
     return (
       <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-        <Text style={{ color: '#d1d5db', fontSize: 14 }}>No match history yet</Text>
+        <Text style={{ color: TEXT_DISABLED, fontSize: 14 }}>No match history yet</Text>
       </View>
     )
   }
@@ -186,16 +199,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-        <Text style={{ color: '#374151', fontSize: 13, fontWeight: '700' }}>Match History</Text>
-        {hasMore && (
-          <TouchableOpacity onPress={() => setExpanded(v => !v)}>
-            <Text style={{ color: '#dc2626', fontSize: 12, fontWeight: '600' }}>
-              {expanded ? 'Show Less' : `See All (${stats.length})`}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '700', marginBottom: 2 }}>Match History</Text>
       {visible.map((s, i) => {
         const isHome = s.homeTeam === s.playerIplTeam
         const opp = s.homeTeam ? (isHome ? s.awayTeam : s.homeTeam) : null
@@ -207,8 +211,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
             })
           : s.matchDate
 
-        const statusColor = s.status === 'live' ? '#b45309' : s.status === 'completed' ? '#16a34a' : '#6b7280'
-        const statusBg = s.status === 'live' ? '#fef9c3' : s.status === 'completed' ? '#f0fdf4' : '#f3f4f6'
+        const { text: statusColor, bg: statusBg } = matchStatusColors(s.status)
         const statusLabel = s.status === 'live' ? 'LIVE' : s.status === 'completed' ? 'FINAL' : 'UPCOMING'
 
         const matchLabel = s.homeTeam
@@ -217,44 +220,56 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
 
       return (
           <View key={`${s.matchId}-${i}`} style={{
-            backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1,
-            borderColor: '#f3f4f6', padding: 12, gap: 6,
+            backgroundColor: BG_PAGE, borderRadius: 12, borderWidth: 1,
+            borderColor: BORDER_DEFAULT, padding: 12, gap: 6,
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                 <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{statusLabel}</Text>
                 </View>
-                <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
                   {matchLabel}
                 </Text>
               </View>
-              {s.matchNumber != null && (
-                <Text style={{ color: '#d1d5db', fontSize: 11 }}>M{s.matchNumber}</Text>
-              )}
+              <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                {s.weekLabel && (
+                  <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>{s.weekLabel}</Text>
+                )}
+                {s.matchNumber != null && (
+                  <Text style={{ color: TEXT_DISABLED, fontSize: 11 }}>M{s.matchNumber}</Text>
+                )}
+              </View>
             </View>
 
-            <Text style={{ color: '#9ca3af', fontSize: 11 }}>{dateStr}</Text>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{dateStr}</Text>
 
             {s.status !== 'upcoming' ? (
-              <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ color: '#374151', fontSize: 12, flex: 1, marginRight: 8 }}>{statLine(s, role)}</Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ color: TEXT_SECONDARY, fontSize: 12, flex: 1, marginRight: 8 }}>{statLine(s, role)}</Text>
                 <PointsValue
                   value={s.points}
                   stats={{ ...s, playerRole: role }}
-                  style={{ color: s.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 13, fontWeight: '700' }}
+                  style={{ color: s.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}
                 >
                   {s.points > 0 ? `+${parseFloat(s.points.toString()).toFixed(1)}` : '—'}
                 </PointsValue>
               </View>
             ) : (
-              <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 8 }}>
-                <Text style={{ color: '#d1d5db', fontSize: 12 }}>Not played yet</Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 8 }}>
+                <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>Not played yet</Text>
               </View>
             )}
           </View>
         )
       })}
+      {hasMore && (
+        <TouchableOpacity onPress={() => setExpanded(v => !v)} style={{ alignItems: 'center', paddingVertical: 6 }}>
+          <Text style={{ color: PRIMARY, fontSize: 12, fontWeight: '600' }}>
+            {expanded ? 'Show Less' : `See All (${stats.length})`}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -262,24 +277,15 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
 export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, playerId, onDrop, onAdd, addLabel = 'Add to Squad', alreadyOnTeam }: Props) {
   if (!player) return null
 
-  const roleColor = ROLE_COLORS[player.role] ?? '#6b7280'
+  const roleColor = ROLE_COLORS[player.role] ?? TEXT_MUTED
   const roleShort = ROLE_SHORT[player.role] ?? player.role
   const roleFull  = ROLE_FULL[player.role]  ?? player.role
   const isSold    = player.status === 'sold'
 
-  const displayPrice = player.price_paid != null
-    ? formatCurrency(player.price_paid, currency)
-    : player.base_price != null
-    ? formatCurrency(player.base_price, currency)
+  const totalPts = player.total_points != null ? Number(player.total_points) : null
+  const avgPts = (totalPts != null && player.team_games_played != null && player.team_games_played > 0)
+    ? totalPts / player.team_games_played
     : null
-
-  const priceLabel = player.price_paid != null ? 'Paid' : 'Base Price'
-
-  const stats: { label: string; value: string }[] = [
-    { label: 'Role', value: roleFull },
-    ...(displayPrice ? [{ label: priceLabel, value: displayPrice }] : []),
-    ...(player.status && player.status !== 'pending' ? [{ label: 'Status', value: player.status.charAt(0).toUpperCase() + player.status.slice(1) }] : []),
-  ]
 
   return (
     <Modal
@@ -288,74 +294,62 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: 'white' }}>
+      <View style={{ flex: 1, backgroundColor: BG_CARD }}>
         {/* Header */}
         <View style={{
-          padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
-          flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT,
+          flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
         }}>
-          <Text style={{ fontWeight: '700', fontSize: 17, color: '#111827' }}>Player Details</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '600' }}>Close</Text>
-          </TouchableOpacity>
+          <NavButton label="Close" onPress={onClose} />
         </View>
 
         {/* Body */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 20 }}>
+          {/* Name + team */}
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: TEXT_PRIMARY, fontSize: 26, fontWeight: '800' }}>{player.name}</Text>
+            <Text style={{ color: TEXT_MUTED, fontSize: 15 }}>{player.ipl_team}</Text>
+          </View>
+
           {/* Badges row */}
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <View style={{ backgroundColor: roleColor + '20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Text style={{ color: roleColor, fontSize: 12, fontWeight: '700' }}>{roleShort}</Text>
             </View>
             {player.nationality && player.nationality !== 'Indian' && (
-              <View style={{ backgroundColor: '#fef9c3', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-                <Text style={{ color: '#b45309', fontSize: 12, fontWeight: '700' }}>OVERSEAS</Text>
+              <View style={{ backgroundColor: WARNING_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                <Text style={{ color: WARNING_DARK, fontSize: 12, fontWeight: '700' }}>OVERSEAS</Text>
               </View>
             )}
           </View>
 
-          {/* Name + team */}
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: '#111827', fontSize: 26, fontWeight: '800' }}>{player.name}</Text>
-            <Text style={{ color: '#6b7280', fontSize: 15 }}>{player.ipl_team}</Text>
-          </View>
-
           {/* Stats card */}
-          <View style={{
-            backgroundColor: '#f9fafb', borderRadius: 14,
-            borderWidth: 1, borderColor: '#f3f4f6',
-            flexDirection: 'row',
-          }}>
-            {stats.map(({ label, value }, i) => (
+          <View style={{ backgroundColor: BG_PAGE, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, flexDirection: 'row' }}>
+            {[
+              { label: 'Role', value: roleFull },
+              { label: 'Total Pts', value: totalPts != null ? totalPts.toFixed(1) : '—' },
+              { label: 'Avg Pts', value: avgPts != null ? avgPts.toFixed(1) : '—' },
+            ].map(({ label, value }, i, arr) => (
               <View
                 key={label}
                 style={{
                   flex: 1, padding: 14, alignItems: 'center',
-                  borderRightWidth: i < stats.length - 1 ? 1 : 0,
-                  borderRightColor: '#f3f4f6',
+                  borderRightWidth: i < arr.length - 1 ? 1 : 0,
+                  borderRightColor: BORDER_DEFAULT,
                 }}
               >
-                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit>
+                <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit>
                   {value}
                 </Text>
-                <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 3 }}>{label}</Text>
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 3 }}>{label}</Text>
               </View>
             ))}
           </View>
 
-          {/* Sold price info */}
-          {isSold && player.sold_price != null && (
-            <View style={{ backgroundColor: '#f0fdf4', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#bbf7d0' }}>
-              <Text style={{ color: '#15803d', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
-                Sold for {formatCurrency(player.sold_price, currency)}
-              </Text>
-            </View>
-          )}
-
           {/* Already on team notice */}
           {alreadyOnTeam && (
-            <View style={{ backgroundColor: '#eff6ff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' }}>
-              <Text style={{ color: '#1d4ed8', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+            <View style={{ backgroundColor: INFO_BG, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: INFO_BORDER }}>
+              <Text style={{ color: INFO_DARK, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
                 Already on your squad
               </Text>
             </View>
@@ -368,21 +362,21 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
 
         {/* Bottom action */}
         {onDrop && (
-          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
             <TouchableOpacity
               onPress={onDrop}
-              style={{ backgroundColor: '#fef2f2', borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' }}
+              style={{ backgroundColor: PRIMARY_BG, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: PRIMARY_BORDER }}
             >
-              <Text style={{ color: '#dc2626', fontWeight: '700', fontSize: 15 }}>Drop Player</Text>
+              <Text style={{ color: PRIMARY, fontWeight: '700', fontSize: 15 }}>Drop Player</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {onAdd && !alreadyOnTeam && !isSold && (
-          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
             <TouchableOpacity
               onPress={onAdd}
-              style={{ backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+              style={{ backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
             >
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{addLabel}</Text>
             </TouchableOpacity>

@@ -1,6 +1,5 @@
 import { View, Text, FlatList } from 'react-native'
 import { Avatar } from '../ui/Avatar'
-import { formatCurrency, type Currency } from '../../lib/currency'
 
 interface Member {
   user_id: string
@@ -8,18 +7,15 @@ interface Member {
   username: string
   display_name: string | null
   avatar_url: string | null
-  remaining_budget: number
   roster_count: number
 }
 
 interface MemberListProps {
   members: Member[]
   adminId: string
-  startingBudget: number
-  currency?: Currency
 }
 
-export function MemberList({ members, adminId, startingBudget, currency = 'lakhs' }: MemberListProps) {
+export function MemberList({ members, adminId }: MemberListProps) {
   return (
     <FlatList
       data={members}
@@ -39,10 +35,7 @@ export function MemberList({ members, adminId, startingBudget, currency = 'lakhs
             </View>
             <Text className="text-gray-400 text-xs">@{item.username}</Text>
           </View>
-          <View className="items-end gap-0.5">
-            <Text className="text-green-600 text-sm font-bold">{formatCurrency(item.remaining_budget, currency)}</Text>
-            <Text className="text-gray-400 text-xs">{item.roster_count} players</Text>
-          </View>
+          <Text className="text-gray-400 text-xs">{item.roster_count} players</Text>
         </View>
       )}
     />

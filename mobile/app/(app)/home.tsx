@@ -1,6 +1,8 @@
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions, NativeSyntheticEvent, NativeScrollEvent, Pressable, Modal } from 'react-native'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'expo-router'
+import { CreateLeagueModal } from '../../components/league/CreateLeagueModal'
+import { JoinLeagueModal } from '../../components/league/JoinLeagueModal'
 import { useLeagues } from '../../hooks/useLeague'
 import { useHomeSummary } from '../../hooks/useMatchup'
 import { useAuthStore } from '../../stores/authStore'
@@ -10,6 +12,15 @@ import { formatCurrency } from '../../lib/currency'
 import * as SecureStore from 'expo-secure-store'
 import type { League } from '../../stores/leagueStore'
 import type { HomeSummaryEntry, CurrentMatchInfo } from '../../hooks/useMatchup'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_PAGE, BG_CARD,
+  PRIMARY, PRIMARY_SOFT, PRIMARY_BORDER,
+  SUCCESS, SUCCESS_BG,
+  BG_DARK_HEADER,
+  INFO, INFO_BG,
+} from '../../constants/colors'
 
 const LAST_LEAGUE_KEY = 'last_viewed_league_id'
 
@@ -28,52 +39,45 @@ const TEAM_ABBREV: Record<string, string> = {
 
 function DraftPendingCard({ league, onPress }: { league: League; onPress: () => void }) {
   return (
-    <View style={{ backgroundColor: 'white', borderRadius: 20, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-      <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ backgroundColor: BG_CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 18, flex: 1 }} numberOfLines={1}>{league.name}</Text>
-        <View style={{ backgroundColor: '#374151', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10 }}>
-          <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700' }}>PENDING</Text>
+        <View style={{ backgroundColor: TEXT_SECONDARY, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10 }}>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>PENDING</Text>
         </View>
       </View>
 
       <View style={{ padding: 20, gap: 20 }}>
         {/* Invite code — prominent */}
         <View style={{ alignItems: 'center', gap: 6 }}>
-          <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>INVITE CODE</Text>
-          <Text style={{ color: '#dc2626', fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: 3 }}>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>INVITE CODE</Text>
+          <Text style={{ color: PRIMARY, fontSize: 36, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: 3 }}>
             {league.invite_code}
           </Text>
-          <Text style={{ color: '#9ca3af', fontSize: 12 }}>Share with friends to join</Text>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>Share with friends to join</Text>
         </View>
 
-        <View style={{ height: 1, backgroundColor: '#f3f4f6' }} />
+        <View style={{ height: 1, backgroundColor: BORDER_DEFAULT }} />
 
         {/* League settings */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>BUDGET</Text>
-            <Text style={{ color: '#111827', fontSize: 18, fontWeight: '700', marginTop: 4 }}>
-              {formatCurrency(league.starting_budget, league.currency)}
-            </Text>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>SQUAD</Text>
+            <Text style={{ color: TEXT_PRIMARY, fontSize: 18, fontWeight: '700', marginTop: 4 }}>{league.max_squad_size}</Text>
           </View>
-          <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
+          <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>SQUAD</Text>
-            <Text style={{ color: '#111827', fontSize: 18, fontWeight: '700', marginTop: 4 }}>{league.max_squad_size}</Text>
-          </View>
-          <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>TEAMS</Text>
-            <Text style={{ color: '#111827', fontSize: 18, fontWeight: '700', marginTop: 4 }}>{league.max_teams}</Text>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>TEAMS</Text>
+            <Text style={{ color: TEXT_PRIMARY, fontSize: 18, fontWeight: '700', marginTop: 4 }}>{league.max_teams}</Text>
           </View>
         </View>
 
         <TouchableOpacity
           onPress={onPress}
-          style={{ backgroundColor: '#111827', borderRadius: 12, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
+          style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 12, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
         >
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Open League</Text>
-          <Text style={{ color: '#9ca3af', fontSize: 16 }}>›</Text>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 16 }}>›</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -82,10 +86,10 @@ function DraftPendingCard({ league, onPress }: { league: League; onPress: () => 
 
 function DraftActiveCard({ league, onPress }: { league: League; onPress: () => void }) {
   return (
-    <View style={{ backgroundColor: 'white', borderRadius: 20, borderWidth: 2, borderColor: '#fecaca', overflow: 'hidden' }}>
+    <View style={{ backgroundColor: BG_CARD, borderRadius: 20, borderWidth: 2, borderColor: PRIMARY_BORDER, overflow: 'hidden' }}>
       <View style={{ backgroundColor: '#7f1d1d', paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 18, flex: 1 }} numberOfLines={1}>{league.name}</Text>
-        <View style={{ backgroundColor: '#dc2626', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        <View style={{ backgroundColor: PRIMARY, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fca5a5' }} />
           <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>DRAFT LIVE</Text>
         </View>
@@ -94,15 +98,15 @@ function DraftActiveCard({ league, onPress }: { league: League; onPress: () => v
       <View style={{ padding: 24, gap: 20, alignItems: 'center' }}>
         <View style={{ alignItems: 'center', gap: 10 }}>
           <Text style={{ fontSize: 48 }}>🏏</Text>
-          <Text style={{ color: '#111827', fontSize: 20, fontWeight: '800' }}>Auction is live!</Text>
-          <Text style={{ color: '#6b7280', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+          <Text style={{ color: TEXT_PRIMARY, fontSize: 20, fontWeight: '800' }}>Auction is live!</Text>
+          <Text style={{ color: TEXT_MUTED, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
             Your squad is waiting to be built.{'\n'}Join the auction room now.
           </Text>
         </View>
 
         <TouchableOpacity
           onPress={onPress}
-          style={{ backgroundColor: '#dc2626', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32, alignItems: 'center' }}
+          style={{ backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32, alignItems: 'center' }}
         >
           <Text style={{ color: 'white', fontWeight: '800', fontSize: 15 }}>Enter Auction Room →</Text>
         </TouchableOpacity>
@@ -140,8 +144,8 @@ function ActiveLeagueCard({
   )
 
   return (
-    <View style={{ backgroundColor: 'white', borderRadius: 20, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-      <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ backgroundColor: BG_CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 18, flex: 1 }} numberOfLines={1}>{league.name}</Text>
         {weekNum && (
           <View style={{ backgroundColor: '#14532d', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10 }}>
@@ -153,48 +157,48 @@ function ActiveLeagueCard({
       <View style={{ padding: 16, gap: 14 }}>
         {/* Matchup score block */}
         {matchup ? (
-          <View style={{ backgroundColor: '#f9fafb', borderRadius: 14, padding: 16 }}>
+          <View style={{ backgroundColor: BG_PAGE, borderRadius: 14, padding: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {/* My side */}
               <View style={{ flex: 1 }}>
-                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }}>YOU</Text>
-                <Text style={{ color: '#111827', fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
+                <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '600' }}>YOU</Text>
+                <Text style={{ color: TEXT_PRIMARY, fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
                   {myPts.toFixed(1)}
                 </Text>
               </View>
 
               {/* Middle */}
               <View style={{ alignItems: 'center', paddingHorizontal: 12 }}>
-                <Text style={{ color: '#d1d5db', fontSize: 12, fontWeight: '600' }}>VS</Text>
+                <Text style={{ color: TEXT_DISABLED, fontSize: 12, fontWeight: '600' }}>VS</Text>
               </View>
 
               {/* Opp side */}
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{oppName?.toUpperCase()}</Text>
-                <Text style={{ color: '#111827', fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
+                <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{oppName?.toUpperCase()}</Text>
+                <Text style={{ color: TEXT_PRIMARY, fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
                   {oppPts.toFixed(1)}
                 </Text>
               </View>
             </View>
           </View>
         ) : (
-          <View style={{ backgroundColor: '#f9fafb', borderRadius: 14, padding: 16, alignItems: 'center' }}>
-            <Text style={{ color: '#9ca3af', fontSize: 13 }}>No matchup scheduled this week</Text>
+          <View style={{ backgroundColor: BG_PAGE, borderRadius: 14, padding: 16, alignItems: 'center' }}>
+            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13 }}>No matchup scheduled this week</Text>
           </View>
         )}
 
         {/* Live match + my players in it */}
         {currentMatch && myPlayersInMatch.length > 0 && (
-          <View style={{ borderWidth: 1, borderColor: '#f3f4f6', borderRadius: 12, padding: 12, gap: 8 }}>
+          <View style={{ borderWidth: 1, borderColor: BORDER_DEFAULT, borderRadius: 12, padding: 12, gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {isLive && <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#dc2626' }} />}
-              <Text style={{ color: '#374151', fontSize: 12, fontWeight: '700' }}>
+              {isLive && <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: PRIMARY }} />}
+              <Text style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '700' }}>
                 {isLive ? 'LIVE · ' : 'TODAY · '}
                 {TEAM_ABBREV[currentMatch.home_team] ?? currentMatch.home_team}
                 {' vs '}
                 {TEAM_ABBREV[currentMatch.away_team] ?? currentMatch.away_team}
               </Text>
-              <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginLeft: 'auto' }}>
                 {myPlayersInMatch.length} {myPlayersInMatch.length === 1 ? 'player' : 'players'}
               </Text>
             </View>
@@ -202,13 +206,13 @@ function ActiveLeagueCard({
               {myPlayersInMatch.slice(0, 3).map(p => (
                 <View key={p.playerId} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Text style={{ color: '#4b5563', fontSize: 12 }} numberOfLines={1}>{p.playerName}</Text>
-                  <Text style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}>
+                  <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
                     {p.points > 0 ? `+${p.points.toFixed(1)}` : '–'}
                   </Text>
                 </View>
               ))}
               {myPlayersInMatch.length > 3 && (
-                <Text style={{ color: '#9ca3af', fontSize: 11 }}>
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>
                   +{myPlayersInMatch.length - 3} more
                 </Text>
               )}
@@ -218,10 +222,10 @@ function ActiveLeagueCard({
 
         <TouchableOpacity
           onPress={onPress}
-          style={{ backgroundColor: '#111827', borderRadius: 12, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
+          style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 12, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 }}
         >
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Open League</Text>
-          <Text style={{ color: '#9ca3af', fontSize: 16 }}>›</Text>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 16 }}>›</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -230,24 +234,24 @@ function ActiveLeagueCard({
 
 function CompleteLeagueCard({ league, onPress }: { league: League; onPress: () => void }) {
   return (
-    <View style={{ backgroundColor: 'white', borderRadius: 20, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-      <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+    <View style={{ backgroundColor: BG_CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 18, flex: 1 }} numberOfLines={1}>{league.name}</Text>
-        <View style={{ backgroundColor: '#eff6ff', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10 }}>
-          <Text style={{ color: '#2563eb', fontSize: 11, fontWeight: '700' }}>COMPLETE</Text>
+        <View style={{ backgroundColor: INFO_BG, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 10 }}>
+          <Text style={{ color: INFO, fontSize: 11, fontWeight: '700' }}>COMPLETE</Text>
         </View>
       </View>
       <View style={{ padding: 24, gap: 20, alignItems: 'center' }}>
         <View style={{ alignItems: 'center', gap: 10 }}>
           <Text style={{ fontSize: 48 }}>🏆</Text>
-          <Text style={{ color: '#111827', fontSize: 20, fontWeight: '800' }}>Season Complete</Text>
-          <Text style={{ color: '#6b7280', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+          <Text style={{ color: TEXT_PRIMARY, fontSize: 20, fontWeight: '800' }}>Season Complete</Text>
+          <Text style={{ color: TEXT_MUTED, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
             The IPL fantasy season has wrapped up.{'\n'}Check the final standings.
           </Text>
         </View>
         <TouchableOpacity
           onPress={onPress}
-          style={{ backgroundColor: '#111827', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32, alignItems: 'center' }}
+          style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 32, alignItems: 'center' }}
         >
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>View Standings →</Text>
         </TouchableOpacity>
@@ -267,6 +271,9 @@ export default function HomeScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [leagueMenuOpen, setLeagueMenuOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
   const isRefetching = leaguesRefetching || summaryRefetching
   const carouselRef = useRef<ScrollView>(null)
   const hasRestoredRef = useRef(false)
@@ -340,17 +347,17 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor="#ef4444" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={PRIMARY_SOFT} />}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
-            <Text style={{ color: '#6b7280', fontSize: 13 }}>Welcome back,</Text>
-            <Text style={{ color: '#111827', fontSize: 22, fontWeight: '800' }}>
+            <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Welcome back,</Text>
+            <Text style={{ color: TEXT_PRIMARY, fontSize: 22, fontWeight: '800' }}>
               {user?.display_name ?? user?.full_name ?? user?.username ?? 'Player'}
             </Text>
           </View>
@@ -358,16 +365,16 @@ export default function HomeScreen() {
             {superAdmin && (
               <TouchableOpacity
                 onPress={() => router.push('/(app)/superadmin')}
-                style={{ backgroundColor: '#111827', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                style={{ backgroundColor: TEXT_PRIMARY, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
               >
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: '700' }}>⚙ Admin</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               onPress={() => setMenuOpen(true)}
-              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BORDER_DEFAULT, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Text style={{ fontSize: 18, color: '#374151', lineHeight: 22 }}>⋯</Text>
+              <Text style={{ fontSize: 18, color: TEXT_SECONDARY, lineHeight: 22 }}>⋯</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -375,10 +382,19 @@ export default function HomeScreen() {
         {/* League section */}
         <View style={{ paddingTop: 16 }}>
           <View style={{ paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }}>My Leagues</Text>
-            {leagueList.length > 1 && (
-              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{activeIndex + 1} of {leagueList.length}</Text>
-            )}
+            <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 17 }}>My Leagues</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {leagueList.length > 1 && (
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{activeIndex + 1} of {leagueList.length}</Text>
+              )}
+              <TouchableOpacity
+                onPress={() => setLeagueMenuOpen(true)}
+                style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <View style={{ width: 9, height: 1.5, backgroundColor: 'white', position: 'absolute' }} />
+                <View style={{ width: 1.5, height: 9, backgroundColor: 'white', position: 'absolute' }} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Dot indicators */}
@@ -391,7 +407,7 @@ export default function HomeScreen() {
                     height: 6,
                     borderRadius: 3,
                     width: i === activeIndex ? 22 : 6,
-                    backgroundColor: i === activeIndex ? '#dc2626' : '#d1d5db',
+                    backgroundColor: i === activeIndex ? PRIMARY : TEXT_DISABLED,
                   }}
                 />
               ))}
@@ -406,8 +422,8 @@ export default function HomeScreen() {
           ) : leagueList.length === 0 ? (
             <View style={{ paddingTop: 48, paddingHorizontal: 40, alignItems: 'center', gap: 12 }}>
               <Text style={{ fontSize: 44 }}>🏏</Text>
-              <Text style={{ color: '#111827', fontSize: 18, fontWeight: '700' }}>No leagues yet</Text>
-              <Text style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>
+              <Text style={{ color: TEXT_PRIMARY, fontSize: 18, fontWeight: '700' }}>No leagues yet</Text>
+              <Text style={{ color: TEXT_MUTED, fontSize: 14, textAlign: 'center' }}>
                 Create a new league or join one with an invite code
               </Text>
             </View>
@@ -434,7 +450,7 @@ export default function HomeScreen() {
       {/* Dropdown menu */}
       <Modal visible={menuOpen} transparent animationType="none" onRequestClose={closeMenu}>
         <Pressable style={{ flex: 1 }} onPress={closeMenu}>
-          <View style={{ position: 'absolute', top: 72, right: 20, width: 220, backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8, overflow: 'hidden' }}>
+          <View style={{ position: 'absolute', top: 72, right: 20, width: 220, backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8, overflow: 'hidden' }}>
 
             {/* Profile row */}
             <TouchableOpacity
@@ -442,41 +458,75 @@ export default function HomeScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
             >
               <View>
-                <Text style={{ color: '#111827', fontSize: 14, fontWeight: '600' }}>Profile</Text>
-                <Text style={{ color: '#9ca3af', fontSize: 11 }}>{user?.username}</Text>
+                <Text style={{ color: TEXT_PRIMARY, fontSize: 14, fontWeight: '600' }}>Profile</Text>
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{user?.username}</Text>
               </View>
-              <Text style={{ color: '#d1d5db', fontSize: 18 }}>›</Text>
+              <Text style={{ color: TEXT_DISABLED, fontSize: 18 }}>›</Text>
             </TouchableOpacity>
 
             {/* Divider */}
-            <View style={{ height: 1, backgroundColor: '#f3f4f6' }} />
+            <View style={{ height: 1, backgroundColor: BORDER_DEFAULT }} />
 
             {/* Settings row */}
             <TouchableOpacity
               onPress={closeMenu}
               style={{ paddingHorizontal: 16, paddingVertical: 14 }}
             >
-              <Text style={{ color: '#111827', fontSize: 14, fontWeight: '600' }}>Settings</Text>
+              <Text style={{ color: TEXT_PRIMARY, fontSize: 14, fontWeight: '600' }}>Settings</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
 
-      {/* FAB buttons */}
-      <View style={{ position: 'absolute', bottom: 32, right: 24, gap: 12 }}>
-        <TouchableOpacity
-          style={{ backgroundColor: '#1f2937', borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12 }}
-          onPress={() => router.push('/(app)/league/join')}
-        >
-          <Text style={{ color: 'white', fontWeight: '600' }}>Join League</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ backgroundColor: '#dc2626', borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12 }}
-          onPress={() => router.push('/(app)/league/create')}
-        >
-          <Text style={{ color: 'white', fontWeight: '700' }}>+ Create League</Text>
-        </TouchableOpacity>
-      </View>
+      <CreateLeagueModal visible={createOpen} onClose={() => setCreateOpen(false)} />
+      <JoinLeagueModal visible={joinOpen} onClose={() => setJoinOpen(false)} />
+
+      {/* League action modal */}
+      <Modal visible={leagueMenuOpen} transparent animationType="fade" onRequestClose={() => setLeagueMenuOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }} onPress={() => setLeagueMenuOpen(false)}>
+          <Pressable onPress={e => e.stopPropagation()}>
+            <View style={{
+              backgroundColor: BG_CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              paddingTop: 12, paddingHorizontal: 20, paddingBottom: 36,
+            }}>
+              {/* Handle */}
+              <View style={{ width: 36, height: 4, backgroundColor: BORDER_MEDIUM, borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+
+              <Text style={{ color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700', marginBottom: 16 }}>Add a League</Text>
+
+              <TouchableOpacity
+                onPress={() => { setLeagueMenuOpen(false); setCreateOpen(true) }}
+                style={{
+                  backgroundColor: PRIMARY, borderRadius: 16,
+                  paddingVertical: 18, paddingHorizontal: 20,
+                  flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Create a League</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 2 }}>Set up a new league and invite friends</Text>
+                </View>
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 18 }}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => { setLeagueMenuOpen(false); setJoinOpen(true) }}
+                style={{
+                  backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1.5, borderColor: BORDER_MEDIUM,
+                  paddingVertical: 18, paddingHorizontal: 20,
+                  flexDirection: 'row', alignItems: 'center', gap: 14,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 16 }}>Join a League</Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 2 }}>Enter an invite code to join</Text>
+                </View>
+                <Text style={{ color: TEXT_DISABLED, fontSize: 18 }}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   )
 }

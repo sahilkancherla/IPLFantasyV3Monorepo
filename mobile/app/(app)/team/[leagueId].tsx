@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator, TextInput } from 'react-native'
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator } from 'react-native'
+import { SearchBar } from '../../../components/ui/SearchBar'
+import { SegmentedControl } from '../../../components/ui/SegmentedControl'
 import { useLocalSearchParams } from 'expo-router'
 import { SquadGrid } from '../../../components/team/SquadGrid'
 import { useMyTeam, useAllTeams, useDropPlayer, useAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
@@ -129,45 +131,29 @@ export default function TeamScreen() {
       >
         <View style={{ padding: 16, gap: 14 }}>
           {/* Tab switcher */}
-          <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4 }}>
-            {(['my', 'all'] as Tab[]).map((t) => (
-              <TouchableOpacity
-                key={t}
-                onPress={() => setActiveTab(t)}
-                style={{
-                  flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center',
-                  backgroundColor: activeTab === t ? '#ffffff' : 'transparent',
-                }}
-              >
-                <Text style={{ fontWeight: '600', color: activeTab === t ? '#111827' : '#9ca3af', fontSize: 14 }}>
-                  {t === 'my' ? 'My Squad' : 'All Teams'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <SegmentedControl
+            segments={[
+              { key: 'my', label: 'My Squad' },
+              { key: 'all', label: 'All Teams' },
+            ]}
+            value={activeTab}
+            onChange={setActiveTab}
+          />
 
           {/* ── My Squad ── */}
           {activeTab === 'my' && (
             <>
               {myMember && league && (
-                <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 16, gap: 4 }}>
+                <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', padding: 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View>
-                      <Text style={{ color: '#6b7280', fontSize: 13 }}>Remaining Budget</Text>
-                      <Text style={{ color: '#111827', fontSize: 28, fontWeight: '800', marginTop: 2 }}>
-                        {formatCurrency(myMember.remaining_budget, currency)}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>
-                        {currentRoster.length} / {league.roster_size} players
-                      </Text>
-                      {rosterFull && (
-                        <View style={{ backgroundColor: '#fef2f2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 4 }}>
-                          <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>ROSTER FULL</Text>
-                        </View>
-                      )}
-                    </View>
+                    <Text style={{ color: '#9ca3af', fontSize: 13 }}>
+                      {currentRoster.length} / {league.roster_size} players
+                    </Text>
+                    {rosterFull && (
+                      <View style={{ backgroundColor: '#fef2f2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>ROSTER FULL</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               )}
@@ -224,11 +210,6 @@ export default function TeamScreen() {
                             {memberRoster.length} players
                           </Text>
                         </View>
-                        {memberInfo && league && (
-                          <Text style={{ color: '#6b7280', fontSize: 13 }}>
-                            {formatCurrency(memberInfo.remaining_budget, currency)} remaining
-                          </Text>
-                        )}
                       </View>
 
                       {memberRoster.length === 0 ? (
@@ -265,16 +246,10 @@ export default function TeamScreen() {
 
           {/* Search */}
           <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
-            <TextInput
+            <SearchBar
               value={searchText}
               onChangeText={setSearchText}
               placeholder="Search by name or team…"
-              placeholderTextColor="#9ca3af"
-              style={{
-                backgroundColor: '#f9fafb', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-                fontSize: 14, color: '#111827', borderWidth: 1, borderColor: '#f3f4f6',
-              }}
-              autoCapitalize="none"
             />
           </View>
 

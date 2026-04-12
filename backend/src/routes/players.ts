@@ -51,9 +51,12 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
          COALESCE(im.match_date::text, ms.match_date::text) AS match_date,
          im.start_time_utc,
          COALESCE(im.status, 'completed')         AS status,
-         p.ipl_team               AS player_ipl_team
+         p.ipl_team               AS player_ipl_team,
+         COALESCE(im.week_num, ms.ipl_week)       AS week_num,
+         iw.label                                 AS week_label
        FROM match_scores ms
        LEFT JOIN ipl_matches im ON im.match_id = ms.match_id
+       LEFT JOIN ipl_weeks iw ON iw.week_num = COALESCE(im.week_num, ms.ipl_week)
        JOIN players p ON p.id = ms.player_id
        WHERE ms.player_id = $1
        ORDER BY COALESCE(im.match_date, ms.match_date) DESC, im.start_time_utc DESC NULLS LAST`,
@@ -68,6 +71,8 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
       startTimeUtc: r.start_time_utc ?? null,
       status: r.status,
       playerIplTeam: r.player_ipl_team,
+      weekNum: r.week_num != null ? Number(r.week_num) : null,
+      weekLabel: r.week_label ?? null,
       points: parseFloat(r.points as string) || 0,
       runsScored: parseInt(r.runs_scored as string, 10) || 0,
       ballsFaced: parseInt(r.balls_faced as string, 10) || 0,
@@ -93,10 +98,13 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
     const { rows } = await pool.query(
       `SELECT im.match_id, im.match_number, im.home_team, im.away_team,
               im.match_date::text AS match_date, im.start_time_utc, im.status, im.venue,
-              p.ipl_team AS player_ipl_team
+              p.ipl_team AS player_ipl_team,
+              im.week_num,
+              iw.label AS week_label
        FROM players p
        JOIN ipl_matches im
          ON im.home_team = p.ipl_team OR im.away_team = p.ipl_team
+       LEFT JOIN ipl_weeks iw ON iw.week_num = im.week_num
        WHERE p.id = $1
          AND im.status IN ('pending', 'upcoming')
        ORDER BY im.match_date ASC, im.start_time_utc ASC NULLS LAST
@@ -113,6 +121,8 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
       status: r.status,
       venue: r.venue ?? null,
       playerIplTeam: r.player_ipl_team,
+      weekNum: r.week_num != null ? Number(r.week_num) : null,
+      weekLabel: r.week_label ?? null,
     }))
     return reply.send({ matches })
   })

@@ -1,32 +1,33 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import type { ReactNode } from 'react'
+import {
+  TEXT_PRIMARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BG_CARD,
+  roleColors as ROLE_COLORS,
+  WARNING_BG, WARNING_DARK,
+} from '../../constants/colors'
 
-export const roleColors: Record<string, string> = {
-  batsman: '#2563eb',
-  bowler: '#dc2626',
-  all_rounder: '#16a34a',
-  wicket_keeper: '#d97706',
-}
+export { ROLE_COLORS as roleColors }
 
 export const roleLabels: Record<string, string> = {
-  batsman: 'BAT',
-  bowler: 'BOW',
-  all_rounder: 'AR',
+  batsman:       'BAT',
+  bowler:        'BOW',
+  all_rounder:   'AR',
   wicket_keeper: 'WK',
 }
 
 export const iplTeamAbbr: Record<string, string> = {
-  'Mumbai Indians': 'MI',
-  'Chennai Super Kings': 'CSK',
-  'Royal Challengers Bengaluru': 'RCB',
-  'Royal Challengers Bangalore': 'RCB',
-  'Kolkata Knight Riders': 'KKR',
-  'Delhi Capitals': 'DC',
-  'Sunrisers Hyderabad': 'SRH',
-  'Rajasthan Royals': 'RR',
-  'Punjab Kings': 'PBKS',
-  'Gujarat Titans': 'GT',
-  'Lucknow Super Giants': 'LSG',
+  'Mumbai Indians':               'MI',
+  'Chennai Super Kings':          'CSK',
+  'Royal Challengers Bengaluru':  'RCB',
+  'Royal Challengers Bangalore':  'RCB',
+  'Kolkata Knight Riders':        'KKR',
+  'Delhi Capitals':               'DC',
+  'Sunrisers Hyderabad':          'SRH',
+  'Rajasthan Royals':             'RR',
+  'Punjab Kings':                 'PBKS',
+  'Gujarat Titans':               'GT',
+  'Lucknow Super Giants':         'LSG',
 }
 
 interface PlayerRowProps {
@@ -42,7 +43,7 @@ interface PlayerRowProps {
 }
 
 export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, rightElement, backgroundColor, borderColor }: PlayerRowProps) {
-  const roleColor = roleColors[role] ?? '#6b7280'
+  const roleColor = ROLE_COLORS[role] ?? TEXT_MUTED
   const roleLabel = roleLabels[role] ?? role
 
   const inner = (
@@ -57,16 +58,16 @@ export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, r
       {/* Name (+ OS badge) and team */}
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <Text style={{ color: '#111827', fontWeight: '600', fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
             {name}
           </Text>
           {nationality && nationality !== 'Indian' && (
-            <View style={{ backgroundColor: '#fef9c3', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, flexShrink: 0 }}>
-              <Text style={{ color: '#b45309', fontSize: 10, fontWeight: '700' }}>OS</Text>
+            <View style={{ backgroundColor: WARNING_BG, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, flexShrink: 0 }}>
+              <Text style={{ color: WARNING_DARK, fontSize: 10, fontWeight: '700' }}>OS</Text>
             </View>
           )}
         </View>
-        <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>
+        <Text style={{ color: TEXT_MUTED, fontSize: 11, marginTop: 1 }}>
           {iplTeamAbbr[iplTeam] ?? iplTeam}
         </Text>
       </View>
@@ -74,11 +75,11 @@ export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, r
       {/* Avg pts (always shown when provided) */}
       {avgPts != null ? (
         <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
-          <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
-          <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
         </View>
       ) : !rightElement ? (
-        <Text style={{ color: '#d1d5db', fontSize: 12, flexShrink: 0 }}>—</Text>
+        <Text style={{ color: TEXT_DISABLED, fontSize: 12, flexShrink: 0 }}>—</Text>
       ) : null}
 
       {/* Right element (e.g. Drop button) */}
@@ -89,10 +90,10 @@ export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, r
   const cardStyle = {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    backgroundColor: backgroundColor ?? 'white',
+    backgroundColor: backgroundColor ?? BG_CARD,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: borderColor ?? '#f3f4f6',
+    borderColor: borderColor ?? BORDER_DEFAULT,
     marginBottom: 4,
     overflow: 'hidden' as const,
   }

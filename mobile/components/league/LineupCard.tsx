@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, ReactNode } from 'react'
+import { NavButton } from '../ui/NavButton'
 import { View, Text, TouchableOpacity, Modal, ScrollView, Pressable, Dimensions, Animated } from 'react-native'
 import { calcBreakdown, type BreakdownStats } from '../ui/PointsBreakdown'
 import { PointsValue } from '../ui/PointsBreakdown'
@@ -6,6 +7,15 @@ import { PlayerDetailModal } from './PlayerDetailModal'
 import type { PlayerDetailInfo } from './PlayerDetailModal'
 import type { LineupEntry, GamePlayer, GameBreakdownData } from '../../hooks/useLineup'
 import type { IplMatch } from '../../hooks/useMatchup'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_CARD, BG_SUBTLE, BG_PAGE, BG_DARK_HEADER,
+  PRIMARY, PRIMARY_SUBTLE,
+  SUCCESS, SUCCESS_BG,
+  roleColors,
+  matchStatusColors,
+} from '../../constants/colors'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -28,8 +38,8 @@ export const ROLE_ORDER: Record<string, number> = {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a',
-  wicket_keeper: '#d97706', flex: '#6b7280',
+  ...roleColors,
+  flex: TEXT_MUTED,
 }
 const ROLE_GROUP_LABELS: Record<string, string> = {
   batsman: 'Batsmen', bowler: 'Bowlers', all_rounder: 'All-Rounders',
@@ -62,16 +72,16 @@ export function groupByRole<T>(items: T[], getRoleFn: (item: T) => string): Arra
 }
 
 export function RoleSectionHeader({ role, count }: { role: string; count: number }) {
-  const roleColor = ROLE_COLORS[role] ?? '#6b7280'
+  const roleColor = ROLE_COLORS[role] ?? TEXT_MUTED
   const roleShort = roleLabels[role] ?? role.toUpperCase()
   const groupLabel = ROLE_GROUP_LABELS[role] ?? role
   return (
-    <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
         <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{roleShort}</Text>
       </View>
-      <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
-      <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>{count}</Text>
+      <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
+      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginLeft: 'auto' }}>{count}</Text>
     </View>
   )
 }
@@ -111,7 +121,7 @@ export function formatMatchTime(m: { start_time_utc: string | null; match_date: 
 interface LineupCardProps {
   title: string
   titleSuffix?: string           // e.g. ' ★' for own
-  headerColor?: string           // default '#1f2937'
+  headerColor?: string           // default BG_DARK_HEADER
   headerAction?: ReactNode
   lineup: LineupEntry[]
   emptyMessage: string
@@ -124,7 +134,7 @@ interface LineupCardProps {
 export function LineupCard({
   title,
   titleSuffix = '',
-  headerColor = '#1f2937',
+  headerColor = BG_DARK_HEADER,
   headerAction,
   lineup,
   emptyMessage,
@@ -144,7 +154,7 @@ export function LineupCard({
 
   return (
     <>
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
         <View style={{ backgroundColor: headerColor, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 13, flex: 1 }} numberOfLines={1}>
             {title}{titleSuffix}
@@ -154,7 +164,7 @@ export function LineupCard({
 
         {lineup.length === 0 ? (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>{emptyMessage}</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>{emptyMessage}</Text>
           </View>
         ) : (
           groupByRole(lineup, e => e.slot_role).map(group => (
@@ -170,25 +180,25 @@ export function LineupCard({
                 }, 0)
 
                 return (
-                  <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                  <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 8 }}>
                       <TouchableOpacity
                         onPress={() => setSelectedPlayer({ id: entry.player_id, info: { name: entry.player_name, ipl_team: entry.player_ipl_team, role: entry.player_role } })}
                         style={{ flex: 1, paddingVertical: 11, paddingLeft: 4 }}
                       >
-                        <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                        <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
                           {entry.player_name}
                         </Text>
-                        <Text style={{ color: '#9ca3af', fontSize: 11 }}>{entry.player_ipl_team}</Text>
+                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{entry.player_ipl_team}</Text>
                       </TouchableOpacity>
                       {weekPts > 0 && (
-                        <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700', marginRight: 6 }}>
+                        <Text style={{ color: SUCCESS, fontSize: 12, fontWeight: '700', marginRight: 6 }}>
                           +{weekPts.toFixed(1)}
                         </Text>
                       )}
                       {gamesRemaining.length > 0 && (
-                        <View style={{ backgroundColor: '#fee2e2', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
-                          <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>
+                        <View style={{ backgroundColor: PRIMARY_SUBTLE, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 6 }}>
+                          <Text style={{ color: PRIMARY, fontSize: 11, fontWeight: '700' }}>
                             {gamesRemaining.length} {gamesRemaining.length === 1 ? 'game left' : 'games left'}
                           </Text>
                         </View>
@@ -197,19 +207,18 @@ export function LineupCard({
                         onPress={() => setExpanded(prev => { const s = new Set(prev); isExpanded ? s.delete(entry.id) : s.add(entry.id); return s })}
                         style={{ padding: 8 }}
                       >
-                        <Text style={{ color: '#d1d5db', fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
+                        <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>{isExpanded ? '▲' : '▼'}</Text>
                       </TouchableOpacity>
                     </View>
 
                     {isExpanded && (
-                      <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12, gap: 10 }}>
+                      <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12, gap: 10 }}>
                         {games.length === 0 ? (
-                          <Text style={{ color: '#d1d5db', fontSize: 12 }}>No games this week</Text>
+                          <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No games this week</Text>
                         ) : games.map(m => {
                           const opp = m.home_team === entry.player_ipl_team ? m.away_team : m.home_team
                           const isHome = m.home_team === entry.player_ipl_team
-                          const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : m.status === 'upcoming' ? '#1d4ed8' : '#6b7280'
-                          const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : m.status === 'upcoming' ? '#dbeafe' : '#f3f4f6'
+                          const { text: statusColor, bg: statusBg } = matchStatusColors(m.status)
                           const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : m.status === 'upcoming' ? 'NEXT' : 'UPCOMING'
                           const playerStats = getPlayerStats(m.match_id, entry.player_id)
                           return (
@@ -218,7 +227,7 @@ export function LineupCard({
                                 <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
                                   <Text style={{ color: statusColor, fontSize: 9, fontWeight: '700' }}>{statusLabel}</Text>
                                 </View>
-                                <Text style={{ color: '#374151', fontSize: 12, fontWeight: '500', flex: 1 }}>
+                                <Text style={{ color: TEXT_SECONDARY, fontSize: 12, fontWeight: '500', flex: 1 }}>
                                   {isHome ? 'vs' : '@'} {opp}
                                 </Text>
                                 {playerStats && (m.status === 'completed' || m.status === 'live') ? (
@@ -226,16 +235,16 @@ export function LineupCard({
                                     value={playerStats.points}
                                     stats={{ ...playerStats, playerRole: entry.player_role }}
                                     playerName={entry.player_name}
-                                    style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+                                    style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
                                   >
                                     {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
                                   </PointsValue>
                                 ) : (
-                                  <Text style={{ color: '#9ca3af', fontSize: 11 }}>{formatMatchTime(m)}</Text>
+                                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{formatMatchTime(m)}</Text>
                                 )}
                               </View>
                               {playerStats && (m.status === 'completed' || m.status === 'live') && (
-                                <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
+                                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
                               )}
                             </View>
                           )
@@ -364,8 +373,8 @@ export function DualLineupCard({
         && (m.status === 'completed' || m.status === 'live')
     )
 
-    const ptsBg = isBench ? '#f3f4f6' : pts > 0 ? '#f0fdf4' : pts < 0 ? '#fee2e2' : '#f3f4f6'
-    const ptsColor = isBench ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#9ca3af'
+    const ptsBg = isBench ? BG_SUBTLE : pts > 0 ? SUCCESS_BG : pts < 0 ? PRIMARY_SUBTLE : BG_SUBTLE
+    const ptsColor = isBench ? TEXT_PLACEHOLDER : pts > 0 ? SUCCESS : pts < 0 ? PRIMARY : TEXT_PLACEHOLDER
     const ptsLabel = isBench ? pts.toFixed(1) : pts > 0 ? `+${pts.toFixed(1)}` : pts < 0 ? pts.toFixed(1) : '0.0'
 
     const badges = (
@@ -383,10 +392,10 @@ export function DualLineupCard({
 
     const nameBlock = (
       <View style={{ flex: 1, alignItems: isRight ? 'flex-end' : 'flex-start' }}>
-        <Text style={{ color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+        <Text style={{ color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
           {entry.player_name}
         </Text>
-        <Text style={{ color: '#9ca3af', fontSize: 10 }} numberOfLines={1}>
+        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10 }} numberOfLines={1}>
           {teamLine}
         </Text>
       </View>
@@ -405,10 +414,10 @@ export function DualLineupCard({
 
   return (
     <>
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
         {/* Split header */}
         <View style={{ flexDirection: 'row' }}>
-          <View style={{ flex: 1, backgroundColor: '#1f2937', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, backgroundColor: BG_DARK_HEADER, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
                 {myName} ★
@@ -419,13 +428,13 @@ export function DualLineupCard({
             </View>
             {myHeaderAction}
           </View>
-          <View style={{ width: 1, backgroundColor: '#374151' }} />
-          <View style={{ flex: 1, backgroundColor: '#374151', paddingHorizontal: 12, paddingVertical: 10 }}>
+          <View style={{ width: 1, backgroundColor: TEXT_SECONDARY }} />
+          <View style={{ flex: 1, backgroundColor: TEXT_SECONDARY, paddingHorizontal: 12, paddingVertical: 10 }}>
             <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
               {oppName}
             </Text>
             {oppLineup.length === 0 && (
-              <Text style={{ color: '#9ca3af', fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
             )}
           </View>
         </View>
@@ -439,9 +448,9 @@ export function DualLineupCard({
             <View key={role}>
               <RoleSectionHeader role={role} count={Math.max(myEntries.length, oppEntries.length)} />
               {Array.from({ length: rowCount }).map((_, i) => (
-                <View key={i} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                <View key={i} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
                   <PlayerCell entry={myEntries[i] ?? null} getStats={getMyPlayerStats} side="left" />
-                  <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
+                  <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
                   <PlayerCell entry={oppEntries[i] ?? null} getStats={getOppPlayerStats} side="right" />
                 </View>
               ))}
@@ -449,19 +458,42 @@ export function DualLineupCard({
           )
         })}
 
+        {/* Starters total row */}
+        {(myLineup.length > 0 || oppLineup.length > 0) && (() => {
+          const myTotal = myLineup.reduce((sum, e) => sum + weekPts(e, getMyPlayerStats), 0)
+          const oppTotal = oppLineup.reduce((sum, e) => sum + weekPts(e, getOppPlayerStats), 0)
+          const anyPoints = myTotal !== 0 || oppTotal !== 0
+          if (!anyPoints) return null
+          return (
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_MEDIUM, backgroundColor: BG_PAGE, paddingVertical: 9 }}>
+              <View style={{ flex: 1, paddingHorizontal: 12, alignItems: 'flex-start', justifyContent: 'center' }}>
+                <Text style={{ color: myTotal !== 0 ? (myTotal > 0 ? SUCCESS : PRIMARY) : TEXT_PLACEHOLDER, fontWeight: '800', fontSize: 13 }}>
+                  {myTotal !== 0 ? (myTotal > 0 ? `+${myTotal.toFixed(1)}` : myTotal.toFixed(1)) : '—'}
+                </Text>
+              </View>
+              <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '700', letterSpacing: 0.2, alignSelf: 'center' }}>TOTAL</Text>
+              <View style={{ flex: 1, paddingHorizontal: 12, alignItems: 'flex-end', justifyContent: 'center' }}>
+                <Text style={{ color: oppTotal !== 0 ? (oppTotal > 0 ? SUCCESS : PRIMARY) : TEXT_PLACEHOLDER, fontWeight: '800', fontSize: 13 }}>
+                  {oppTotal !== 0 ? (oppTotal > 0 ? `+${oppTotal.toFixed(1)}` : oppTotal.toFixed(1)) : '—'}
+                </Text>
+              </View>
+            </View>
+          )
+        })()}
+
         {/* Bench */}
         {(myBench.length > 0 || oppBench.length > 0) && (
           <View>
-            <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>BENCH</Text>
-              <Text style={{ color: '#d1d5db', fontSize: 11, marginLeft: 'auto' }}>
+            <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingVertical: 7, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>BENCH</Text>
+              <Text style={{ color: TEXT_DISABLED, fontSize: 11, marginLeft: 'auto' }}>
                 {Math.max(myBench.length, oppBench.length)}
               </Text>
             </View>
             {Array.from({ length: Math.max(myBench.length, oppBench.length) }).map((_, i) => (
-              <View key={i} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+              <View key={i} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
                 <PlayerCell entry={myBench[i] ?? null} getStats={getMyPlayerStats} side="left" isBench />
-                <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
+                <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
                 <PlayerCell entry={oppBench[i] ?? null} getStats={getOppPlayerStats} side="right" isBench />
               </View>
             ))}
@@ -473,31 +505,31 @@ export function DualLineupCard({
           const myPts = myOverridePoints != null ? parseFloat(String(myOverridePoints)) : null
           const oppPts = oppOverridePoints != null ? parseFloat(String(oppOverridePoints)) : null
           return (
-          <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
-            <View style={{ backgroundColor: '#f9fafb', paddingHorizontal: 16, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>BONUS</Text>
+          <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
+            <View style={{ backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>BONUS</Text>
             </View>
-            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
               {/* My override */}
               <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 10 }}>
                 {myPts != null ? (
                   <>
-                    <Text style={{ color: myPts >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 13 }}>
+                    <Text style={{ color: myPts >= 0 ? SUCCESS : PRIMARY, fontWeight: '700', fontSize: 13 }}>
                       {myPts >= 0 ? '+' : ''}{myPts.toFixed(1)} pts
                     </Text>
-                    {myOverrideNote ? <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{myOverrideNote}</Text> : null}
+                    {myOverrideNote ? <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2 }} numberOfLines={2}>{myOverrideNote}</Text> : null}
                   </>
                 ) : null}
               </View>
-              <View style={{ width: 1, backgroundColor: '#f3f4f6' }} />
+              <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
               {/* Opp override */}
               <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 10, alignItems: 'flex-end' }}>
                 {oppPts != null ? (
                   <>
-                    <Text style={{ color: oppPts >= 0 ? '#16a34a' : '#dc2626', fontWeight: '700', fontSize: 13 }}>
+                    <Text style={{ color: oppPts >= 0 ? SUCCESS : PRIMARY, fontWeight: '700', fontSize: 13 }}>
                       {oppPts >= 0 ? '+' : ''}{oppPts.toFixed(1)} pts
                     </Text>
-                    {oppOverrideNote ? <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2, textAlign: 'right' }} numberOfLines={2}>{oppOverrideNote}</Text> : null}
+                    {oppOverrideNote ? <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2, textAlign: 'right' }} numberOfLines={2}>{oppOverrideNote}</Text> : null}
                   </>
                 ) : null}
               </View>
@@ -508,7 +540,7 @@ export function DualLineupCard({
 
         {myLineup.length === 0 && oppLineup.length === 0 && (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>No lineups set yet</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>No lineups set yet</Text>
           </View>
         )}
       </View>
@@ -528,28 +560,19 @@ export function DualLineupCard({
           </Animated.View>
           <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
           <View>
-            <View style={{ backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36, ...(activePage === 'breakdown' ? { height: screenHeight * 0.5 } : {}) }}>
+            <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36, ...(activePage === 'breakdown' ? { height: screenHeight * 0.5 } : {}) }}>
               {/* Handle */}
               <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
-                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#e5e7eb' }} />
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER_MEDIUM }} />
               </View>
               {/* Header — changes per page */}
-              <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {breakdown && (
-                  <TouchableOpacity onPress={closeBreakdown} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Text style={{ fontSize: 18, color: '#6b7280' }}>‹</Text>
-                  </TouchableOpacity>
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                    {breakdown ? 'Points Breakdown' : weekModal?.entry.player_name}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                    {breakdown
-                      ? `${weekModal?.entry.player_name} · ${breakdown.matchDesc}`
-                      : `${TEAM_ABBREV[weekModal?.entry.player_ipl_team ?? ''] ?? weekModal?.entry.player_ipl_team} · This week`}
-                  </Text>
-                </View>
+              <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, flexDirection: 'row', alignItems: 'center' }}>
+                {breakdown
+                  ? <NavButton label="← Back" onPress={closeBreakdown} />
+                  : <View style={{ flex: 1 }} />
+                }
+                <View style={{ flex: 1 }} />
+                <NavButton label="Close" onPress={closeWeekModal} />
               </View>
 
               {/* Page 1 — games (auto height, no scroll) */}
@@ -558,13 +581,18 @@ export function DualLineupCard({
                 const games = weekMatches.filter(m => m.home_team === entry.player_ipl_team || m.away_team === entry.player_ipl_team)
                 return (
                   <View style={{ padding: 16, gap: 12 }}>
+                    <View>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_PRIMARY }}>{entry.player_name}</Text>
+                      <Text style={{ fontSize: 12, color: TEXT_PLACEHOLDER, marginTop: 2 }}>
+                        {TEAM_ABBREV[entry.player_ipl_team] ?? entry.player_ipl_team} · This week
+                      </Text>
+                    </View>
                     {games.length === 0 ? (
-                      <Text style={{ color: '#d1d5db', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No games this week</Text>
+                      <Text style={{ color: TEXT_DISABLED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No games this week</Text>
                     ) : games.map(m => {
                       const opp = m.home_team === entry.player_ipl_team ? m.away_team : m.home_team
                       const isHome = m.home_team === entry.player_ipl_team
-                      const statusColor = m.status === 'live' ? '#b45309' : m.status === 'completed' ? '#16a34a' : m.status === 'upcoming' ? '#1d4ed8' : '#6b7280'
-                      const statusBg = m.status === 'live' ? '#fef9c3' : m.status === 'completed' ? '#f0fdf4' : m.status === 'upcoming' ? '#dbeafe' : '#f3f4f6'
+                      const { text: statusColor, bg: statusBg } = matchStatusColors(m.status)
                       const statusLabel = m.status === 'live' ? 'LIVE' : m.status === 'completed' ? 'FINAL' : m.status === 'upcoming' ? 'NEXT' : 'UPCOMING'
                       const playerStats = getStats(m.match_id, entry.player_id)
                       const hasStats = playerStats && (m.status === 'completed' || m.status === 'live')
@@ -574,21 +602,21 @@ export function DualLineupCard({
                             <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
                               <Text style={{ color: statusColor, fontSize: 9, fontWeight: '700' }}>{statusLabel}</Text>
                             </View>
-                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '500', flex: 1 }}>
+                            <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '500', flex: 1 }}>
                               {isHome ? 'vs' : '@'} {opp}
                             </Text>
                             {hasStats ? (
                               <TouchableOpacity onPress={() => openBreakdown({ ...playerStats, playerRole: entry.player_role }, playerStats.points, `${isHome ? 'vs' : '@'} ${opp}`)}>
-                                <Text style={{ color: playerStats.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 13, fontWeight: '700' }}>
+                                <Text style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
                                   {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'} ›
                                 </Text>
                               </TouchableOpacity>
                             ) : (
-                              <Text style={{ color: '#9ca3af', fontSize: 12 }}>{formatMatchTime(m)}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>{formatMatchTime(m)}</Text>
                             )}
                           </View>
                           {hasStats && (
-                            <Text style={{ color: '#9ca3af', fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
+                            <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 2 }}>{statLine(playerStats)}</Text>
                           )}
                         </View>
                       )
@@ -605,33 +633,39 @@ export function DualLineupCard({
                     contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
                     showsVerticalScrollIndicator={false}
                   >
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_PRIMARY }}>Points Breakdown</Text>
+                      <Text style={{ fontSize: 12, color: TEXT_PLACEHOLDER, marginTop: 2 }}>
+                        {weekModal?.entry.player_name} · {breakdown.matchDesc}
+                      </Text>
+                    </View>
                     {(() => {
                       const items = calcBreakdown(breakdown.stats)
                       const sections = (['General', 'Batting', 'Bowling', 'Fielding'] as const).filter(sec => items.some(i => i.section === sec))
                       if (items.length === 0) return (
-                        <Text style={{ color: '#9ca3af', fontSize: 14, textAlign: 'center', paddingVertical: 24 }}>No stats recorded</Text>
+                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14, textAlign: 'center', paddingVertical: 24 }}>No stats recorded</Text>
                       )
                       return (
                         <>
                           {sections.map(sec => (
                             <View key={sec} style={{ marginBottom: 14 }}>
-                              <Text style={{ color: '#9ca3af', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 }}>{sec.toUpperCase()}</Text>
+                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 }}>{sec.toUpperCase()}</Text>
                               {items.filter(i => i.section === sec).map((item, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#f9fafb' }}>
+                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: BG_PAGE }}>
                                   <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#374151', fontSize: 13, fontWeight: '500' }}>{item.label}</Text>
-                                    <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.detail}</Text>
+                                    <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '500' }}>{item.label}</Text>
+                                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.detail}</Text>
                                   </View>
-                                  <Text style={{ fontSize: 13, fontWeight: '700', minWidth: 36, textAlign: 'right', color: item.pts > 0 ? '#16a34a' : item.pts < 0 ? '#dc2626' : '#9ca3af' }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', minWidth: 36, textAlign: 'right', color: item.pts > 0 ? SUCCESS : item.pts < 0 ? PRIMARY : TEXT_PLACEHOLDER }}>
                                     {item.pts > 0 ? `+${item.pts}` : item.pts}
                                   </Text>
                                 </View>
                               ))}
                             </View>
                           ))}
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 2, borderTopColor: '#f3f4f6' }}>
-                            <Text style={{ flex: 1, color: '#111827', fontSize: 14, fontWeight: '700' }}>Total</Text>
-                            <Text style={{ fontSize: 16, fontWeight: '800', color: breakdown.total > 0 ? '#16a34a' : '#9ca3af' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 2, borderTopColor: BORDER_DEFAULT }}>
+                            <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 14, fontWeight: '700' }}>Total</Text>
+                            <Text style={{ fontSize: 16, fontWeight: '800', color: breakdown.total > 0 ? SUCCESS : TEXT_PLACEHOLDER }}>
                               {breakdown.total > 0 ? `+${breakdown.total.toFixed(1)}` : breakdown.total.toFixed(1)}
                             </Text>
                           </View>

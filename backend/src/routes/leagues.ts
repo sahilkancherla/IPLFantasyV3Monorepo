@@ -119,6 +119,40 @@ export async function leagueRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ league, member })
   })
 
+  // PATCH /leagues/:id/limits — admin updates squad/roster limits
+  app.patch<{ Params: { id: string } }>('/leagues/:id/limits', async (req, reply) => {
+    const { id } = req.params
+    const league = await getLeagueById(id)
+    if (!league) return reply.code(404).send({ error: 'League not found' })
+    if (league.admin_id !== req.authUser!.id) return reply.code(403).send({ error: 'Admin only' })
+
+    const body = z.object({
+      maxTeams:          z.number().int().min(2).max(20).optional(),
+      rosterSize:        z.number().int().min(1).max(30).optional(),
+      maxBatsmen:        z.number().int().min(0).max(20).optional(),
+      maxWicketKeepers:  z.number().int().min(0).max(10).optional(),
+      maxAllRounders:    z.number().int().min(0).max(20).optional(),
+      maxBowlers:        z.number().int().min(0).max(20).optional(),
+    }).safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() })
+
+    const d = body.data
+    const { pool } = await import('../db/client.js')
+    await pool.query(
+      `UPDATE leagues SET
+        max_teams          = COALESCE($1, max_teams),
+        roster_size        = COALESCE($2, roster_size),
+        max_batsmen        = COALESCE($3, max_batsmen),
+        max_wicket_keepers = COALESCE($4, max_wicket_keepers),
+        max_all_rounders   = COALESCE($5, max_all_rounders),
+        max_bowlers        = COALESCE($6, max_bowlers)
+       WHERE id = $7`,
+      [d.maxTeams ?? null, d.rosterSize ?? null, d.maxBatsmen ?? null,
+       d.maxWicketKeepers ?? null, d.maxAllRounders ?? null, d.maxBowlers ?? null, id]
+    )
+    return reply.send({ ok: true })
+  })
+
   // PATCH /leagues/:id/name — admin renames the league
   app.patch<{ Params: { id: string } }>('/leagues/:id/name', async (req, reply) => {
     const { id } = req.params

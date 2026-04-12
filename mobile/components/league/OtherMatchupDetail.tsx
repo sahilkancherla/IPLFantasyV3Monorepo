@@ -6,6 +6,7 @@ import type { Matchup, IplWeek } from '../../hooks/useMatchup'
 import { ROLE_ORDER } from './LineupCard'
 import { useAllTeams } from '../../hooks/useTeam'
 import { MatchupView } from './MatchupView'
+import { PRIMARY_SOFT } from '../../constants/colors'
 
 function sortByRole<T extends { slot_role?: string; playerRole?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) =>
@@ -83,7 +84,7 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
       getMyPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.myPlayers.find(p => p.playerId === playerId)}
       getOppPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)}
       width={width}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor="#ef4444" />}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={PRIMARY_SOFT} />}
     />
   )
 }

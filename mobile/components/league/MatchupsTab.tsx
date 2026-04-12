@@ -4,6 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MatchupSlide } from './MatchupSlide'
 import { OtherMatchupDetail } from './OtherMatchupDetail'
 import type { Matchup, IplWeek } from '../../hooks/useMatchup'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_PAGE, BG_CARD, BG_SUBTLE,
+  PRIMARY, PRIMARY_SOFT, PRIMARY_TINT,
+} from '../../constants/colors'
 
 interface Props {
   leagueId: string
@@ -42,24 +48,24 @@ function MatchupChip({
         paddingVertical: 9,
         borderRadius: 14,
         borderWidth: selected ? 2 : 1.5,
-        borderColor: selected ? '#ef4444' : '#e5e7eb',
-        backgroundColor: selected ? '#fff1f2' : 'white',
+        borderColor: selected ? PRIMARY_SOFT : BORDER_MEDIUM,
+        backgroundColor: selected ? PRIMARY_TINT : BG_CARD,
         alignItems: 'center',
         justifyContent: 'center',
         gap: 3,
       }}
     >
       {isMine && (
-        <Text style={{ fontSize: 9, fontWeight: '700', color: '#ef4444', letterSpacing: 0.4 }}>
+        <Text style={{ fontSize: 9, fontWeight: '700', color: PRIMARY_SOFT, letterSpacing: 0.4 }}>
           YOUR MATCHUP
         </Text>
       )}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 58 }} numberOfLines={2}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'center', width: 58 }} numberOfLines={2}>
           {leftFirst}
         </Text>
-        <Text style={{ fontSize: 10, color: '#9ca3af' }}>vs</Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827', textAlign: 'center', width: 58 }} numberOfLines={2}>
+        <Text style={{ fontSize: 10, color: TEXT_PLACEHOLDER }}>vs</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_PRIMARY, textAlign: 'center', width: 58 }} numberOfLines={2}>
           {rightFirst}
         </Text>
       </View>
@@ -67,7 +73,7 @@ function MatchupChip({
         const hp = parseFloat(String(matchup.home_points)) || 0
         const ap = parseFloat(String(matchup.away_points)) || 0
         return (hp > 0 || ap > 0 || matchup.is_final || !isMine) ? (
-          <Text style={{ fontSize: 10, color: '#6b7280', textAlign: 'center' }}>
+          <Text style={{ fontSize: 10, color: TEXT_MUTED, textAlign: 'center' }}>
             {hp.toFixed(1)}–{ap.toFixed(1)}
           </Text>
         ) : null
@@ -138,23 +144,23 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
     return (
       <View style={{ flex: 1 }}>
         {/* Skeleton strip */}
-        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: 'white', flexDirection: 'row', paddingHorizontal: 16, gap: 10 }}>
+        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, backgroundColor: BG_CARD, flexDirection: 'row', paddingHorizontal: 16, gap: 10 }}>
           {[0, 1, 2].map(i => (
-            <View key={i} style={{ width: 130, height: 60, borderRadius: 14, backgroundColor: '#f3f4f6' }} />
+            <View key={i} style={{ width: 130, height: 60, borderRadius: 14, backgroundColor: BG_SUBTLE }} />
           ))}
         </View>
         {/* Skeleton content */}
         <View style={{ flex: 1, padding: 20, gap: 14 }}>
-          <View style={{ height: 28, width: 160, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
-          <View style={{ height: 140, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
-          <View style={{ height: 80, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
-          <View style={{ height: 200, borderRadius: 16, backgroundColor: '#f3f4f6' }} />
+          <View style={{ height: 28, width: 160, borderRadius: 8, backgroundColor: BG_SUBTLE }} />
+          <View style={{ height: 140, borderRadius: 16, backgroundColor: BG_SUBTLE }} />
+          <View style={{ height: 80, borderRadius: 16, backgroundColor: BG_SUBTLE }} />
+          <View style={{ height: 200, borderRadius: 16, backgroundColor: BG_SUBTLE }} />
         </View>
         {/* Skeleton nav */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: 'white' }}>
-          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
-          <View style={{ width: 80, height: 20, borderRadius: 8, backgroundColor: '#f3f4f6' }} />
-          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: '#f3f4f6' }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, backgroundColor: BG_CARD, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 8 }}>
+          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: BG_SUBTLE }} />
+          <View style={{ width: 80, height: 20, borderRadius: 8, backgroundColor: BG_SUBTLE }} />
+          <View style={{ width: 80, height: 36, borderRadius: 20, backgroundColor: BG_SUBTLE }} />
         </View>
       </View>
     )
@@ -164,8 +170,8 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
         <Text style={{ fontSize: 40 }}>📅</Text>
-        <Text style={{ color: '#111827', fontSize: 17, fontWeight: '700' }}>No schedule yet</Text>
-        <Text style={{ color: '#9ca3af', fontSize: 14 }}>Generate the schedule from the Admin tab</Text>
+        <Text style={{ color: TEXT_PRIMARY, fontSize: 17, fontWeight: '700' }}>No schedule yet</Text>
+        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>Generate the schedule from the Admin tab</Text>
       </View>
     )
   }
@@ -177,7 +183,7 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
     <View style={{ flex: 1 }}>
       {/* ── Horizontal matchup strip ── */}
       {weekAllMatchups.length > 0 && (
-        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: 'white' }}>
+        <View style={{ paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, backgroundColor: BG_CARD }}>
           <ScrollView
             ref={stripRef}
             horizontal
@@ -246,7 +252,9 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
       <View style={{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 + bottomInset,
-        borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: 'white',
+        borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, backgroundColor: BG_CARD,
+        shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 6,
+        elevation: 8,
       }}>
         <TouchableOpacity
           onPress={() => goTo(currentIndex - 1)}
@@ -254,13 +262,13 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 4,
             paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-            backgroundColor: isFirst ? '#f9fafb' : '#f3f4f6',
+            backgroundColor: isFirst ? BG_PAGE : BG_SUBTLE,
           }}
         >
-          <Text style={{ color: isFirst ? '#d1d5db' : '#374151', fontWeight: '600', fontSize: 14 }}>← Prev</Text>
+          <Text style={{ color: isFirst ? TEXT_DISABLED : TEXT_SECONDARY, fontWeight: '600', fontSize: 14 }}>← Prev</Text>
         </TouchableOpacity>
 
-        <Text style={{ color: '#6b7280', fontSize: 13, fontWeight: '500' }}>
+        <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: '500' }}>
           Week {slides[currentIndex]?.week.week_num} of {slides[slides.length - 1]?.week.week_num}
         </Text>
 
@@ -270,10 +278,10 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 4,
             paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-            backgroundColor: isLast ? '#f9fafb' : '#f3f4f6',
+            backgroundColor: isLast ? BG_PAGE : BG_SUBTLE,
           }}
         >
-          <Text style={{ color: isLast ? '#d1d5db' : '#374151', fontWeight: '600', fontSize: 14 }}>Next →</Text>
+          <Text style={{ color: isLast ? TEXT_DISABLED : TEXT_SECONDARY, fontWeight: '600', fontSize: 14 }}>Next →</Text>
         </TouchableOpacity>
       </View>
     </View>

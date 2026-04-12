@@ -1,20 +1,51 @@
-import { TextInput as RNTextInput, Text, View, type TextInputProps } from 'react-native'
+import { TextInput as RNTextInput, Text, View, StyleSheet, type TextInputProps } from 'react-native'
+import {
+  TEXT_PRIMARY, TEXT_MUTED, TEXT_PLACEHOLDER,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_SUBTLE,
+} from '../../constants/colors'
 
 interface InputProps extends TextInputProps {
   label?: string
   error?: string
 }
 
-export function TextInput({ label, error, ...props }: InputProps) {
+export function TextInput({ label, error, style, ...props }: InputProps) {
   return (
-    <View className="gap-1.5">
-      {label && <Text className="text-gray-600 text-sm font-medium">{label}</Text>}
+    <View style={{ gap: 6 }}>
+      {label && <Text style={s.label}>{label}</Text>}
       <RNTextInput
-        className={`bg-gray-100 text-gray-900 rounded-xl px-4 py-3 text-base border ${error ? 'border-red-400' : 'border-gray-200'}`}
-        placeholderTextColor="#9ca3af"
+        style={[s.input, error ? s.inputError : null, style]}
+        placeholderTextColor={TEXT_PLACEHOLDER}
         {...props}
       />
-      {error && <Text className="text-red-500 text-xs">{error}</Text>}
+      {error && <Text style={s.error}>{error}</Text>}
     </View>
   )
 }
+
+const s = StyleSheet.create({
+  label: {
+    color: TEXT_MUTED,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  input: {
+    backgroundColor: BG_SUBTLE,
+    color: TEXT_PRIMARY,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    letterSpacing: 0,
+    borderWidth: 1,
+    borderColor: BORDER_DEFAULT,
+  },
+  inputError: {
+    borderColor: '#f87171',
+  },
+  error: {
+    color: '#ef4444',
+    fontSize: 12,
+  },
+})

@@ -9,6 +9,18 @@ import type { LineupEntry, GameBreakdownData, GamePlayer } from '../../hooks/use
 import { DualLineupCard, statLine, ROLE_ORDER } from './LineupCard'
 import type { BenchEntry } from './LineupCard'
 import { PointsValue } from '../ui/PointsBreakdown'
+import {
+  TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT, BORDER_MEDIUM,
+  BG_CARD, BG_SUBTLE, BG_DARK_HEADER,
+  PRIMARY, PRIMARY_SOFT, PRIMARY_SUBTLE,
+  SUCCESS, SUCCESS_BG,
+  WARNING, WARNING_DARK, WARNING_DARKER, WARNING_URGENT, WARNING_BG, WARNING_BORDER, WARNING_SUBTLE, WARNING_URGENT_BG, WARNING_URGENT_BORDER,
+  INFO_DARK, INFO_SUBTLE,
+  STATUS_LIVE_TEXT, STATUS_LIVE_BG, STATUS_COMPLETED_TEXT, STATUS_COMPLETED_BG,
+  STATUS_UPCOMING_TEXT, STATUS_UPCOMING_BG, STATUS_PENDING_TEXT, STATUS_PENDING_BG,
+  matchStatusColors,
+} from '../../constants/colors'
 
 const roleLabels: Record<string, string> = {
   batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
@@ -57,18 +69,18 @@ function LineupWarningBanner({ lockTime, onSetLineup }: { lockTime: string; onSe
 
   return (
     <View style={{
-      backgroundColor: urgent ? '#fff7ed' : '#fffbeb',
+      backgroundColor: urgent ? WARNING_URGENT_BG : WARNING_SUBTLE,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: urgent ? '#fed7aa' : '#fde68a',
+      borderColor: urgent ? WARNING_URGENT_BORDER : WARNING_BORDER,
       padding: 14,
       gap: 10,
     }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <View style={{ backgroundColor: urgent ? '#ea580c' : '#d97706', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+        <View style={{ backgroundColor: urgent ? WARNING_URGENT : WARNING, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
           <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>LINEUP NOT SET</Text>
         </View>
-        <Text style={{ color: urgent ? '#9a3412' : '#92400e', fontSize: 12, fontWeight: '600' }}>
+        <Text style={{ color: urgent ? '#9a3412' : WARNING_DARKER, fontSize: 12, fontWeight: '600' }}>
           Locks in {countdown}
         </Text>
       </View>
@@ -77,7 +89,7 @@ function LineupWarningBanner({ lockTime, onSetLineup }: { lockTime: string; onSe
       </Text>
       <TouchableOpacity
         onPress={onSetLineup}
-        style={{ backgroundColor: urgent ? '#ea580c' : '#d97706', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
+        style={{ backgroundColor: urgent ? WARNING_URGENT : WARNING, borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}
       >
         <Text style={{ color: 'white', fontWeight: '700', fontSize: 14 }}>Set Lineup</Text>
       </TouchableOpacity>
@@ -97,14 +109,7 @@ interface GameCardProps {
 
 function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProps) {
   const matchStatus = item.status
-  const statusBg = matchStatus === 'live' ? '#fef9c3'
-    : matchStatus === 'completed' ? '#f0fdf4'
-    : matchStatus === 'upcoming' ? '#dbeafe'
-    : '#f3f4f6'
-  const statusColor = matchStatus === 'live' ? '#b45309'
-    : matchStatus === 'completed' ? '#16a34a'
-    : matchStatus === 'upcoming' ? '#1d4ed8'
-    : '#6b7280'
+  const { bg: statusBg, text: statusColor } = matchStatusColors(matchStatus)
   const sLabel = matchStatus === 'live' ? 'LIVE'
     : matchStatus === 'completed' ? 'FINAL'
     : matchStatus === 'upcoming' ? 'NEXT'
@@ -119,64 +124,64 @@ function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProp
   const hasPlayers = myPlayers.length > 0 || oppPlayers.length > 0
 
   return (
-    <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, gap: 10 }}>
+    <View style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, padding: 14, gap: 10 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ backgroundColor: statusBg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
           <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{sLabel}</Text>
         </View>
         {item.match_number != null && (
-          <Text style={{ color: '#d1d5db', fontSize: 11 }}>Match {item.match_number}</Text>
+          <Text style={{ color: TEXT_DISABLED, fontSize: 11 }}>Match {item.match_number}</Text>
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
           {item.home_team}
         </Text>
-        <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 12 }}>vs</Text>
-        <Text style={{ flex: 1, color: '#111827', fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+        <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 12 }}>vs</Text>
+        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
           {item.away_team}
         </Text>
       </View>
       <View style={{ gap: 2 }}>
-        <Text style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>{dateStr}</Text>
+        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{dateStr}</Text>
         {item.venue != null && (
-          <Text style={{ color: '#d1d5db', fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
+          <Text style={{ color: TEXT_DISABLED, fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
             {item.venue}
           </Text>
         )}
       </View>
-      <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, gap: 10 }}>
+      <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 10, gap: 10 }}>
         {!hasPlayers ? (
           <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
-            <Text style={{ color: '#d1d5db', fontSize: 12 }}>No players in this game</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No players in this game</Text>
           </View>
         ) : (
           [
-            { players: myPlayers, label: myName, labelColor: '#dc2626' },
-            { players: oppPlayers, label: oppName, labelColor: '#6b7280' },
+            { players: myPlayers, label: myName, labelColor: PRIMARY },
+            { players: oppPlayers, label: oppName, labelColor: TEXT_MUTED },
           ].map(({ players, label, labelColor }) => players.length > 0 && (
             <View key={label} style={{ gap: 6 }}>
               <Text style={{ color: labelColor, fontSize: 10, fontWeight: '700' }}>{label}</Text>
               {players.map(p => (
                 <View key={p.playerId} style={{ gap: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', width: 28 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
                       {roleLabels[p.playerRole] ?? p.playerRole}
                     </Text>
-                    <Text style={{ flex: 1, color: '#111827', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                    <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                       {p.playerName}
                     </Text>
                     <PointsValue
                       value={p.points}
                       stats={{ ...p, playerRole: p.playerRole }}
                       playerName={p.playerName}
-                      style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
+                      style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
                     >
                       {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
                     </PointsValue>
                   </View>
                   {(matchStatus === 'live' || matchStatus === 'completed') && statLine(p) !== '' && (
-                    <Text style={{ color: '#9ca3af', fontSize: 11 }}>{statLine(p)}</Text>
+                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{statLine(p)}</Text>
                   )}
                 </View>
               ))}
@@ -301,15 +306,15 @@ export function MatchupView({
 
   const statusLabel = isPending ? 'UPCOMING' : isLive ? 'LIVE' : 'FINAL'
   const statusStyle = isPending
-    ? { bg: '#f3f4f6', color: '#6b7280' }
+    ? { bg: STATUS_PENDING_BG, color: STATUS_PENDING_TEXT }
     : isLive
-    ? { bg: '#fef9c3', color: '#b45309' }
-    : { bg: '#f0fdf4', color: '#16a34a' }
+    ? { bg: STATUS_LIVE_BG, color: STATUS_LIVE_TEXT }
+    : { bg: STATUS_COMPLETED_BG, color: STATUS_COMPLETED_TEXT }
   const resultStyle = result === 'WIN'
-    ? { bg: '#d1fae5', color: '#16a34a' }
+    ? { bg: '#d1fae5', color: SUCCESS }
     : result === 'LOSS'
-    ? { bg: '#fee2e2', color: '#dc2626' }
-    : { bg: '#f3f4f6', color: '#6b7280' }
+    ? { bg: PRIMARY_SUBTLE, color: PRIMARY }
+    : { bg: BG_SUBTLE, color: TEXT_MUTED }
 
   // Build per-card props once so both the measurement layer and carousel share
   // the same derived data without duplicating the derivation logic.
@@ -317,8 +322,8 @@ export function MatchupView({
     const bd = breakdownByMatchId.get(item.match_id)
     return {
       item,
-      myPlayers: sortByRole(bd?.myPlayers ?? []),
-      oppPlayers: sortByRole(bd?.oppPlayers ?? []),
+      myPlayers: sortByRole((bd?.myPlayers ?? []).filter(p => p.slotRole !== 'bench')),
+      oppPlayers: sortByRole((bd?.oppPlayers ?? []).filter(p => p.slotRole !== 'bench')),
     }
   }) ?? []
 
@@ -337,10 +342,10 @@ export function MatchupView({
       {/* Week header */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }} numberOfLines={1}>
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 17 }} numberOfLines={1}>
             {week.label}
           </Text>
-          <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12, marginTop: 2 }}>
             {formatWeekDate(week.window_start)} – {formatWeekDate(week.window_end)}
           </Text>
         </View>
@@ -355,8 +360,8 @@ export function MatchupView({
       )}
 
       {/* Score overview */}
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-        <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+        <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>Overview</Text>
           {result && (
             <View style={{ backgroundColor: resultStyle.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -368,49 +373,49 @@ export function MatchupView({
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
               <View style={{ alignItems: 'center', gap: 1 }}>
-                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 14, textAlign: 'center' }}>
+                <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 14, textAlign: 'center' }}>
                   {myName} ★
                 </Text>
                 {myUsername && (
-                  <Text style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>{myUsername}</Text>
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{myUsername}</Text>
                 )}
               </View>
-              <Text style={{ color: '#dc2626', fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
+              <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
                 {Number(myPoints).toFixed(1)}
               </Text>
-              <Text style={{ color: '#9ca3af', fontSize: 12 }}>pts</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>pts</Text>
             </View>
             <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
-              <Text style={{ color: '#d1d5db', fontWeight: '700', fontSize: 18 }}>VS</Text>
+              <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 18 }}>VS</Text>
             </View>
             <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
               <View style={{ alignItems: 'center', gap: 1 }}>
-                <Text style={{ color: '#111827', fontWeight: '600', fontSize: 14, textAlign: 'center' }}>
+                <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14, textAlign: 'center' }}>
                   {oppName}
                 </Text>
                 {oppUsername && (
-                  <Text style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>{oppUsername}</Text>
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{oppUsername}</Text>
                 )}
               </View>
-              <Text style={{ color: '#374151', fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
+              <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
                 {Number(oppPoints).toFixed(1)}
               </Text>
-              <Text style={{ color: '#9ca3af', fontSize: 12 }}>pts</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>pts</Text>
             </View>
           </View>
         </View>
       </View>
 
       {/* IPL Games carousel */}
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
-        <View style={{ backgroundColor: '#1f2937', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
+        <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
             IPL Games This Week{weekMatches && weekMatches.length > 0 ? ` · ${weekMatches.length}` : ''}
           </Text>
           {onExpandGames && weekMatches && weekMatches.length > 0 && (
             <TouchableOpacity
               onPress={onExpandGames}
-              style={{ backgroundColor: '#dc2626', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+              style={{ backgroundColor: PRIMARY, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
             >
               <Text style={{ color: 'white', fontSize: 11, fontWeight: '700' }}>Expand</Text>
             </TouchableOpacity>
@@ -418,11 +423,11 @@ export function MatchupView({
         </View>
         {!weekMatches ? (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>Loading…</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>Loading…</Text>
           </View>
         ) : weekMatches.length === 0 ? (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#d1d5db', fontSize: 13 }}>No games scheduled this week</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>No games scheduled this week</Text>
           </View>
         ) : (
           <View style={{ padding: 12, gap: 8 }}>
@@ -436,7 +441,7 @@ export function MatchupView({
                     <View style={{
                       width: i === activeGameIndex ? 16 : 6,
                       height: 6, borderRadius: 3,
-                      backgroundColor: i === activeGameIndex ? '#dc2626' : '#e5e7eb',
+                      backgroundColor: i === activeGameIndex ? PRIMARY : BORDER_MEDIUM,
                     }} />
                   </TouchableOpacity>
                 ))}
@@ -458,7 +463,7 @@ export function MatchupView({
 
             {!carouselReady ? (
               <View style={{ height: 80, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator color="#dc2626" />
+                <ActivityIndicator color={PRIMARY} />
               </View>
             ) : (
               <Animated.View style={{ height: carouselHeight, overflow: 'hidden' }}>
@@ -472,7 +477,6 @@ export function MatchupView({
                   onScroll={onGameScroll}
                   style={{ width: width - 64 }}
                   contentContainerStyle={{ alignItems: 'flex-start' }}
-                  contentOffset={{ x: activeGameIndex * (width - 64), y: 0 }}
                 >
                   {cardProps.map(({ item, myPlayers, oppPlayers }, idx) => (
                     <View key={item.id} style={{ width: width - 64 }} onLayout={recordHeight(idx)}>
@@ -488,8 +492,8 @@ export function MatchupView({
 
       {/* Lineup lock time — only shown when lineupLocked is explicitly false */}
       {lineupLocked === false && (
-        <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#f3f4f6', padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: '#6b7280', fontSize: 13 }}>
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, padding: 14, alignItems: 'center' }}>
+          <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>
             Lineups lock {new Date(week.lock_time).toLocaleString('en-US', {
               weekday: 'short', month: 'short', day: 'numeric',
               hour: 'numeric', minute: '2-digit', timeZoneName: 'short',

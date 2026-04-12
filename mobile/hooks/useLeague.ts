@@ -81,6 +81,25 @@ export function useRenameLeague() {
   })
 }
 
+export function useUpdateLeagueLimits() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ leagueId, ...limits }: {
+      leagueId: string
+      maxTeams?: number
+      rosterSize?: number
+      maxBatsmen?: number
+      maxWicketKeepers?: number
+      maxAllRounders?: number
+      maxBowlers?: number
+    }) => api.patch(`/leagues/${leagueId}/limits`, limits),
+    onSuccess: (_data, { leagueId }) => {
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['leagues'] })
+    },
+  })
+}
+
 export function useUpdateTeamName() {
   const queryClient = useQueryClient()
 

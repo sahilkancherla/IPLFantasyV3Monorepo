@@ -1,6 +1,5 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import type { FreeAgent } from '../../hooks/useWaivers'
-import { formatCurrency, type Currency } from '../../lib/currency'
 
 const ROLE_COLOR: Record<string, string> = {
   batsman:       'text-blue-600',
@@ -12,10 +11,9 @@ const ROLE_COLOR: Record<string, string> = {
 interface Props {
   player: FreeAgent
   onClaim?: (player: FreeAgent) => void
-  currency?: Currency
 }
 
-export function WaiverPlayerCard({ player, onClaim, currency = 'lakhs' }: Props) {
+export function WaiverPlayerCard({ player, onClaim }: Props) {
   const roleColor = ROLE_COLOR[player.role] ?? 'text-gray-500'
 
   return (
@@ -30,17 +28,14 @@ export function WaiverPlayerCard({ player, onClaim, currency = 'lakhs' }: Props)
         </View>
       </View>
 
-      <View className="items-end gap-1">
-        <Text className="text-gray-500 text-xs">Base {formatCurrency(player.base_price, currency)}</Text>
-        {onClaim && (
-          <TouchableOpacity
-            className="bg-red-500 rounded-lg px-3 py-1.5"
-            onPress={() => onClaim(player)}
-          >
-            <Text className="text-white text-xs font-semibold">Claim</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {onClaim && (
+        <TouchableOpacity
+          className="bg-red-500 rounded-lg px-3 py-1.5"
+          onPress={() => onClaim(player)}
+        >
+          <Text className="text-white text-xs font-semibold">Claim</Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }

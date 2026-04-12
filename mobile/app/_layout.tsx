@@ -33,6 +33,17 @@ export default function RootLayout() {
     }
   }, [isLoading])
 
+  // Don't render app screens until auth state is resolved — prevents a flash
+  // where screens render with user=null (e.g. when the profile fetch in
+  // restoreSession fails and AppLayout retries it).
+  if (isLoading) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient} />
+      </GestureHandlerRootView>
+    )
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>

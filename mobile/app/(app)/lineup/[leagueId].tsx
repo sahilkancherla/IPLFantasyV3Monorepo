@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { View, Text, ScrollView, Alert, RefreshControl, Modal, TouchableOpacity, FlatList } from 'react-native'
+import { NavButton } from '../../../components/ui/NavButton'
 import { LoadingScreen } from '../../../components/ui/Loading'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { FormationGrid } from '../../../components/lineup/FormationGrid'
@@ -188,15 +189,14 @@ export default function LineupScreen() {
       {/* Player Picker Modal */}
       <Modal visible={pickerVisible} animationType="slide" transparent>
         <View className="flex-1 justify-end">
-          <View className="bg-white rounded-t-3xl p-4 gap-4 max-h-[70%] border border-gray-100 shadow-sm">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-gray-900 font-bold text-lg">
-                Pick {pickerRole.replace('_', ' ')}
-              </Text>
-              <TouchableOpacity onPress={() => setPickerVisible(false)}>
-                <Text className="text-red-500 font-semibold">Cancel</Text>
-              </TouchableOpacity>
+          <View className="bg-white rounded-t-3xl max-h-[70%] border border-gray-100 shadow-sm">
+            <View style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <NavButton label="Cancel" onPress={() => setPickerVisible(false)} />
             </View>
+
+            <Text style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12, fontWeight: '800', fontSize: 22, color: '#111827' }}>
+              Pick {pickerRole.replace('_', ' ')}
+            </Text>
 
             <FlatList
               data={eligiblePlayers}

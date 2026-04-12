@@ -1,4 +1,5 @@
-import { View, Text, Modal, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
+import { View, Text, Modal, ScrollView, ActivityIndicator } from 'react-native'
+import { NavButton } from '../ui/NavButton'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { usePlayerStats } from '../../hooks/useLineup'
 import type { PlayerMatchStat } from '../../hooks/useLineup'
@@ -48,18 +49,10 @@ export function PlayerStatsModal({ playerId, playerName, playerRole, playerTeam,
         {/* Header */}
         <View style={{
           backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
-          paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          paddingHorizontal: 16, paddingVertical: 14,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
         }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: '#111827', fontWeight: '700', fontSize: 17 }} numberOfLines={1}>{playerName}</Text>
-            <Text style={{ color: '#9ca3af', fontSize: 13, marginTop: 2 }}>
-              {roleLabels[playerRole] ?? playerRole} · {playerTeam}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={{ marginLeft: 16 }}>
-            <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '600' }}>Done</Text>
-          </TouchableOpacity>
+          <NavButton label="Close" onPress={onClose} />
         </View>
 
         {isLoading ? (
@@ -72,6 +65,12 @@ export function PlayerStatsModal({ playerId, playerName, playerRole, playerTeam,
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+            <View style={{ gap: 2, marginBottom: 6 }}>
+              <Text style={{ color: '#111827', fontWeight: '800', fontSize: 22 }} numberOfLines={1}>{playerName}</Text>
+              <Text style={{ color: '#9ca3af', fontSize: 13 }}>
+                {roleLabels[playerRole] ?? playerRole} · {playerTeam}
+              </Text>
+            </View>
             {stats.map((s, i) => {
               const opp = s.homeTeam === s.playerIplTeam ? s.awayTeam : s.homeTeam
               const isHome = s.homeTeam === s.playerIplTeam

@@ -3,6 +3,12 @@ import { View, Text, TouchableOpacity } from 'react-native'
 import type { RosterEntry } from '../../hooks/useTeam'
 import { formatCurrency, type Currency } from '../../lib/currency'
 import { PlayerDetailModal } from '../league/PlayerDetailModal'
+import {
+  TEXT_PRIMARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
+  BORDER_DEFAULT,
+  BG_CARD, BG_PAGE,
+  roleColors,
+} from '../../constants/colors'
 
 interface SquadGridProps {
   roster: RosterEntry[]
@@ -13,9 +19,7 @@ interface SquadGridProps {
 const ROLE_SHORT: Record<string, string> = {
   batsman: 'BAT', bowler: 'BOW', all_rounder: 'AR', wicket_keeper: 'WK',
 }
-const ROLE_COLORS: Record<string, string> = {
-  batsman: '#2563eb', bowler: '#dc2626', all_rounder: '#16a34a', wicket_keeper: '#d97706',
-}
+const ROLE_COLORS: Record<string, string> = roleColors
 const ROLE_ORDER = ['batsman', 'wicket_keeper', 'all_rounder', 'bowler']
 const ROLE_GROUP_LABELS: Record<string, string> = {
   batsman: 'Batsmen', bowler: 'Bowlers', all_rounder: 'All-Rounders', wicket_keeper: 'Wicket Keepers',
@@ -27,7 +31,7 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
   if (roster.length === 0) {
     return (
       <View style={{ paddingVertical: 48, alignItems: 'center' }}>
-        <Text style={{ color: '#9ca3af', fontSize: 15 }}>No players acquired yet</Text>
+        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 15 }}>No players acquired yet</Text>
       </View>
     )
   }
@@ -45,10 +49,10 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
 
   return (
     <>
-      <View style={{ backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: '#f3f4f6', overflow: 'hidden' }}>
+      <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
         {allGroups.map((role, groupIdx) => {
           const group = byRole[role] ?? roster.filter(r => r.player_role === role)
-          const roleColor = ROLE_COLORS[role] ?? '#6b7280'
+          const roleColor = ROLE_COLORS[role] ?? TEXT_MUTED
           const roleShort = ROLE_SHORT[role] ?? role.toUpperCase()
           const groupLabel = ROLE_GROUP_LABELS[role] ?? role
 
@@ -56,16 +60,16 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
             <View key={role}>
               {/* Role group header */}
               <View style={{
-                backgroundColor: '#f9fafb',
+                backgroundColor: BG_PAGE,
                 paddingHorizontal: 16, paddingVertical: 7,
-                borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: '#f3f4f6',
+                borderTopWidth: groupIdx === 0 ? 0 : 1, borderTopColor: BORDER_DEFAULT,
                 flexDirection: 'row', alignItems: 'center', gap: 8,
               }}>
                 <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{roleShort}</Text>
                 </View>
-                <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
-                <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 'auto' }}>
+                <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>{groupLabel}</Text>
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginLeft: 'auto' }}>
                   {group.length}
                 </Text>
               </View>
@@ -79,22 +83,22 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
                     style={{
                       flexDirection: 'row', alignItems: 'center',
                       paddingLeft: 16, paddingRight: 12,
-                      borderTopWidth: 1, borderTopColor: '#f3f4f6',
+                      borderTopWidth: 1, borderTopColor: BORDER_DEFAULT,
                     }}
                   >
                     <View style={{ flex: 1, paddingVertical: 11 }}>
-                      <Text style={{ color: '#111827', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                      <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
                         {item.player_name}
                       </Text>
-                      <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
+                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
                     </View>
                     {avgPts != null ? (
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ color: '#111827', fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
-                        <Text style={{ color: '#9ca3af', fontSize: 9, fontWeight: '500' }}>avg pts</Text>
+                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                       </View>
                     ) : (
-                      <Text style={{ color: '#d1d5db', fontSize: 12 }}>—</Text>
+                      <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>—</Text>
                     )}
                   </TouchableOpacity>
                 )
@@ -110,7 +114,8 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
           name: selectedPlayer.player_name,
           ipl_team: selectedPlayer.player_ipl_team,
           role: selectedPlayer.player_role,
-          price_paid: selectedPlayer.price_paid,
+          total_points: selectedPlayer.total_points,
+          team_games_played: selectedPlayer.team_games_played,
         } : null}
         playerId={selectedPlayer?.player_id}
         currency={currency}

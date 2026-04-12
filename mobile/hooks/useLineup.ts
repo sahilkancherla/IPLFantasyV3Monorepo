@@ -174,6 +174,8 @@ export interface PlayerMatchStat {
   startTimeUtc: string | null
   status: string
   playerIplTeam: string
+  weekNum: number | null
+  weekLabel: string | null
   points: number
   runsScored: number
   ballsFaced: number
@@ -211,6 +213,8 @@ export interface PlayerUpcomingMatch {
   status: 'pending' | 'upcoming'
   venue: string | null
   playerIplTeam: string
+  weekNum: number | null
+  weekLabel: string | null
 }
 
 export function usePlayerUpcoming(playerId: string | null) {
