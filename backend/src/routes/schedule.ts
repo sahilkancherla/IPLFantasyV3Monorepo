@@ -6,25 +6,41 @@ import { getCurrentWeek, isWeekLocked } from '../services/schedule.service.js'
 
 async function resolveCurrentMatchAndWeek(pool: import('pg').Pool) {
   const { rows: settings } = await pool.query(
-    `SELECT key, value FROM system_settings WHERE key IN ('current_week', 'current_match')`
+    `SELECT key, value FROM system_settings WHERE key = 'current_match'`
   )
   const s: Record<string, string> = {}
   for (const row of settings) s[row.key] = row.value
 
-  // Week: explicit setting → live status → date-based auto-detect
-  let currentWeekNum: number | null = s.current_week ? parseInt(s.current_week, 10) : null
-  if (!currentWeekNum) {
-    try {
-      const { rows } = await pool.query(
-        `SELECT week_num FROM ipl_weeks WHERE status = 'live' LIMIT 1`
-      )
-      currentWeekNum = rows[0]?.week_num ?? null
-    } catch { /* status column not yet migrated */ }
-  }
-  if (!currentWeekNum) {
-    // Fall back to whichever week contains today
+  // Week: window-based auto-detect using window_start / window_end
+  let currentWeekNum: number | null = null
+
+  // 1. Active fantasy window: NOW() is between window_start and window_end
+  {
     const { rows } = await pool.query(
-      `SELECT week_num FROM ipl_weeks WHERE CURRENT_DATE BETWEEN start_date AND end_date LIMIT 1`
+      `SELECT week_num FROM ipl_weeks
+       WHERE window_start IS NOT NULL AND window_end IS NOT NULL
+         AND NOW() BETWEEN window_start AND window_end
+       LIMIT 1`
+    )
+    currentWeekNum = rows[0]?.week_num ?? null
+  }
+
+  // 2. Between windows: show the next upcoming window
+  if (!currentWeekNum) {
+    const { rows } = await pool.query(
+      `SELECT week_num FROM ipl_weeks
+       WHERE window_start IS NOT NULL AND window_start > NOW()
+       ORDER BY window_start ASC LIMIT 1`
+    )
+    currentWeekNum = rows[0]?.week_num ?? null
+  }
+
+  // 3. All windows passed: show the most recently completed window
+  if (!currentWeekNum) {
+    const { rows } = await pool.query(
+      `SELECT week_num FROM ipl_weeks
+       WHERE window_end IS NOT NULL AND window_end < NOW()
+       ORDER BY window_end DESC LIMIT 1`
     )
     currentWeekNum = rows[0]?.week_num ?? null
   }

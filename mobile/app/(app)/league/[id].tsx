@@ -180,14 +180,14 @@ export default function LeagueScreen() {
     enabled: isDraftPending,
     select: (d) => d.players,
   })
-  const { data: availableData } = useAvailablePlayers((isActive || isComplete) ? id! : '')
+  const { data: availableData, refetch: refetchAvailable } = useAvailablePlayers((isActive || isComplete) ? id! : '')
   const { data: allRosters } = useAllTeams((isActive || isComplete) ? id! : '')
   const { data: leaderboard } = useLeaderboard((isActive || isComplete) ? id! : '')
   const { data: overrides } = useLeagueOverrides(id!)
   const setOverride = useSetOverride(id!)
   const deleteOverride = useDeleteOverride(id!)
   const { data: homeData, refetch: refetchHome } = useLeagueHome(id!)
-  const { data: scheduleMatchups, isLoading: matchupsLoading } = useLeagueSchedule((isActive || isComplete) ? id! : '')
+  const { data: scheduleMatchups, isLoading: matchupsLoading, refetch: refetchSchedule } = useLeagueSchedule((isActive || isComplete) ? id! : '')
   const { data: allWeeks, isLoading: weeksLoading } = useAllWeeks()
   const { data: interestData } = usePlayerInterests(isDraftPending ? id! : '')
   const toggleInterest = useToggleInterest(id!)
@@ -583,6 +583,7 @@ export default function LeagueScreen() {
             currentWeekNum={homeData?.currentWeekNum ?? null}
             isLoading={matchupsLoading || weeksLoading}
             overrides={overrides}
+            onRefreshMatchups={refetchSchedule}
           />
         )}
 
@@ -627,7 +628,7 @@ export default function LeagueScreen() {
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
               keyboardShouldPersistTaps="handled"
-              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor={PRIMARY_SOFT} />}
+              refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome(); refetchAvailable() }} tintColor={PRIMARY_SOFT} />}
             >
               {/* Filters */}
               <View style={{ gap: 10, paddingTop: 16, paddingBottom: 8 }}>

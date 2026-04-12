@@ -19,6 +19,7 @@ interface Props {
   currentWeekNum: number | null
   isLoading?: boolean
   overrides?: Array<{ user_id: string; week_num: number; points: number; note: string | null }>
+  onRefreshMatchups?: () => void
 }
 
 // ── Small card in the horizontal strip ───────────────────────────────────────
@@ -84,7 +85,7 @@ function MatchupChip({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum, isLoading, overrides }: Props) {
+export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum, isLoading, overrides, onRefreshMatchups }: Props) {
   const { width: screenWidth } = useWindowDimensions()
   const { bottom: bottomInset } = useSafeAreaInsets()
   const listRef = useRef<FlatList>(null)
@@ -243,6 +244,7 @@ export function MatchupsTab({ leagueId, userId, matchups, weeks, currentWeekNum,
               userId={userId}
               width={screenWidth}
               overrides={overrides}
+              onRefreshMatchups={onRefreshMatchups}
             />
           )}
         />

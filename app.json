@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "4d7a997e-abab-4fcf-9b46-0d09f46b09dc"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.sahilkancherla.iplfantasyv3",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

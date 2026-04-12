@@ -146,9 +146,69 @@ export function calcBreakdown(s: BreakdownStats): BreakdownItem[] {
   return items
 }
 
-// ── Modal ────────────────────────────────────────────────────────────────────
+// ── Shared breakdown content (used by both the standalone modal and inline in LineupCard) ──
 
 const SECTIONS = ['General', 'Batting', 'Bowling', 'Fielding'] as const
+
+interface BreakdownContentProps {
+  stats: BreakdownStats
+  total: number
+  playerName?: string
+  subtitle?: string
+}
+
+export function PointsBreakdownContent({ stats, total, playerName, subtitle }: BreakdownContentProps) {
+  const items = calcBreakdown(stats)
+  const sections = SECTIONS.filter(sec => items.some(i => i.section === sec))
+  const hasAny = items.length > 0
+
+  return (
+    <>
+      <View style={{ marginBottom: 16 }}>
+        <Text style={s.title}>Points Breakdown</Text>
+        {playerName ? <Text style={s.subtitle}>{playerName}</Text> : null}
+        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+      </View>
+      {!hasAny ? (
+        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No stats recorded for this match</Text>
+        </View>
+      ) : (
+        sections.map(sec => {
+          const secItems = items.filter(i => i.section === sec)
+          return (
+            <View key={sec} style={{ marginBottom: 16 }}>
+              <Text style={s.sectionLabel}>{sec.toUpperCase()}</Text>
+              {secItems.map((item, idx) => (
+                <View key={idx} style={s.row}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowLabel}>{item.label}</Text>
+                    <Text style={s.rowDetail}>{item.detail}</Text>
+                  </View>
+                  <Text style={[s.rowPts, item.pts > 0 ? s.positive : item.pts < 0 ? s.negative : s.neutral]}>
+                    {item.pts > 0 ? `+${item.pts}` : item.pts}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )
+        })
+      )}
+
+      {/* Total */}
+      {hasAny && (
+        <View style={s.totalRow}>
+          <Text style={s.totalLabel}>Total</Text>
+          <Text style={[s.totalPts, total > 0 ? s.positive : s.neutral]}>
+            {total > 0 ? `+${total.toFixed(1)}` : total.toFixed(1)}
+          </Text>
+        </View>
+      )}
+    </>
+  )
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
 
 interface ModalProps {
   visible: boolean
@@ -159,10 +219,6 @@ interface ModalProps {
 }
 
 export function PointsBreakdownModal({ visible, onClose, stats, total, playerName }: ModalProps) {
-  const items = calcBreakdown(stats)
-  const sections = SECTIONS.filter(sec => items.some(i => i.section === sec))
-  const hasAny = items.length > 0
-
   const slideAnim = useRef(new Animated.Value(500)).current
 
   useEffect(() => {
@@ -179,57 +235,22 @@ export function PointsBreakdownModal({ visible, onClose, stats, total, playerNam
   }, [visible])
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <View style={s.backdrop}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+      </View>
       <Animated.View style={[s.sheet, { transform: [{ translateY: slideAnim }] }]}>
         {/* Handle */}
         <View style={s.handle} />
 
         {/* Header */}
         <View style={s.header}>
-          <NavButton label="← Back" onPress={onClose} />
+          <View style={{ flex: 1 }} />
+          <NavButton label="Close" onPress={onClose} />
         </View>
 
-        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
-          <View style={{ marginBottom: 16 }}>
-            <Text style={s.title}>Points Breakdown</Text>
-            {playerName ? <Text style={s.subtitle}>{playerName}</Text> : null}
-          </View>
-          {!hasAny ? (
-            <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No stats recorded for this match</Text>
-            </View>
-          ) : (
-            sections.map(sec => {
-              const secItems = items.filter(i => i.section === sec)
-              return (
-                <View key={sec} style={{ marginBottom: 16 }}>
-                  <Text style={s.sectionLabel}>{sec.toUpperCase()}</Text>
-                  {secItems.map((item, idx) => (
-                    <View key={idx} style={s.row}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.rowLabel}>{item.label}</Text>
-                        <Text style={s.rowDetail}>{item.detail}</Text>
-                      </View>
-                      <Text style={[s.rowPts, item.pts > 0 ? s.positive : item.pts < 0 ? s.negative : s.neutral]}>
-                        {item.pts > 0 ? `+${item.pts}` : item.pts}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )
-            })
-          )}
-
-          {/* Total */}
-          {hasAny && (
-            <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Total</Text>
-              <Text style={[s.totalPts, total > 0 ? s.positive : s.neutral]}>
-                {total > 0 ? `+${total.toFixed(1)}` : total.toFixed(1)}
-              </Text>
-            </View>
-          )}
+        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}>
+          <PointsBreakdownContent stats={stats} total={total} playerName={playerName} />
         </ScrollView>
       </Animated.View>
     </Modal>

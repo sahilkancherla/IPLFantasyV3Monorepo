@@ -5,8 +5,7 @@ export async function generateLeagueSchedule(leagueId: string): Promise<void> {
   await pool.query(`SELECT generate_schedule($1)`, [leagueId])
 }
 
-// Get the current active IPL week.
-// Priority: explicit system_settings.current_week → ipl_weeks.status='live' → date-based fallback.
+// Get the current active IPL week using window_start / window_end.
 export async function getCurrentWeek(): Promise<{
   week_num: number
   label: string
@@ -17,34 +16,30 @@ export async function getCurrentWeek(): Promise<{
   window_start: string | null
   window_end: string | null
 } | null> {
-  // 1. Explicit admin override
-  const { rows: settings } = await pool.query(
-    `SELECT value FROM system_settings WHERE key = 'current_week' LIMIT 1`
+  // 1. Active fantasy window
+  const { rows: active } = await pool.query(
+    `SELECT * FROM ipl_weeks
+     WHERE window_start IS NOT NULL AND window_end IS NOT NULL
+       AND NOW() BETWEEN window_start AND window_end
+     LIMIT 1`
   )
-  const explicitNum = settings[0]?.value ? parseInt(settings[0].value, 10) : null
-  if (explicitNum) {
-    const { rows } = await pool.query(
-      `SELECT * FROM ipl_weeks WHERE week_num = $1 LIMIT 1`,
-      [explicitNum]
-    )
-    if (rows[0]) return rows[0]
-  }
+  if (active[0]) return active[0]
 
-  // 2. Week marked live via status column
-  try {
-    const { rows } = await pool.query(
-      `SELECT * FROM ipl_weeks WHERE status = 'live' LIMIT 1`
-    )
-    if (rows[0]) return rows[0]
-  } catch { /* status column may not exist yet */ }
-
-  // 3. Date-based fallback
-  const now = new Date().toISOString().slice(0, 10)
-  const { rows } = await pool.query(
-    `SELECT * FROM ipl_weeks WHERE start_date <= $1 AND end_date >= $1 ORDER BY week_num LIMIT 1`,
-    [now]
+  // 2. Next upcoming window
+  const { rows: next } = await pool.query(
+    `SELECT * FROM ipl_weeks
+     WHERE window_start IS NOT NULL AND window_start > NOW()
+     ORDER BY window_start ASC LIMIT 1`
   )
-  return rows[0] ?? null
+  if (next[0]) return next[0]
+
+  // 3. Most recently completed window
+  const { rows: last } = await pool.query(
+    `SELECT * FROM ipl_weeks
+     WHERE window_end IS NOT NULL AND window_end < NOW()
+     ORDER BY window_end DESC LIMIT 1`
+  )
+  return last[0] ?? null
 }
 
 export async function getAllWeeks() {

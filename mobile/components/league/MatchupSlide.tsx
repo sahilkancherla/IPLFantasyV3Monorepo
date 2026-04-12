@@ -26,6 +26,7 @@ interface Props {
   userId: string
   width: number
   overrides?: Array<{ user_id: string; week_num: number; points: number; note: string | null }>
+  onRefreshMatchups?: () => void
 }
 
 function sortByRole<T extends { playerRole?: string; slot_role?: string; player_role?: string }>(arr: T[]): T[] {
@@ -47,7 +48,7 @@ function formatMatchTime(m: { start_time_utc: string | null; match_date: string 
   return m.match_date
 }
 
-export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides = [] }: Props) {
+export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides = [], onRefreshMatchups }: Props) {
   const isCompleted = (matchup?.is_final ?? false) || (week.window_end ? new Date(week.window_end) < new Date() : false)
 
   const isHome = matchup?.home_user === userId
@@ -111,7 +112,8 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
     refetchMyLineup()
     refetchOppLineup()
     refetchBreakdown()
-  }, [refetchWeekMatches, refetchMyLineup, refetchOppLineup, refetchBreakdown])
+    onRefreshMatchups?.()
+  }, [refetchWeekMatches, refetchMyLineup, refetchOppLineup, refetchBreakdown, onRefreshMatchups])
 
   // ── Lineup editor ──────────────────────────────────────────────────────────
 
@@ -259,7 +261,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
       <Modal visible={gamesModalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGamesModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
           <View style={{ backgroundColor: BG_CARD, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-            <NavButton label="Done" onPress={() => setGamesModalOpen(false)} />
+            <NavButton label="Close" onPress={() => setGamesModalOpen(false)} />
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
             {!isPending && matchup && oppId && (

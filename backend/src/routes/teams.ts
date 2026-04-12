@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { isLeagueMember, getLeagueById } from '../db/queries/leagues.js'
 import { getUserTeam, getAllTeams } from '../db/queries/teams.js'
-import { clearUncompletedLineups, getPlayerUncompletedLineupWeeks, removePlayerFromUncompletedLineups } from '../db/queries/lineups.js'
+import { clearUncompletedLineups, getPlayerUncompletedLineupWeeks, removePlayerFromUncompletedLineups, resetLineupWeeksContainingPlayer } from '../db/queries/lineups.js'
 import { pool, withTransaction } from '../db/client.js'
 import pg from 'pg'
 
@@ -86,7 +86,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
         [leagueId, userId]
       )
 
-      await removePlayerFromUncompletedLineups(leagueId, userId, playerId)
+      await resetLineupWeeksContainingPlayer(leagueId, userId, playerId)
 
       return reply.code(204).send()
     }
@@ -247,7 +247,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
         [leagueId, targetUserId]
       )
 
-      await removePlayerFromUncompletedLineups(leagueId, targetUserId, playerId)
+      await resetLineupWeeksContainingPlayer(leagueId, targetUserId, playerId)
 
       return reply.code(204).send()
     }
@@ -355,7 +355,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
             `UPDATE league_members SET roster_count = roster_count - 1 WHERE league_id = $1 AND user_id = $2`,
             [leagueId, targetUserId]
           )
-          await removePlayerFromUncompletedLineups(leagueId, targetUserId, dropPlayerId)
+          await resetLineupWeeksContainingPlayer(leagueId, targetUserId, dropPlayerId)
         }
 
         await client.query(

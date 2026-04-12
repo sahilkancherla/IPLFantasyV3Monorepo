@@ -1,0 +1,12 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "ipl-fantasy-v3"
+resolve_s3 = true
+s3_prefix = "ipl-fantasy-v3"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "BackendUrl=\"https://ipl-fantasy-backend-production.up.railway.app\""
+image_repositories = []

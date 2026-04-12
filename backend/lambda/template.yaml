@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: IPL Fantasy auto-sync — scrapes live match scorecards every minute
+
+Parameters:
+  BackendUrl:
+    Type: String
+    Description: Public URL of the Fastify backend (e.g. https://your-app.fly.dev)
+  SyncSecret:
+    Type: String
+    NoEcho: true
+    Description: Value for x-sync-secret header (must match backend SYNC_SECRET)
+
+Resources:
+  AutoSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs20.x
+      CodeUri: auto-sync/
+      Timeout: 60
+      MemorySize: 128
+      Environment:
+        Variables:
+          BACKEND_URL: !Ref BackendUrl
+          SYNC_SECRET: !Ref SyncSecret
+      Events:
+        EveryMinute:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 minute)
+            State: ENABLED
+
+Outputs:
+  FunctionArn:
+    Description: Auto-sync Lambda ARN
+    Value: !GetAtt AutoSyncFunction.Arn

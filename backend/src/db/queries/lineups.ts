@@ -453,3 +453,41 @@ export async function removePlayerFromUncompletedLineups(
     [leagueId, userId, playerId]
   )
 }
+
+/**
+ * When a player is dropped, reset the ENTIRE lineup for any unlocked week
+ * that contained that player. Prevents stale partial lineups with wrong role counts.
+ */
+export async function resetLineupWeeksContainingPlayer(
+  leagueId: string,
+  userId: string,
+  playerId: string,
+  client?: pg.PoolClient
+): Promise<void> {
+  const db = client ?? pool
+  await db.query(
+    `DELETE FROM weekly_lineups
+     WHERE league_id = $1
+       AND user_id   = $2
+       AND week_num IN (
+         SELECT DISTINCT wl2.week_num
+         FROM weekly_lineups wl2
+         WHERE wl2.league_id = $1
+           AND wl2.user_id   = $2
+           AND wl2.player_id = $3
+           AND wl2.week_num NOT IN (
+             SELECT wm.week_num
+             FROM weekly_matchups wm
+             WHERE wm.league_id = $1
+               AND (wm.home_user = $2 OR wm.away_user = $2)
+               AND wm.is_final = TRUE
+             UNION
+             SELECT iw.week_num
+             FROM ipl_weeks iw
+             WHERE iw.window_start IS NOT NULL
+               AND iw.window_start < NOW()
+           )
+       )`,
+    [leagueId, userId, playerId]
+  )
+}

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, ReactNode } from 'react'
 import { NavButton } from '../ui/NavButton'
 import { View, Text, TouchableOpacity, Modal, ScrollView, Pressable, Dimensions, Animated } from 'react-native'
-import { calcBreakdown, type BreakdownStats } from '../ui/PointsBreakdown'
+import { type BreakdownStats, PointsBreakdownContent } from '../ui/PointsBreakdown'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { PlayerDetailModal } from './PlayerDetailModal'
 import type { PlayerDetailInfo } from './PlayerDetailModal'
@@ -313,17 +313,12 @@ export function DualLineupCard({
   const [weekModal, setWeekModal] = useState<WeekModal | null>(null)
   const [breakdown, setBreakdown] = useState<{ stats: BreakdownStats; total: number; matchDesc: string } | null>(null)
   const [activePage, setActivePage] = useState<'games' | 'breakdown'>('games')
-  const backdropOpacity = useRef(new Animated.Value(0)).current
   const sheetTranslateY = useRef(new Animated.Value(500)).current
 
   useEffect(() => {
     if (weekModal) {
-      Animated.parallel([
-        Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200, mass: 0.8 }),
-      ]).start()
+      Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 200, mass: 0.8 }).start()
     } else {
-      backdropOpacity.setValue(0)
       sheetTranslateY.setValue(500)
       setActivePage('games')
     }
@@ -553,11 +548,11 @@ export function DualLineupCard({
         onRequestClose={closeWeekModal}
       >
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Animated.View
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', opacity: backdropOpacity }}
+          <View
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }}
           >
             <Pressable style={{ flex: 1 }} onPress={closeWeekModal} />
-          </Animated.View>
+          </View>
           <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
           <View>
             <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 36, ...(activePage === 'breakdown' ? { height: screenHeight * 0.5 } : {}) }}>
@@ -633,45 +628,12 @@ export function DualLineupCard({
                     contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 }}
                     showsVerticalScrollIndicator={false}
                   >
-                    <View style={{ marginBottom: 16 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_PRIMARY }}>Points Breakdown</Text>
-                      <Text style={{ fontSize: 12, color: TEXT_PLACEHOLDER, marginTop: 2 }}>
-                        {weekModal?.entry.player_name} · {breakdown.matchDesc}
-                      </Text>
-                    </View>
-                    {(() => {
-                      const items = calcBreakdown(breakdown.stats)
-                      const sections = (['General', 'Batting', 'Bowling', 'Fielding'] as const).filter(sec => items.some(i => i.section === sec))
-                      if (items.length === 0) return (
-                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14, textAlign: 'center', paddingVertical: 24 }}>No stats recorded</Text>
-                      )
-                      return (
-                        <>
-                          {sections.map(sec => (
-                            <View key={sec} style={{ marginBottom: 14 }}>
-                              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 }}>{sec.toUpperCase()}</Text>
-                              {items.filter(i => i.section === sec).map((item, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: BG_PAGE }}>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={{ color: TEXT_SECONDARY, fontSize: 13, fontWeight: '500' }}>{item.label}</Text>
-                                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.detail}</Text>
-                                  </View>
-                                  <Text style={{ fontSize: 13, fontWeight: '700', minWidth: 36, textAlign: 'right', color: item.pts > 0 ? SUCCESS : item.pts < 0 ? PRIMARY : TEXT_PLACEHOLDER }}>
-                                    {item.pts > 0 ? `+${item.pts}` : item.pts}
-                                  </Text>
-                                </View>
-                              ))}
-                            </View>
-                          ))}
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 2, borderTopColor: BORDER_DEFAULT }}>
-                            <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 14, fontWeight: '700' }}>Total</Text>
-                            <Text style={{ fontSize: 16, fontWeight: '800', color: breakdown.total > 0 ? SUCCESS : TEXT_PLACEHOLDER }}>
-                              {breakdown.total > 0 ? `+${breakdown.total.toFixed(1)}` : breakdown.total.toFixed(1)}
-                            </Text>
-                          </View>
-                        </>
-                      )
-                    })()}
+                    <PointsBreakdownContent
+                      stats={breakdown.stats}
+                      total={breakdown.total}
+                      playerName={weekModal?.entry.player_name}
+                      subtitle={breakdown.matchDesc}
+                    />
                   </ScrollView>
                 </View>
               )}
