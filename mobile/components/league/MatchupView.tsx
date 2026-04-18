@@ -177,7 +177,7 @@ function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProp
                       playerName={p.playerName}
                       style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
                     >
-                      {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
+                      {p.points > 0 ? `+${Math.round(p.points)}` : '—'}
                     </PointsValue>
                   </View>
                   {(matchStatus === 'live' || matchStatus === 'completed') && statLine(p) !== '' && (
@@ -231,6 +231,10 @@ export interface MatchupViewProps {
   carouselKey?: number
   /** Called when the "Set Lineup" button in the warning banner is tapped */
   onSetLineup?: () => void
+  /** True while the user's lineup query is still loading — hides "Lineup not set" affordances */
+  myLineupLoading?: boolean
+  /** True while the opponent's lineup query is still loading */
+  oppLineupLoading?: boolean
 }
 
 export function MatchupView({
@@ -241,8 +245,9 @@ export function MatchupView({
   myBench, oppBench,
   myOverridePoints, myOverrideNote, oppOverridePoints, oppOverrideNote,
   width, refreshControl, onExpandGames, carouselKey = 0, onSetLineup,
+  myLineupLoading, oppLineupLoading,
 }: MatchupViewProps) {
-  const showLineupWarning = !isCompleted && lineupLocked === false && myLineup.length === 0 && !!onSetLineup
+  const showLineupWarning = !isCompleted && lineupLocked === false && !myLineupLoading && myLineup.length === 0 && !!onSetLineup
   const isPending = !isCompleted && !isLive
   const [activeGameIndex, setActiveGameIndex] = useState(0)
   const gameListRef = useRef<ScrollView>(null)
@@ -370,37 +375,33 @@ export function MatchupView({
           )}
         </View>
         <View style={{ padding: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-              <View style={{ alignItems: 'center', gap: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ alignItems: 'center', gap: 1, alignSelf: 'stretch' }}>
                 <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 14, textAlign: 'center' }}>
-                  {myName} ★
+                  {myName}
                 </Text>
-                {myUsername && (
-                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{myUsername}</Text>
-                )}
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{myUsername || ' '}</Text>
               </View>
-              <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
-                {Number(myPoints).toFixed(1)}
+              <Text style={{ color: result === null ? TEXT_SECONDARY : PRIMARY, fontWeight: '800', fontSize: 40, lineHeight: 44, marginTop: 'auto' }}>
+                {Math.round(Number(myPoints))}
               </Text>
-              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>pts</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12, marginTop: 6 }}>pts</Text>
             </View>
-            <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
+            <View style={{ alignSelf: 'center', alignItems: 'center', paddingHorizontal: 16 }}>
               <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 18 }}>VS</Text>
             </View>
-            <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-              <View style={{ alignItems: 'center', gap: 1 }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ alignItems: 'center', gap: 1, alignSelf: 'stretch' }}>
                 <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14, textAlign: 'center' }}>
                   {oppName}
                 </Text>
-                {oppUsername && (
-                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{oppUsername}</Text>
-                )}
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{oppUsername || ' '}</Text>
               </View>
-              <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 40, lineHeight: 44 }}>
-                {Number(oppPoints).toFixed(1)}
+              <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 40, lineHeight: 44, marginTop: 'auto' }}>
+                {Math.round(Number(oppPoints))}
               </Text>
-              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12 }}>pts</Text>
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12, marginTop: 6 }}>pts</Text>
             </View>
           </View>
         </View>
@@ -491,7 +492,7 @@ export function MatchupView({
       </View>
 
       {/* Lineup lock time — only shown when lineupLocked is explicitly false */}
-      {lineupLocked === false && (
+      {lineupLocked === false && !myLineupLoading && (
         <View style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, padding: 14, alignItems: 'center' }}>
           <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>
             Lineups lock {new Date(week.lock_time).toLocaleString('en-US', {
@@ -519,6 +520,8 @@ export function MatchupView({
         myOverrideNote={myOverrideNote}
         oppOverridePoints={oppOverridePoints}
         oppOverrideNote={oppOverrideNote}
+        myLineupLoading={myLineupLoading}
+        oppLineupLoading={oppLineupLoading}
       />
     </ScrollView>
   )

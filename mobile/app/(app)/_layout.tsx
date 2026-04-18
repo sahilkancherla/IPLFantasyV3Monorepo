@@ -50,7 +50,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="home" options={{ headerShown: false }} />
-      <Stack.Screen name="league/[id]" options={{ title: 'League' }} />
+      <Stack.Screen name="league/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="league/create" options={{ headerShown: false }} />
       <Stack.Screen name="league/join" options={{ headerShown: false }} />
       <Stack.Screen name="auction/[leagueId]" options={{ title: 'Auction', headerShown: false }} />

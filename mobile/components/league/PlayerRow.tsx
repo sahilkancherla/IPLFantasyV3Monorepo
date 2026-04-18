@@ -75,7 +75,7 @@ export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, r
       {/* Avg pts (always shown when provided) */}
       {avgPts != null ? (
         <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
-          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{Math.round(avgPts)}</Text>
           <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
         </View>
       ) : !rightElement ? (

@@ -117,7 +117,7 @@ export function PlayerStatsModal({ playerId, playerName, playerRole, playerTeam,
                         stats={{ ...s, playerRole }}
                         style={{ color: s.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 13, fontWeight: '700' }}
                       >
-                        {s.points > 0 ? `+${parseFloat(s.points.toString()).toFixed(1)}` : '—'}
+                        {s.points > 0 ? `+${Math.round(s.points)}` : '—'}
                       </PointsValue>
                     </View>
                   ) : (

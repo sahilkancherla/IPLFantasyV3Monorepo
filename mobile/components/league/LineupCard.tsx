@@ -193,7 +193,7 @@ export function LineupCard({
                       </TouchableOpacity>
                       {weekPts > 0 && (
                         <Text style={{ color: SUCCESS, fontSize: 12, fontWeight: '700', marginRight: 6 }}>
-                          +{weekPts.toFixed(1)}
+                          +{Math.round(weekPts)}
                         </Text>
                       )}
                       {gamesRemaining.length > 0 && (
@@ -237,7 +237,7 @@ export function LineupCard({
                                     playerName={entry.player_name}
                                     style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
                                   >
-                                    {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'}
+                                    {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : '0'}
                                   </PointsValue>
                                 ) : (
                                   <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{formatMatchTime(m)}</Text>
@@ -297,6 +297,8 @@ interface DualLineupCardProps {
   myOverrideNote?: string | null
   oppOverridePoints?: number | null
   oppOverrideNote?: string | null
+  myLineupLoading?: boolean
+  oppLineupLoading?: boolean
 }
 
 export function DualLineupCard({
@@ -307,6 +309,7 @@ export function DualLineupCard({
   getMyPlayerStats, getOppPlayerStats,
   myOverridePoints, myOverrideNote,
   oppOverridePoints, oppOverrideNote,
+  myLineupLoading, oppLineupLoading,
 }: DualLineupCardProps) {
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
   type WeekModal = { entry: BenchEntry; getStats: (matchId: string, playerId: string) => GamePlayer | undefined; isBench?: boolean }
@@ -358,6 +361,11 @@ export function DualLineupCard({
   const myByRole = new Map(groupByRole(myLineup, e => e.slot_role).map(g => [g.role, g.items]))
   const oppByRole = new Map(groupByRole(oppLineup, e => e.slot_role).map(g => [g.role, g.items]))
 
+  const myPerformancesLeft = myLineup.reduce((sum, e) => sum + gamesRemainingForTeam(e.player_ipl_team).length, 0)
+  const oppPerformancesLeft = oppLineup.reduce((sum, e) => sum + gamesRemainingForTeam(e.player_ipl_team).length, 0)
+  const weekOngoing = weekMatches.some(m => m.status !== 'completed')
+  const showPerformancesLeft = weekOngoing && (myLineup.length > 0 || oppLineup.length > 0)
+
   function PlayerCell({ entry, getStats, side, isBench = false }: { entry: BenchEntry | null; getStats: (matchId: string, playerId: string) => GamePlayer | undefined; side: 'left' | 'right'; isBench?: boolean }) {
     if (!entry) return <View style={{ flex: 1 }} />
     const pts = weekPts(entry, getStats)
@@ -370,7 +378,7 @@ export function DualLineupCard({
 
     const ptsBg = isBench ? BG_SUBTLE : pts > 0 ? SUCCESS_BG : pts < 0 ? PRIMARY_SUBTLE : BG_SUBTLE
     const ptsColor = isBench ? TEXT_PLACEHOLDER : pts > 0 ? SUCCESS : pts < 0 ? PRIMARY : TEXT_PLACEHOLDER
-    const ptsLabel = isBench ? pts.toFixed(1) : pts > 0 ? `+${pts.toFixed(1)}` : pts < 0 ? pts.toFixed(1) : '0.0'
+    const ptsLabel = isBench ? String(Math.round(pts)) : pts > 0 ? `+${Math.round(pts)}` : pts < 0 ? String(Math.round(pts)) : '0'
 
     const badges = (
       <View style={{ alignItems: isRight ? 'flex-start' : 'flex-end', gap: 3 }}>
@@ -417,9 +425,11 @@ export function DualLineupCard({
               <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
                 {myName} ★
               </Text>
-              {myLineup.length === 0 && (
+              {myLineupLoading ? (
+                <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10, marginTop: 2 }}>Loading…</Text>
+              ) : myLineup.length === 0 ? (
                 <Text style={{ color: '#f87171', fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
-              )}
+              ) : null}
             </View>
             {myHeaderAction}
           </View>
@@ -428,11 +438,30 @@ export function DualLineupCard({
             <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }} numberOfLines={1}>
               {oppName}
             </Text>
-            {oppLineup.length === 0 && (
+            {oppLineupLoading ? (
+              <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10, marginTop: 2 }}>Loading…</Text>
+            ) : oppLineup.length === 0 ? (
               <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10, marginTop: 2 }}>Lineup not set</Text>
-            )}
+            ) : null}
           </View>
         </View>
+
+        {/* Performances left bar */}
+        {showPerformancesLeft && (
+          <View style={{ flexDirection: 'row', backgroundColor: BG_PAGE, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT }}>
+            <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 7 }}>
+              <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>
+                {myPerformancesLeft} to play
+              </Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
+            <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'flex-end' }}>
+              <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '600' }}>
+                {oppPerformancesLeft} to play
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Rows by role */}
         {allRoles.map(role => {
@@ -463,13 +492,13 @@ export function DualLineupCard({
             <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_MEDIUM, backgroundColor: BG_PAGE, paddingVertical: 9 }}>
               <View style={{ flex: 1, paddingHorizontal: 12, alignItems: 'flex-start', justifyContent: 'center' }}>
                 <Text style={{ color: myTotal !== 0 ? (myTotal > 0 ? SUCCESS : PRIMARY) : TEXT_PLACEHOLDER, fontWeight: '800', fontSize: 13 }}>
-                  {myTotal !== 0 ? (myTotal > 0 ? `+${myTotal.toFixed(1)}` : myTotal.toFixed(1)) : '—'}
+                  {myTotal !== 0 ? (myTotal > 0 ? `+${Math.round(myTotal)}` : Math.round(myTotal)) : '—'}
                 </Text>
               </View>
               <Text style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: '700', letterSpacing: 0.2, alignSelf: 'center' }}>TOTAL</Text>
               <View style={{ flex: 1, paddingHorizontal: 12, alignItems: 'flex-end', justifyContent: 'center' }}>
                 <Text style={{ color: oppTotal !== 0 ? (oppTotal > 0 ? SUCCESS : PRIMARY) : TEXT_PLACEHOLDER, fontWeight: '800', fontSize: 13 }}>
-                  {oppTotal !== 0 ? (oppTotal > 0 ? `+${oppTotal.toFixed(1)}` : oppTotal.toFixed(1)) : '—'}
+                  {oppTotal !== 0 ? (oppTotal > 0 ? `+${Math.round(oppTotal)}` : Math.round(oppTotal)) : '—'}
                 </Text>
               </View>
             </View>
@@ -510,7 +539,7 @@ export function DualLineupCard({
                 {myPts != null ? (
                   <>
                     <Text style={{ color: myPts >= 0 ? SUCCESS : PRIMARY, fontWeight: '700', fontSize: 13 }}>
-                      {myPts >= 0 ? '+' : ''}{myPts.toFixed(1)} pts
+                      {myPts >= 0 ? '+' : ''}{Math.round(myPts)} pts
                     </Text>
                     {myOverrideNote ? <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2 }} numberOfLines={2}>{myOverrideNote}</Text> : null}
                   </>
@@ -522,7 +551,7 @@ export function DualLineupCard({
                 {oppPts != null ? (
                   <>
                     <Text style={{ color: oppPts >= 0 ? SUCCESS : PRIMARY, fontWeight: '700', fontSize: 13 }}>
-                      {oppPts >= 0 ? '+' : ''}{oppPts.toFixed(1)} pts
+                      {oppPts >= 0 ? '+' : ''}{Math.round(oppPts)} pts
                     </Text>
                     {oppOverrideNote ? <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 2, textAlign: 'right' }} numberOfLines={2}>{oppOverrideNote}</Text> : null}
                   </>
@@ -535,7 +564,9 @@ export function DualLineupCard({
 
         {myLineup.length === 0 && oppLineup.length === 0 && (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>No lineups set yet</Text>
+            <Text style={{ color: TEXT_DISABLED, fontSize: 13 }}>
+              {myLineupLoading || oppLineupLoading ? 'Loading lineups…' : 'No lineups set yet'}
+            </Text>
           </View>
         )}
       </View>
@@ -603,7 +634,7 @@ export function DualLineupCard({
                             {hasStats ? (
                               <TouchableOpacity onPress={() => openBreakdown({ ...playerStats, playerRole: entry.player_role }, playerStats.points, `${isHome ? 'vs' : '@'} ${opp}`)}>
                                 <Text style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
-                                  {playerStats.points > 0 ? `+${playerStats.points.toFixed(1)}` : '0'} ›
+                                  {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : '0'} ›
                                 </Text>
                               </TouchableOpacity>
                             ) : (

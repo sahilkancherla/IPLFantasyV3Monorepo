@@ -94,7 +94,7 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
                     </View>
                     {avgPts != null ? (
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{Math.round(avgPts)}</Text>
                         <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                       </View>
                     ) : (

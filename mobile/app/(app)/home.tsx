@@ -163,7 +163,7 @@ function ActiveLeagueCard({
               <View style={{ flex: 1 }}>
                 <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '600' }}>YOU</Text>
                 <Text style={{ color: TEXT_PRIMARY, fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
-                  {myPts.toFixed(1)}
+                  {Math.round(myPts)}
                 </Text>
               </View>
 
@@ -176,7 +176,7 @@ function ActiveLeagueCard({
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
                 <Text style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{oppName?.toUpperCase()}</Text>
                 <Text style={{ color: TEXT_PRIMARY, fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }}>
-                  {oppPts.toFixed(1)}
+                  {Math.round(oppPts)}
                 </Text>
               </View>
             </View>
@@ -207,7 +207,7 @@ function ActiveLeagueCard({
                 <View key={p.playerId} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Text style={{ color: '#4b5563', fontSize: 12 }} numberOfLines={1}>{p.playerName}</Text>
                   <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
-                    {p.points > 0 ? `+${p.points.toFixed(1)}` : '–'}
+                    {p.points > 0 ? `+${Math.round(p.points)}` : '–'}
                   </Text>
                 </View>
               ))}

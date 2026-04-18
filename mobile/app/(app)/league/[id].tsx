@@ -717,7 +717,7 @@ export default function LeagueScreen() {
                         {/* Avg pts */}
                         {avgPts != null ? (
                           <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                            <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{Math.round(avgPts)}</Text>
                             <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                           </View>
                         ) : (
@@ -817,7 +817,7 @@ export default function LeagueScreen() {
                           <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
                             {user?.display_name ?? user?.username}
                           </Text>
-                          <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 28 }}>{Number(myPoints || 0).toFixed(1)}</Text>
+                          <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 28 }}>{Math.round(Number(myPoints || 0))}</Text>
                           <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
                         </View>
 
@@ -837,7 +837,7 @@ export default function LeagueScreen() {
                           <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
                             {oppName}
                           </Text>
-                          <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 28 }}>{Number(oppPoints || 0).toFixed(1)}</Text>
+                          <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 28 }}>{Math.round(Number(oppPoints || 0))}</Text>
                           <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
                         </View>
                       </View>
@@ -905,7 +905,7 @@ export default function LeagueScreen() {
                                         {p.playerName}
                                       </Text>
                                       <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
-                                        {p.points > 0 ? `+${p.points.toFixed(1)}` : '\u2014'}
+                                        {p.points > 0 ? `+${Math.round(p.points)}` : '\u2014'}
                                       </Text>
                                     </View>
                                     {isLiveOrDone && gameStatLine(p) !== '' && (
@@ -931,7 +931,7 @@ export default function LeagueScreen() {
                                         {p.playerName}
                                       </Text>
                                       <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
-                                        {p.points > 0 ? `+${p.points.toFixed(1)}` : '\u2014'}
+                                        {p.points > 0 ? `+${Math.round(p.points)}` : '\u2014'}
                                       </Text>
                                     </View>
                                     {isLiveOrDone && gameStatLine(p) !== '' && (
@@ -2362,7 +2362,7 @@ export default function LeagueScreen() {
                                     </View>
                                     {avgPts != null ? (
                                       <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
-                                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{avgPts.toFixed(1)}</Text>
+                                        <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13 }}>{Math.round(avgPts)}</Text>
                                         <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 9, fontWeight: '500' }}>avg pts</Text>
                                       </View>
                                     ) : (

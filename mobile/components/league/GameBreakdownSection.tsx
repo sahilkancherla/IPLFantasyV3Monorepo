@@ -135,7 +135,7 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
             color: myWins ? PRIMARY : game.isCompleted ? TEXT_SECONDARY : TEXT_PLACEHOLDER,
             fontWeight: '800', fontSize: 22,
           }}>
-            {game.isCompleted ? game.myPoints.toFixed(1) : '—'}
+            {game.isCompleted ? Math.round(game.myPoints) : '—'}
           </Text>
           {game.isCompleted && <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>}
           <Text style={{ color: PRIMARY, fontSize: 11, fontWeight: '600', marginLeft: 2 }} numberOfLines={1}>
@@ -151,7 +151,7 @@ function GameCard({ game, myName, oppName }: { game: GameBreakdownData; myName: 
             color: oppWins ? TEXT_PRIMARY : game.isCompleted ? TEXT_SECONDARY : TEXT_PLACEHOLDER,
             fontWeight: '800', fontSize: 22,
           }}>
-            {game.isCompleted ? game.oppPoints.toFixed(1) : '—'}
+            {game.isCompleted ? Math.round(game.oppPoints) : '—'}
           </Text>
           {game.isCompleted && <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>}
         </View>

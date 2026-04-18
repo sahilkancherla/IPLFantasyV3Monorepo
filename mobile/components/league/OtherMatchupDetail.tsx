@@ -38,6 +38,8 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
   const { data: awayLineupData, refetch: refetchAwayLineup } = useUserLineup(leagueId, matchup.away_user, week.week_num)
   const homeLineup = sortByRole(homeLineupData?.lineup ?? [])
   const awayLineup = sortByRole(awayLineupData?.lineup ?? [])
+  const homeLineupLoading = homeLineupData === undefined
+  const awayLineupLoading = awayLineupData === undefined
 
   const { data: allRosters } = useAllTeams(leagueId)
   const homeStartingIds = new Set(homeLineup.map(e => e.player_id))
@@ -85,6 +87,8 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
       getOppPlayerStats={(matchId, playerId) => breakdownByMatchId.get(matchId)?.oppPlayers.find(p => p.playerId === playerId)}
       width={width}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={PRIMARY_SOFT} />}
+      myLineupLoading={homeLineupLoading}
+      oppLineupLoading={awayLineupLoading}
     />
   )
 }

@@ -72,7 +72,7 @@ export default function LeaderboardScreen() {
             {/* Points */}
             <View className="items-end">
               <Text className="text-yellow-600 text-lg font-bold">
-                {Number(item.total_points).toFixed(1)}
+                {Math.round(Number(item.total_points))}
               </Text>
               <Text className="text-gray-400 text-xs">pts</Text>
             </View>

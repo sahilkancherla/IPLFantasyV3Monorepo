@@ -200,7 +200,7 @@ export function PointsBreakdownContent({ stats, total, playerName, subtitle }: B
         <View style={s.totalRow}>
           <Text style={s.totalLabel}>Total</Text>
           <Text style={[s.totalPts, total > 0 ? s.positive : s.neutral]}>
-            {total > 0 ? `+${total.toFixed(1)}` : total.toFixed(1)}
+            {total > 0 ? `+${Math.round(total)}` : Math.round(total)}
           </Text>
         </View>
       )}
@@ -264,7 +264,7 @@ interface PointsValueProps {
   value: number
   stats: BreakdownStats
   style?: TextStyle
-  /** Override how the value is rendered. Defaults to value.toFixed(1) (or '—' if 0) */
+  /** Override how the value is rendered. Defaults to Math.round(value) (or '—' if 0) */
   children?: string
   playerName?: string
 }
@@ -275,7 +275,7 @@ export function PointsValue({ value, stats, style, children, playerName }: Point
     stats.ballsBowled > 0 || stats.catches > 0 || stats.stumpings > 0 ||
     stats.runOutsDirect > 0 || stats.runOutsIndirect > 0
 
-  const label = children ?? (value > 0 ? value.toFixed(1) : '—')
+  const label = children ?? (value > 0 ? String(Math.round(value)) : '—')
 
   return (
     <>

@@ -75,7 +75,7 @@ function MatchupChip({
         const ap = parseFloat(String(matchup.away_points)) || 0
         return (hp > 0 || ap > 0 || matchup.is_final || !isMine) ? (
           <Text style={{ fontSize: 10, color: TEXT_MUTED, textAlign: 'center' }}>
-            {hp.toFixed(1)}–{ap.toFixed(1)}
+            {Math.round(hp)}–{Math.round(ap)}
           </Text>
         ) : null
       })()}

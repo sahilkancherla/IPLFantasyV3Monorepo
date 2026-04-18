@@ -50,7 +50,7 @@ function PlayerRow({ p, isLiveOrDone }: { p: MatchPlayer; isLiveOrDone: boolean 
           playerName={p.playerName}
           style={{ color: p.points > 0 ? '#16a34a' : '#9ca3af', fontSize: 12, fontWeight: '700' }}
         >
-          {p.points > 0 ? `+${p.points.toFixed(1)}` : '—'}
+          {p.points > 0 ? `+${Math.round(p.points)}` : '—'}
         </PointsValue>
       </View>
       {stats ? (
@@ -129,7 +129,7 @@ export function LeagueCurrentMatch({ leagueName, currentMatch, matchup, myPlayer
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#dc2626', fontSize: 10, fontWeight: '700' }}>{myName} ★</Text>
                 {isLiveOrDone && myTotal > 0 && (
-                  <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700' }}>+{myTotal.toFixed(1)} pts</Text>
+                  <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700' }}>+{Math.round(myTotal)} pts</Text>
                 )}
               </View>
               {myPlayers.map(p => (
@@ -147,7 +147,7 @@ export function LeagueCurrentMatch({ leagueName, currentMatch, matchup, myPlayer
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700' }}>{oppName}</Text>
                 {isLiveOrDone && oppTotal > 0 && (
-                  <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700' }}>+{oppTotal.toFixed(1)} pts</Text>
+                  <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700' }}>+{Math.round(oppTotal)} pts</Text>
                 )}
               </View>
               {oppPlayers.map(p => (

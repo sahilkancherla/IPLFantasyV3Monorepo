@@ -252,7 +252,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
                   stats={{ ...s, playerRole: role }}
                   style={{ color: s.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}
                 >
-                  {s.points > 0 ? `+${parseFloat(s.points.toString()).toFixed(1)}` : '—'}
+                  {s.points > 0 ? `+${Math.round(s.points)}` : '—'}
                 </PointsValue>
               </View>
             ) : (
@@ -327,8 +327,8 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
           <View style={{ backgroundColor: BG_PAGE, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, flexDirection: 'row' }}>
             {[
               { label: 'Role', value: roleFull },
-              { label: 'Total Pts', value: totalPts != null ? totalPts.toFixed(1) : '—' },
-              { label: 'Avg Pts', value: avgPts != null ? avgPts.toFixed(1) : '—' },
+              { label: 'Total Pts', value: totalPts != null ? String(Math.round(totalPts)) : '—' },
+              { label: 'Avg Pts', value: avgPts != null ? String(Math.round(avgPts)) : '—' },
             ].map(({ label, value }, i, arr) => (
               <View
                 key={label}

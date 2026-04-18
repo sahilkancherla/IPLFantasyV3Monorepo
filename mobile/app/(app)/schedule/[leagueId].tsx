@@ -144,7 +144,7 @@ export default function ScheduleScreen() {
                         </Text>
                         {m.is_final && (
                           <Text className={`text-base font-bold ${homeWon ? 'text-green-600' : 'text-gray-500'}`}>
-                            {m.home_points.toFixed(1)}
+                            {Math.round(m.home_points)}
                           </Text>
                         )}
                       </View>
@@ -164,7 +164,7 @@ export default function ScheduleScreen() {
                         </Text>
                         {m.is_final && (
                           <Text className={`text-base font-bold ${awayWon ? 'text-green-600' : 'text-gray-500'}`}>
-                            {m.away_points.toFixed(1)}
+                            {Math.round(m.away_points)}
                           </Text>
                         )}
                       </View>

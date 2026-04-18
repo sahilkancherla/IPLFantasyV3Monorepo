@@ -75,7 +75,12 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
     week.week_num
   )
   const myLineup = sortByRole(myLineupData?.lineup ?? EMPTY_LINEUP)
-  const lineupLocked = myLineupData?.locked ?? false
+  // undefined while loading — strict `=== false` checks downstream distinguish
+  // "confirmed unlocked" from "don't know yet", so past weeks don't briefly show
+  // Set/Edit affordances during the initial fetch.
+  const lineupLocked = myLineupData?.locked
+  const myLineupLoading = myLineupData === undefined
+  const oppLineupLoading = !!oppId && oppLineupData === undefined
   const oppLineup = sortByRole(oppLineupData?.lineup ?? [])
 
   const { data: allRosters } = useAllTeams(leagueId)
@@ -212,7 +217,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
     )
   }
 
-  const lineupHeaderAction = !lineupLocked ? (
+  const lineupHeaderAction = lineupLocked === false ? (
     <TouchableOpacity
       onPress={openLineupModal}
       style={{ backgroundColor: PRIMARY, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}
@@ -254,7 +259,9 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
         refreshControl={<RefreshControl refreshing={isRefetchingBreakdown} onRefresh={onRefresh} tintColor={PRIMARY_SOFT} />}
         onExpandGames={() => setGamesModalOpen(true)}
         carouselKey={carouselKey}
-        onSetLineup={!lineupLocked ? openLineupModal : undefined}
+        onSetLineup={lineupLocked === false ? openLineupModal : undefined}
+        myLineupLoading={myLineupLoading}
+        oppLineupLoading={oppLineupLoading}
       />
 
       {/* IPL Games expand modal */}

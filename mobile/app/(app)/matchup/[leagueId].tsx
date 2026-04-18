@@ -56,7 +56,7 @@ function MatchupCard({
       </View>
       {(matchup.home_points > 0 || matchup.away_points > 0 || matchup.is_final) && (
         <Text style={{ fontSize: 11, color: '#6b7280' }}>
-          {matchup.home_points.toFixed(1)} – {matchup.away_points.toFixed(1)}
+          {Math.round(matchup.home_points)} – {Math.round(matchup.away_points)}
         </Text>
       )}
       {matchup.is_final && (
@@ -221,7 +221,7 @@ export default function MatchupScreen() {
                   )}
                   <Text className="text-gray-900 font-bold text-base" numberOfLines={1}>{leftName}</Text>
                   <Text className={`text-4xl font-bold ${leftIsWinner ? 'text-green-600' : 'text-gray-900'}`}>
-                    {leftPts.toFixed(1)}
+                    {Math.round(leftPts)}
                   </Text>
                   {leftIsWinner && <Text className="text-green-600 text-xs font-semibold">WIN</Text>}
                 </View>
@@ -235,7 +235,7 @@ export default function MatchupScreen() {
                   )}
                   <Text className="text-gray-900 font-bold text-base" numberOfLines={1}>{rightName}</Text>
                   <Text className={`text-4xl font-bold ${rightIsWinner ? 'text-green-600' : 'text-gray-900'}`}>
-                    {rightPts.toFixed(1)}
+                    {Math.round(rightPts)}
                   </Text>
                   {rightIsWinner && <Text className="text-green-600 text-xs font-semibold">WIN</Text>}
                 </View>
