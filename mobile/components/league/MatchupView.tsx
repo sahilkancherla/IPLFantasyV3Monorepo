@@ -20,6 +20,7 @@ import {
   STATUS_LIVE_TEXT, STATUS_LIVE_BG, STATUS_COMPLETED_TEXT, STATUS_COMPLETED_BG,
   STATUS_UPCOMING_TEXT, STATUS_UPCOMING_BG, STATUS_PENDING_TEXT, STATUS_PENDING_BG,
   matchStatusColors,
+  roleColors,
 } from '../../constants/colors'
 
 const roleLabels: Record<string, string> = {
@@ -107,7 +108,7 @@ interface GameCardProps {
   oppPlayers: GamePlayer[]
 }
 
-function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProps) {
+export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProps) {
   const matchStatus = item.status
   const { bg: statusBg, text: statusColor } = matchStatusColors(matchStatus)
   const sLabel = matchStatus === 'live' ? 'LIVE'
@@ -155,39 +156,133 @@ function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProp
           <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
             <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No players in this game</Text>
           </View>
-        ) : (
-          [
-            { players: myPlayers, label: myName, labelColor: PRIMARY },
-            { players: oppPlayers, label: oppName, labelColor: TEXT_MUTED },
-          ].map(({ players, label, labelColor }) => players.length > 0 && (
-            <View key={label} style={{ gap: 6 }}>
-              <Text style={{ color: labelColor, fontSize: 10, fontWeight: '700' }}>{label}</Text>
-              {players.map(p => (
-                <View key={p.playerId} style={{ gap: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
-                      {roleLabels[p.playerRole] ?? p.playerRole}
-                    </Text>
-                    <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                      {p.playerName}
-                    </Text>
-                    <PointsValue
-                      value={p.points}
-                      stats={{ ...p, playerRole: p.playerRole }}
-                      playerName={p.playerName}
-                      style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
-                    >
-                      {p.points > 0 ? `+${Math.round(p.points)}` : '—'}
-                    </PointsValue>
-                  </View>
-                  {(matchStatus === 'live' || matchStatus === 'completed') && statLine(p) !== '' && (
-                    <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{statLine(p)}</Text>
+        ) : (() => {
+          const hasStarted = matchStatus === 'live' || matchStatus === 'completed'
+          const myEmpty = myPlayers.length === 0
+          const oppEmpty = oppPlayers.length === 0
+          const mySubtotal = myPlayers.reduce((s, p) => s + (p.points ?? 0), 0)
+          const oppSubtotal = oppPlayers.reduce((s, p) => s + (p.points ?? 0), 0)
+          const totalPill = (total: number) => ({
+            bg: total > 0 ? SUCCESS_BG : total < 0 ? PRIMARY_SUBTLE : BG_SUBTLE,
+            color: total > 0 ? SUCCESS : total < 0 ? PRIMARY : TEXT_PLACEHOLDER,
+            label: total > 0 ? `+${Math.round(total)}` : total < 0 ? String(Math.round(total)) : '0',
+          })
+          const myTotal = totalPill(mySubtotal)
+          const oppTotal = totalPill(oppSubtotal)
+
+          const renderPlayer = (p: GamePlayer, side: 'left' | 'right') => {
+            const isRight = side === 'right'
+            const statStr = statLine(p)
+            const roleColor = roleColors[p.playerRole] ?? TEXT_MUTED
+            const roleLabel = roleLabels[p.playerRole] ?? p.playerRole
+            const showStat = hasStarted && statStr !== ''
+            const pts = p.points ?? 0
+            const ptsBg = pts > 0 ? SUCCESS_BG : pts < 0 ? PRIMARY_SUBTLE : BG_SUBTLE
+            const ptsColor = pts > 0 ? SUCCESS : pts < 0 ? PRIMARY : TEXT_PLACEHOLDER
+            const ptsLabel = pts > 0 ? `+${Math.round(pts)}` : pts < 0 ? String(Math.round(pts)) : '0'
+            return (
+              <View style={{ gap: 2 }}>
+                <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600', textAlign: isRight ? 'right' : 'left' }} numberOfLines={1}>
+                    {p.playerName}
+                  </Text>
+                  {hasStarted && (
+                    <View style={{ backgroundColor: ptsBg, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <PointsValue
+                        value={pts}
+                        stats={{ ...p, playerRole: p.playerRole }}
+                        playerName={p.playerName}
+                        style={{ color: ptsColor, fontSize: 10, fontWeight: '700' }}
+                      >
+                        {ptsLabel}
+                      </PointsValue>
+                    </View>
                   )}
                 </View>
-              ))}
-            </View>
-          ))
-        )}
+                <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                    <Text style={{ color: roleColor, fontSize: 9, fontWeight: '700' }}>{roleLabel}</Text>
+                  </View>
+                  {showStat && (
+                    <Text style={{ flex: 1, color: TEXT_PLACEHOLDER, fontSize: 10, textAlign: isRight ? 'right' : 'left' }} numberOfLines={1}>
+                      {statStr}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )
+          }
+
+          return (
+            <>
+              {/* Team name labels */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ flexShrink: 1, color: PRIMARY, fontSize: 10, fontWeight: '700' }} numberOfLines={1} ellipsizeMode="tail">
+                    {myName}
+                  </Text>
+                  <Text style={{ color: PRIMARY, fontSize: 10, fontWeight: '700' }}>
+                    ({myPlayers.length})
+                  </Text>
+                </View>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                  <Text style={{ flexShrink: 1, color: TEXT_MUTED, fontSize: 10, fontWeight: '700', textAlign: 'right' }} numberOfLines={1} ellipsizeMode="tail">
+                    {oppName}
+                  </Text>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700' }}>
+                    ({oppPlayers.length})
+                  </Text>
+                </View>
+              </View>
+
+              {/* Side-by-side player rows */}
+              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
+                <View style={{ flex: 1, gap: 8 }}>
+                  {myEmpty ? (
+                    <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 4 }}>
+                      <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic' }}>No players</Text>
+                    </View>
+                  ) : (
+                    Array.from({ length: myPlayers.length }).map((_, i) => (
+                      <View key={i}>{renderPlayer(myPlayers[i], 'left')}</View>
+                    ))
+                  )}
+                </View>
+                <View style={{ width: 1, backgroundColor: BORDER_DEFAULT, alignSelf: 'stretch' }} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  {oppEmpty ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-end', paddingVertical: 4 }}>
+                      <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic' }}>No players</Text>
+                    </View>
+                  ) : (
+                    Array.from({ length: oppPlayers.length }).map((_, i) => (
+                      <View key={i}>{renderPlayer(oppPlayers[i], 'right')}</View>
+                    ))
+                  )}
+                </View>
+              </View>
+
+              {/* Per-side total for this game */}
+              {hasStarted && (
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 8 }}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ flex: 1, color: TEXT_MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>TOTAL</Text>
+                    <View style={{ backgroundColor: myTotal.bg, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: myTotal.color, fontSize: 11, fontWeight: '700' }}>{myTotal.label}</Text>
+                    </View>
+                  </View>
+                  <View style={{ width: 1, backgroundColor: BORDER_DEFAULT, alignSelf: 'stretch' }} />
+                  <View style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ flex: 1, color: TEXT_MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.3, textAlign: 'right' }}>TOTAL</Text>
+                    <View style={{ backgroundColor: oppTotal.bg, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: oppTotal.color, fontSize: 11, fontWeight: '700' }}>{oppTotal.label}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </>
+          )
+        })()}
       </View>
     </View>
   )
@@ -235,6 +330,9 @@ export interface MatchupViewProps {
   myLineupLoading?: boolean
   /** True while the opponent's lineup query is still loading */
   oppLineupLoading?: boolean
+  /** True only when the user's lineup query has data AND is not currently refetching.
+   *  Gates the "Set Lineup" banner so a stale cached `locked: false` can't flash. */
+  myLineupSettled?: boolean
 }
 
 export function MatchupView({
@@ -245,17 +343,27 @@ export function MatchupView({
   myBench, oppBench,
   myOverridePoints, myOverrideNote, oppOverridePoints, oppOverrideNote,
   width, refreshControl, onExpandGames, carouselKey = 0, onSetLineup,
-  myLineupLoading, oppLineupLoading,
+  myLineupLoading, oppLineupLoading, myLineupSettled,
 }: MatchupViewProps) {
-  const showLineupWarning = !isCompleted && lineupLocked === false && !myLineupLoading && myLineup.length === 0 && !!onSetLineup
+  // Only show the "Set Lineup" banner once the lineup query has fully settled
+  // (data present AND no in-flight refetch). This prevents a stale cached
+  // `locked: false` from flashing the banner before the refetch corrects it.
+  const showLineupWarning = !isCompleted
+    && lineupLocked === false
+    && !!myLineupSettled
+    && weekMatches !== undefined
+    && myLineup.length === 0
+    && !!onSetLineup
   const isPending = !isCompleted && !isLive
   const [activeGameIndex, setActiveGameIndex] = useState(0)
   const gameListRef = useRef<ScrollView>(null)
   const [cardHeights, setCardHeights] = useState<Record<number, number>>({})
-  // carouselReady gates between spinner and the Animated.View.
-  // The Animated.View is only mounted after the first height is known, so it
-  // appears at the correct height immediately (no 0→h animation on first load).
+  // carouselReady: first card height has been measured (Animated.View can mount at correct height).
+  // carouselPositioned: ScrollView has actually rendered at the target scroll offset.
+  // The visible carousel stays behind the spinner until BOTH are true, so users
+  // never see game 0 flash briefly before jumping to the live/upcoming game.
   const [carouselReady, setCarouselReady] = useState(false)
+  const [carouselPositioned, setCarouselPositioned] = useState(false)
   const carouselHeight = useRef(new Animated.Value(0)).current
   const carouselInitialized = useRef(false)
 
@@ -289,20 +397,24 @@ export function MatchupView({
     if (!weekMatches || weekMatches.length === 0) return
     const target = targetGameIndex(weekMatches)
     setActiveGameIndex(target)
-    // If carousel is already mounted (data arrived after first render), scroll now.
-    // If not mounted yet, contentOffset on the ScrollView will handle the initial position.
-    if (carouselReady && target > 0) {
-      setTimeout(() => gameListRef.current?.scrollTo({ x: target * (width - 64), animated: false }), 50)
-    }
   }, [weekMatches, week.status])
 
-  // When the carousel first becomes ready, ensure it's at the correct position.
-  // This handles the case where weekMatches was cached and activeGameIndex was
-  // already set before the ScrollView mounted.
+  // Once the carousel is ready and we have weekMatches, give the ScrollView a
+  // frame to apply its contentOffset, then reveal the carousel. Two rAFs run
+  // after layout/commit, so by the time we flip this the ScrollView is already
+  // at the correct scroll position — no flash at game 0.
   useEffect(() => {
-    if (!carouselReady || activeGameIndex === 0) return
-    setTimeout(() => gameListRef.current?.scrollTo({ x: activeGameIndex * (width - 64), animated: false }), 50)
-  }, [carouselReady])
+    if (!carouselReady || !weekMatches || weekMatches.length === 0) return
+    if (carouselPositioned) return
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setCarouselPositioned(true))
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      if (raf2) cancelAnimationFrame(raf2)
+    }
+  }, [carouselReady, weekMatches, carouselPositioned])
 
   const onGameScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const idx = Math.round(e.nativeEvent.contentOffset.x / (width - 64))
@@ -383,7 +495,7 @@ export function MatchupView({
                 </Text>
                 <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{myUsername || ' '}</Text>
               </View>
-              <Text style={{ color: result === null ? TEXT_SECONDARY : PRIMARY, fontWeight: '800', fontSize: 40, lineHeight: 44, marginTop: 'auto' }}>
+              <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 40, lineHeight: 44, marginTop: 'auto' }}>
                 {Math.round(Number(myPoints))}
               </Text>
               <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 12, marginTop: 6 }}>pts</Text>
@@ -462,12 +574,16 @@ export function MatchupView({
               </View>
             )}
 
-            {!carouselReady ? (
+            {!carouselPositioned && (
               <View style={{ height: 80, alignItems: 'center', justifyContent: 'center' }}>
                 <ActivityIndicator color={PRIMARY} />
               </View>
-            ) : (
-              <Animated.View style={{ height: carouselHeight, overflow: 'hidden' }}>
+            )}
+            {carouselReady && (
+              <Animated.View style={[
+                { height: carouselHeight, overflow: 'hidden' },
+                carouselPositioned ? null : { position: 'absolute', opacity: 0 },
+              ]}>
                 <ScrollView
                   key={carouselKey}
                   ref={gameListRef}
@@ -478,6 +594,7 @@ export function MatchupView({
                   onScroll={onGameScroll}
                   style={{ width: width - 64 }}
                   contentContainerStyle={{ alignItems: 'flex-start' }}
+                  contentOffset={{ x: activeGameIndex * (width - 64), y: 0 }}
                 >
                   {cardProps.map(({ item, myPlayers, oppPlayers }, idx) => (
                     <View key={item.id} style={{ width: width - 64 }} onLayout={recordHeight(idx)}>
@@ -492,7 +609,7 @@ export function MatchupView({
       </View>
 
       {/* Lineup lock time — only shown when lineupLocked is explicitly false */}
-      {lineupLocked === false && !myLineupLoading && (
+      {lineupLocked === false && !!myLineupSettled && (
         <View style={{ backgroundColor: BG_CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER_DEFAULT, padding: 14, alignItems: 'center' }}>
           <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>
             Lineups lock {new Date(week.lock_time).toLocaleString('en-US', {

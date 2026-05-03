@@ -68,8 +68,8 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   const oppOverride = oppId ? (overrides.find(o => o.user_id === oppId && o.week_num === week.week_num) ?? null) : null
 
   const { data: weekMatches, refetch: refetchWeekMatches } = useWeekMatches(week.week_num)
-  const { data: myLineupData, refetch: refetchMyLineup } = useLineup(leagueId, week.week_num)
-  const { data: oppLineupData, refetch: refetchOppLineup } = useUserLineup(
+  const { data: myLineupData, refetch: refetchMyLineup, isFetching: myLineupFetching } = useLineup(leagueId, week.week_num)
+  const { data: oppLineupData, refetch: refetchOppLineup, isFetching: oppLineupFetching } = useUserLineup(
     oppId ? leagueId : '',
     oppId ?? '',
     week.week_num
@@ -81,6 +81,11 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   const lineupLocked = myLineupData?.locked
   const myLineupLoading = myLineupData === undefined
   const oppLineupLoading = !!oppId && oppLineupData === undefined
+  // Settled = we have data AND no in-flight refetch. Used to gate the
+  // "Set Lineup" banner so a stale cached `locked: false` can't flash before
+  // the refetch corrects it.
+  const myLineupSettled = myLineupData !== undefined && !myLineupFetching
+  const oppLineupSettled = !oppId || (oppLineupData !== undefined && !oppLineupFetching)
   const oppLineup = sortByRole(oppLineupData?.lineup ?? [])
 
   const { data: allRosters } = useAllTeams(leagueId)
@@ -262,6 +267,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
         onSetLineup={lineupLocked === false ? openLineupModal : undefined}
         myLineupLoading={myLineupLoading}
         oppLineupLoading={oppLineupLoading}
+        myLineupSettled={myLineupSettled}
       />
 
       {/* IPL Games expand modal */}

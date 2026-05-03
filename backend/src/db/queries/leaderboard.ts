@@ -4,6 +4,8 @@ export interface LeaderboardEntry {
   league_id: string
   user_id: string
   total_points: number
+  wins: number
+  losses: number
   last_updated: string
   team_name: string
   username: string

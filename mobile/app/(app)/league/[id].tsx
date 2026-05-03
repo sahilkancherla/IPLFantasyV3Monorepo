@@ -35,6 +35,7 @@ import { Avatar } from '../../../components/ui/Avatar'
 import { useAuthStore } from '../../../stores/authStore'
 import { PlayerRow, roleColors, roleLabels } from '../../../components/league/PlayerRow'
 import { NavButton } from '../../../components/ui/NavButton'
+import { GameCard } from '../../../components/league/MatchupView'
 import { SearchBar } from '../../../components/ui/SearchBar'
 import { SegmentedControl } from '../../../components/ui/SegmentedControl'
 import { api } from '../../../lib/api'
@@ -760,44 +761,6 @@ export default function LeagueScreen() {
             const myPoints = myWeekPoints || 0
             const oppPoints = oppWeekPoints || 0
 
-            const matchStatus = currentMatch?.status ?? (currentMatch?.is_completed ? 'completed' : 'pending')
-            const { bg: statusBg, text: statusColor } = (() => {
-              if (matchStatus === 'live') return { bg: WARNING_BG, text: WARNING_DARK }
-              if (matchStatus === 'completed') return { bg: SUCCESS_SUBTLE, text: SUCCESS }
-              if (matchStatus === 'upcoming') return { bg: INFO_SUBTLE, text: INFO_DARK }
-              return { bg: BORDER_DEFAULT, text: TEXT_MUTED }
-            })()
-            const statusLabel = matchStatus === 'live' ? 'LIVE' : matchStatus === 'completed' ? 'FINAL' : matchStatus === 'upcoming' ? 'NEXT UP' : 'UPCOMING'
-            const isLiveOrDone = matchStatus === 'live' || matchStatus === 'completed'
-
-            const matchDateStr = currentMatch?.start_time_utc
-              ? new Date(currentMatch.start_time_utc).toLocaleString('en-US', {
-                  month: 'short', day: 'numeric',
-                  hour: 'numeric', minute: '2-digit',
-                  timeZoneName: 'short',
-                })
-              : currentMatch?.match_date ?? null
-
-            const hasPlayers = myPlayers.length > 0 || oppPlayers.length > 0
-
-            const gameStatLine = (p: { runsScored: number; ballsFaced: number; fours: number; sixes: number; isOut: boolean; ballsBowled: number; runsConceded: number; wicketsTaken: number; maidens: number; catches: number; stumpings: number; runOutsDirect: number; runOutsIndirect: number }) => {
-              const parts: string[] = []
-              if (p.ballsFaced > 0 || p.runsScored > 0) {
-                parts.push(`${p.runsScored}(${p.ballsFaced})`)
-                if (p.fours > 0) parts.push(`${p.fours}×4`)
-                if (p.sixes > 0) parts.push(`${p.sixes}×6`)
-              }
-              if (p.ballsBowled > 0) {
-                const overs = `${Math.floor(p.ballsBowled / 6)}.${p.ballsBowled % 6}`
-                parts.push(`${p.wicketsTaken}/${p.runsConceded} (${overs}ov)`)
-                if (p.maidens > 0) parts.push(`${p.maidens}m`)
-              }
-              if (p.catches > 0) parts.push(`${p.catches}c`)
-              if (p.stumpings > 0) parts.push(`${p.stumpings}st`)
-              if (p.runOutsDirect > 0 || p.runOutsIndirect > 0) parts.push(`${p.runOutsDirect + p.runOutsIndirect}ro`)
-              return parts.join('  ')
-            }
-
             return (
               <View style={{ gap: 16 }}>
                 {/* ── Combined Matchup + Current Match card ── */}
@@ -850,100 +813,14 @@ export default function LeagueScreen() {
 
                   {/* Current match section — inside same card */}
                   {currentMatch && (
-                    <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, padding: 14, gap: 10 }}>
-                      {/* Status + match number */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View style={{ backgroundColor: statusBg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                          <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{statusLabel}</Text>
-                        </View>
-                        {currentMatch.match_number != null && (
-                          <Text style={{ color: TEXT_DISABLED, fontSize: 11 }}>Match {currentMatch.match_number}</Text>
-                        )}
-                      </View>
-
-                      {/* Teams */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-                          {currentMatch.home_team}
-                        </Text>
-                        <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 12 }}>vs</Text>
-                        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-                          {currentMatch.away_team}
-                        </Text>
-                      </View>
-
-                      {/* Date + venue */}
-                      <View style={{ gap: 2 }}>
-                        {matchDateStr && (
-                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{matchDateStr}</Text>
-                        )}
-                        {currentMatch.venue != null && (
-                          <Text style={{ color: TEXT_DISABLED, fontSize: 10, textAlign: 'center' }} numberOfLines={1}>
-                            {currentMatch.venue}
-                          </Text>
-                        )}
-                      </View>
-
-                      {/* Players in this game */}
-                      <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 10, gap: 10 }}>
-                        {!hasPlayers ? (
-                          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
-                            <Text style={{ color: TEXT_DISABLED, fontSize: 12 }}>No lineup players in this match</Text>
-                          </View>
-                        ) : (
-                          <>
-                            {myPlayers.length > 0 && (
-                              <View style={{ gap: 6 }}>
-                                <Text style={{ color: PRIMARY, fontSize: 10, fontWeight: '700' }}>{myName ?? 'You'}</Text>
-                                {myPlayers.map((p: any) => (
-                                  <View key={p.playerId} style={{ gap: 1 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
-                                        {roleLabels[p.playerRole] ?? p.playerRole}
-                                      </Text>
-                                      <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                                        {p.playerName}
-                                      </Text>
-                                      <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
-                                        {p.points > 0 ? `+${Math.round(p.points)}` : '\u2014'}
-                                      </Text>
-                                    </View>
-                                    {isLiveOrDone && gameStatLine(p) !== '' && (
-                                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
-                                    )}
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                            {myPlayers.length > 0 && oppPlayers.length > 0 && (
-                              <View style={{ height: 1, backgroundColor: BORDER_DEFAULT }} />
-                            )}
-                            {oppPlayers.length > 0 && (
-                              <View style={{ gap: 6 }}>
-                                <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700' }}>{oppName ?? 'Opponent'}</Text>
-                                {oppPlayers.map((p: any) => (
-                                  <View key={p.playerId} style={{ gap: 1 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text style={{ color: TEXT_MUTED, fontSize: 10, fontWeight: '700', width: 28 }}>
-                                        {roleLabels[p.playerRole] ?? p.playerRole}
-                                      </Text>
-                                      <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                                        {p.playerName}
-                                      </Text>
-                                      <Text style={{ color: p.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}>
-                                        {p.points > 0 ? `+${Math.round(p.points)}` : '\u2014'}
-                                      </Text>
-                                    </View>
-                                    {isLiveOrDone && gameStatLine(p) !== '' && (
-                                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, paddingLeft: 28 }}>{gameStatLine(p)}</Text>
-                                    )}
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                          </>
-                        )}
-                      </View>
+                    <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 14, paddingHorizontal: 14, paddingBottom: 14 }}>
+                      <GameCard
+                        item={{ ...currentMatch, match_date: currentMatch.match_date ?? '' } as any}
+                        myName={myName ?? 'You'}
+                        oppName={oppName ?? 'Opponent'}
+                        myPlayers={myPlayers as any}
+                        oppPlayers={oppPlayers as any}
+                      />
                     </View>
                   )}
                 </View>
@@ -971,6 +848,27 @@ export default function LeagueScreen() {
             const pointsMap = (leaderboard ?? []).reduce<Record<string, number>>((acc, e) => {
               acc[e.user_id] = e.total_points; return acc
             }, {})
+            // Per-user record derived from final matchups: wins/losses/ties + summed fantasy points.
+            type TeamRecord = { wins: number; losses: number; ties: number; points: number }
+            const records: globalThis.Record<string, TeamRecord> = {}
+            for (const m of (scheduleMatchups ?? [])) {
+              if (!m.is_final) continue
+              for (const uid of [m.home_user, m.away_user]) {
+                if (!records[uid]) records[uid] = { wins: 0, losses: 0, ties: 0, points: 0 }
+              }
+              records[m.home_user]!.points += parseFloat(String(m.home_points)) || 0
+              records[m.away_user]!.points += parseFloat(String(m.away_points)) || 0
+              if (m.winner_id === m.home_user) {
+                records[m.home_user]!.wins++
+                records[m.away_user]!.losses++
+              } else if (m.winner_id === m.away_user) {
+                records[m.away_user]!.wins++
+                records[m.home_user]!.losses++
+              } else {
+                records[m.home_user]!.ties++
+                records[m.away_user]!.ties++
+              }
+            }
             const effectiveUserId = selectedTeamUserId ?? user?.id ?? (members[0]?.user_id ?? null)
             const selectedMember = members.find(m => m.user_id === effectiveUserId)
             const selectedRoster = effectiveUserId ? (rostersByUser[effectiveUserId] ?? []) : []
@@ -1086,17 +984,25 @@ export default function LeagueScreen() {
                     <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: BG_PAGE, borderBottomWidth: 1, borderBottomColor: BORDER_DEFAULT }}>
                       <Text style={{ width: 28, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>#</Text>
                       <Text style={{ flex: 1, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700' }}>TEAM</Text>
-                      <Text style={{ width: 52, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PLAYERS</Text>
-                      <Text style={{ width: 48, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PTS</Text>
+                      <Text style={{ width: 26, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>W</Text>
+                      <Text style={{ width: 26, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>L</Text>
+                      <Text style={{ width: 26, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>T</Text>
+                      <Text style={{ width: 52, color: TEXT_PLACEHOLDER, fontSize: 11, fontWeight: '700', textAlign: 'right' }}>PTS</Text>
                     </View>
 
-                    {/* Sorted rows */}
+                    {/* Sorted rows — wins desc, then points desc as tiebreaker */}
                     {members
                       .slice()
-                      .sort((a, b) => (pointsMap[b.user_id] ?? 0) - (pointsMap[a.user_id] ?? 0))
+                      .sort((a, b) => {
+                        const ra = records[a.user_id]
+                        const rb = records[b.user_id]
+                        const winDiff = (rb?.wins ?? 0) - (ra?.wins ?? 0)
+                        if (winDiff !== 0) return winDiff
+                        return (rb?.points ?? 0) - (ra?.points ?? 0)
+                      })
                       .map((m, i) => {
                         const isMe = m.user_id === user?.id
-                        const pts = pointsMap[m.user_id]
+                        const rec = records[m.user_id]
                         return (
                           <View
                             key={m.user_id}
@@ -1123,11 +1029,17 @@ export default function LeagueScreen() {
                                 )}
                               </View>
                             </View>
-                            <Text style={{ width: 52, color: TEXT_MUTED, fontSize: 13, textAlign: 'right' }}>
-                              {m.roster_count}
+                            <Text style={{ width: 26, color: TEXT_PRIMARY, fontSize: 13, fontWeight: '700', textAlign: 'right' }}>
+                              {rec?.wins ?? 0}
                             </Text>
-                            <Text style={{ width: 48, color: pts != null ? TEXT_PRIMARY : TEXT_DISABLED, fontSize: 14, fontWeight: '700', textAlign: 'right' }}>
-                              {pts != null ? pts : '—'}
+                            <Text style={{ width: 26, color: TEXT_MUTED, fontSize: 13, textAlign: 'right' }}>
+                              {rec?.losses ?? 0}
+                            </Text>
+                            <Text style={{ width: 26, color: TEXT_MUTED, fontSize: 13, textAlign: 'right' }}>
+                              {rec?.ties ?? 0}
+                            </Text>
+                            <Text style={{ width: 52, color: rec ? TEXT_PRIMARY : TEXT_DISABLED, fontSize: 14, fontWeight: '700', textAlign: 'right' }}>
+                              {rec ? Math.round(rec.points) : '—'}
                             </Text>
                           </View>
                         )
@@ -1273,7 +1185,7 @@ export default function LeagueScreen() {
                                 </Text>
                                 {showPoints && (
                                   <Text style={{ color: isMyMatchup ? PRIMARY : TEXT_SECONDARY, fontWeight: '800', fontSize: 22 }}>
-                                    {isMyMatchup ? myPts : m.home_points}
+                                    {Math.round(parseFloat(String(isMyMatchup ? myPts : m.home_points)) || 0)}
                                   </Text>
                                 )}
                               </View>
@@ -1305,7 +1217,7 @@ export default function LeagueScreen() {
                                 </Text>
                                 {showPoints && (
                                   <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 22 }}>
-                                    {isMyMatchup ? oppPts : m.away_points}
+                                    {Math.round(parseFloat(String(isMyMatchup ? oppPts : m.away_points)) || 0)}
                                   </Text>
                                 )}
                               </View>

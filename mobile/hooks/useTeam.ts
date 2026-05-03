@@ -99,6 +99,8 @@ export function useLeaderboard(leagueId: string) {
       api.get<{ leaderboard: Array<{
         user_id: string
         total_points: number
+        wins: number
+        losses: number
         last_updated: string
         team_name: string
         username: string

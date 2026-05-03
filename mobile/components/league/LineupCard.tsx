@@ -235,9 +235,9 @@ export function LineupCard({
                                     value={playerStats.points}
                                     stats={{ ...playerStats, playerRole: entry.player_role }}
                                     playerName={entry.player_name}
-                                    style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
+                                    style={{ color: playerStats.points > 0 ? SUCCESS : playerStats.points < 0 ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 12, fontWeight: '700' }}
                                   >
-                                    {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : '0'}
+                                    {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : String(Math.round(playerStats.points))}
                                   </PointsValue>
                                 ) : (
                                   <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>{formatMatchTime(m)}</Text>
@@ -516,9 +516,12 @@ export function DualLineupCard({
             </View>
             {Array.from({ length: Math.max(myBench.length, oppBench.length) }).map((_, i) => (
               <View key={i} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
-                <PlayerCell entry={myBench[i] ?? null} getStats={getMyPlayerStats} side="left" isBench />
-                <View style={{ width: 1, backgroundColor: BORDER_DEFAULT }} />
-                <PlayerCell entry={oppBench[i] ?? null} getStats={getOppPlayerStats} side="right" isBench />
+                <View style={{ width: '50%', flexDirection: 'row', borderRightWidth: 1, borderRightColor: BORDER_DEFAULT }}>
+                  <PlayerCell entry={myBench[i] ?? null} getStats={getMyPlayerStats} side="left" isBench />
+                </View>
+                <View style={{ width: '50%', flexDirection: 'row' }}>
+                  <PlayerCell entry={oppBench[i] ?? null} getStats={getOppPlayerStats} side="right" isBench />
+                </View>
               </View>
             ))}
           </View>
@@ -633,8 +636,8 @@ export function DualLineupCard({
                             </Text>
                             {hasStats ? (
                               <TouchableOpacity onPress={() => openBreakdown({ ...playerStats, playerRole: entry.player_role }, playerStats.points, `${isHome ? 'vs' : '@'} ${opp}`)}>
-                                <Text style={{ color: playerStats.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
-                                  {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : '0'} ›
+                                <Text style={{ color: playerStats.points > 0 ? SUCCESS : playerStats.points < 0 ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
+                                  {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : String(Math.round(playerStats.points))} ›
                                 </Text>
                               </TouchableOpacity>
                             ) : (

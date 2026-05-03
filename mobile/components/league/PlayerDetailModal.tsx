@@ -250,9 +250,9 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
                 <PointsValue
                   value={s.points}
                   stats={{ ...s, playerRole: role }}
-                  style={{ color: s.points > 0 ? SUCCESS : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}
+                  style={{ color: s.points > 0 ? SUCCESS : s.points < 0 ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}
                 >
-                  {s.points > 0 ? `+${Math.round(s.points)}` : '—'}
+                  {s.points > 0 ? `+${Math.round(s.points)}` : s.points < 0 ? String(Math.round(s.points)) : '—'}
                 </PointsValue>
               </View>
             ) : (
