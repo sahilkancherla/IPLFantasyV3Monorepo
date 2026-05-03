@@ -125,6 +125,51 @@ export async function lineupRoutes(app: FastifyInstance): Promise<void> {
     }
   )
 
+  // GET /lineups/:leagueId/all-totals — runtime-computed weekly fantasy points
+  // for every member of the league. Sums match_scores.fantasy_points for the
+  // starting XI of each user/week (no DB cache), plus any admin overrides.
+  app.get<{ Params: { leagueId: string } }>(
+    '/lineups/:leagueId/all-totals',
+    async (req, reply) => {
+      const { leagueId } = req.params
+      const isMember = await isLeagueMember(leagueId, req.authUser!.id)
+      if (!isMember) return reply.code(403).send({ error: 'Not a member of this league' })
+
+      const { pool } = await import('../db/client.js')
+      const { rows } = await pool.query<{ user_id: string; week_num: number; points: string }>(
+        `WITH starter_pts AS (
+           SELECT wl.user_id, wl.week_num,
+                  COALESCE(SUM(ms.fantasy_points), 0) AS points
+           FROM weekly_lineups wl
+           JOIN ipl_matches im ON im.week_num = wl.week_num
+           LEFT JOIN match_scores ms
+             ON ms.player_id = wl.player_id AND ms.match_id = im.match_id
+           WHERE wl.league_id = $1
+           GROUP BY wl.user_id, wl.week_num
+         ),
+         overrides AS (
+           SELECT user_id, week_num, points
+           FROM league_points_overrides
+           WHERE league_id = $1
+         )
+         SELECT
+           COALESCE(s.user_id, o.user_id)   AS user_id,
+           COALESCE(s.week_num, o.week_num) AS week_num,
+           COALESCE(s.points, 0) + COALESCE(o.points, 0) AS points
+         FROM starter_pts s
+         FULL OUTER JOIN overrides o
+           ON o.user_id = s.user_id AND o.week_num = s.week_num`,
+        [leagueId]
+      )
+      const totals = rows.map((r) => ({
+        userId: r.user_id,
+        weekNum: Number(r.week_num),
+        points: parseFloat(r.points) || 0,
+      }))
+      return reply.send({ totals })
+    }
+  )
+
   // PUT /lineups/:leagueId/user/:userId — admin sets lineup for another member
   app.put<{ Params: { leagueId: string; userId: string } }>('/lineups/:leagueId/user/:userId', async (req, reply) => {
     const { leagueId, userId } = req.params

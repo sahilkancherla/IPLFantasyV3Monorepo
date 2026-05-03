@@ -93,10 +93,10 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   const oppStartingIds = new Set(oppLineup.map(e => e.player_id))
   const myBench = myLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === userId && !myStartingIds.has(r.player_id))
-    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
+    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
   const oppBench = oppLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === (oppId ?? '') && !oppStartingIds.has(r.player_id))
-    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role }))
+    .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
 
   const { data: gameBreakdown, refetch: refetchBreakdown, isRefetching: isRefetchingBreakdown } = useGameBreakdown(leagueId, week.week_num, oppId ?? null, isCompleted)
   const breakdownByMatchId = new Map((gameBreakdown?.games ?? []).map((g) => [g.matchId, g]))
@@ -199,7 +199,6 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   // ── Expand games modal ────────────────────────────────────────────────────
 
   const [gamesModalOpen, setGamesModalOpen] = useState(false)
-  const isPending = !isCompleted && !isLive
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -277,7 +276,7 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
             <NavButton label="Close" onPress={() => setGamesModalOpen(false)} />
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-            {!isPending && matchup && oppId && (
+            {matchup && oppId && (
               <GameBreakdownSection
                 leagueId={leagueId}
                 weekNum={week.week_num}

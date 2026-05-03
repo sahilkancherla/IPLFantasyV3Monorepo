@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import type { ReactNode } from 'react'
+import { Avatar } from '../ui/Avatar'
 import {
   TEXT_PRIMARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
   BORDER_DEFAULT, BG_CARD,
@@ -36,18 +37,20 @@ interface PlayerRowProps {
   iplTeam: string
   nationality?: string
   avgPts?: number | null
+  imageUrl?: string | null
   onPress?: () => void
   rightElement?: ReactNode
   backgroundColor?: string
   borderColor?: string
 }
 
-export function PlayerRow({ role, name, iplTeam, nationality, avgPts, onPress, rightElement, backgroundColor, borderColor }: PlayerRowProps) {
+export function PlayerRow({ role, name, iplTeam, nationality, avgPts, imageUrl, onPress, rightElement, backgroundColor, borderColor }: PlayerRowProps) {
   const roleColor = ROLE_COLORS[role] ?? TEXT_MUTED
   const roleLabel = roleLabels[role] ?? role
 
   const inner = (
     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 12, gap: 10 }}>
+      <Avatar uri={imageUrl} name={name} size={32} neutralFallback />
       {/* Role badge — fixed-width container so names always align */}
       <View style={{ width: 46, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <View style={{ backgroundColor: roleColor + '18', borderRadius: 4, paddingHorizontal: 10, paddingVertical: 3 }}>

@@ -24,6 +24,7 @@ export interface FreeAgent {
   role: string
   ipl_team: string
   base_price: number
+  image_url?: string | null
 }
 
 export function useFreeAgents(leagueId: string) {

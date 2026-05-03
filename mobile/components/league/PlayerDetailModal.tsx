@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator, Image } from 'react-native'
 import { NavButton } from '../ui/NavButton'
+import { Avatar } from '../ui/Avatar'
+import { useIplTeams } from '../../hooks/useIplTeams'
+import { teamLogoUrlForName } from '../../constants/teams'
 import { PointsValue } from '../ui/PointsBreakdown'
 import { formatCurrency, type Currency } from '../../lib/currency'
 import { usePlayerStats, usePlayerUpcoming } from '../../hooks/useLineup'
@@ -30,6 +33,8 @@ export interface PlayerDetailInfo {
   ipl_team: string
   role: string
   nationality?: string
+  /** Headshot URL — shown next to the name in the modal header */
+  image_url?: string | null
   /** Total fantasy points scored (squad view) */
   total_points?: number
   /** Number of games the player's IPL team has played (for avg calc) */
@@ -86,6 +91,7 @@ function statLine(s: PlayerMatchStat, _role: string): string {
 
 function UpcomingGames({ playerId }: { playerId: string }) {
   const { data: matches, isLoading } = usePlayerUpcoming(playerId)
+  const { data: iplTeams } = useIplTeams()
   const [expanded, setExpanded] = useState(false)
 
   if (isLoading) {
@@ -132,6 +138,7 @@ function UpcomingGames({ playerId }: { playerId: string }) {
             padding: 12,
             flexDirection: 'row', alignItems: 'center', gap: 10,
           }}>
+            <OpponentLogo iplTeams={iplTeams} oppName={opp} />
             <View style={{ flex: 1 }}>
               <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }}>
                 {isHome ? 'vs' : '@'} {opp}
@@ -166,8 +173,19 @@ function UpcomingGames({ playerId }: { playerId: string }) {
   )
 }
 
+function OpponentLogo({ iplTeams, oppName, size = 28 }: { iplTeams: ReturnType<typeof useIplTeams>['data']; oppName: string | null | undefined; size?: number }) {
+  const url = teamLogoUrlForName(iplTeams, oppName)
+  if (!url) {
+    return (
+      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: BG_SUBTLE }} />
+    )
+  }
+  return <Image source={{ uri: url }} style={{ width: size, height: size }} resizeMode="contain" />
+}
+
 function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
   const { data: stats, isLoading, isError } = usePlayerStats(playerId)
+  const { data: iplTeams } = useIplTeams()
   const [expanded, setExpanded] = useState(false)
 
   if (isLoading) {
@@ -228,6 +246,7 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
                 <View style={{ backgroundColor: statusBg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{statusLabel}</Text>
                 </View>
+                <OpponentLogo iplTeams={iplTeams} oppName={opp} size={22} />
                 <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>
                   {matchLabel}
                 </Text>
@@ -275,11 +294,13 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
 }
 
 export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, playerId, onDrop, onAdd, addLabel = 'Add to Squad', alreadyOnTeam }: Props) {
+  const { data: iplTeams } = useIplTeams()
   if (!player) return null
 
   const roleColor = ROLE_COLORS[player.role] ?? TEXT_MUTED
   const roleShort = ROLE_SHORT[player.role] ?? player.role
   const roleFull  = ROLE_FULL[player.role]  ?? player.role
+  const teamLogo = teamLogoUrlForName(iplTeams, player.ipl_team)
   const isSold    = player.status === 'sold'
 
   const totalPts = player.total_points != null ? Number(player.total_points) : null
@@ -305,17 +326,62 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
 
         {/* Body */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, gap: 20 }}>
-          {/* Name + team */}
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: TEXT_PRIMARY, fontSize: 26, fontWeight: '800' }}>{player.name}</Text>
-            <Text style={{ color: TEXT_MUTED, fontSize: 15 }}>{player.ipl_team}</Text>
+          {/* Avatar + name + team. Team logo overlays the bottom-right of the
+              avatar — half on, half off — like a team crest badge. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <View style={{ width: 72, height: 72 }}>
+              <Avatar uri={player.image_url} name={player.name} size={72} neutralFallback />
+              {teamLogo && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -8,
+                    bottom: -8,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: 'white',
+                    // Shadow lives on the outer view (no overflow:hidden,
+                    // otherwise iOS clips the shadow against the bounds).
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <Image
+                      source={{ uri: teamLogo }}
+                      style={{ width: 26, height: 26 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                </View>
+              )}
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: TEXT_PRIMARY, fontSize: 24, fontWeight: '800' }} numberOfLines={2}>{player.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <View style={{ backgroundColor: roleColor + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleShort}</Text>
+                </View>
+                <Text style={{ color: TEXT_MUTED, fontSize: 14 }}>{player.ipl_team}</Text>
+              </View>
+            </View>
           </View>
 
           {/* Badges row */}
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <View style={{ backgroundColor: roleColor + '20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Text style={{ color: roleColor, fontSize: 12, fontWeight: '700' }}>{roleShort}</Text>
-            </View>
             {player.nationality && player.nationality !== 'Indian' && (
               <View style={{ backgroundColor: WARNING_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <Text style={{ color: WARNING_DARK, fontSize: 12, fontWeight: '700' }}>OVERSEAS</Text>

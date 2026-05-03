@@ -1,0 +1,459 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - link "BCCI Logo BCCI.TV" [ref=e8] [cursor=pointer]:
+            - /url: https://www.bcci.tv/
+            - img "BCCI Logo" [ref=e9]
+            - text: BCCI.TV
+          - text: "|"
+          - link "WPL Logo" [ref=e10] [cursor=pointer]:
+            - /url: https://www.wplt20.com/
+            - img "WPL Logo" [ref=e11]
+        - generic [ref=e12]:
+          - generic [ref=e13]: Follow Us
+          - link "twitter" [ref=e14] [cursor=pointer]:
+            - /url: https://twitter.com/IPL
+          - link "instagram" [ref=e15] [cursor=pointer]:
+            - /url: https://www.instagram.com/iplt20/
+          - link "facebook" [ref=e16] [cursor=pointer]:
+            - /url: https://www.facebook.com/IPL/
+      - generic [ref=e18]:
+        - link "ipl-logo-new-old" [ref=e20] [cursor=pointer]:
+          - /url: https://www.iplt20.com
+          - img "ipl-logo-new-old" [ref=e21]
+        - navigation [ref=e25]:
+          - list [ref=e26]:
+            - listitem [ref=e27]:
+              - link "TICKETS" [ref=e28] [cursor=pointer]:
+                - /url: https://www.iplt20.com/matches/tickets
+            - listitem [ref=e29]:
+              - link "MATCHES" [ref=e30] [cursor=pointer]:
+                - /url: https://www.iplt20.com/matches/fixtures
+            - listitem [ref=e31]:
+              - link "POINTS TABLE" [ref=e32] [cursor=pointer]:
+                - /url: https://www.iplt20.com/matches/points-table
+            - listitem [ref=e33]:
+              - link "VIDEOS" [ref=e34] [cursor=pointer]:
+                - /url: https://www.iplt20.com/videos
+            - listitem [ref=e35]:
+              - link "NEWS" [ref=e36] [cursor=pointer]:
+                - /url: https://www.iplt20.com/news
+            - listitem [ref=e37]:
+              - link "TEAMS" [ref=e38] [cursor=pointer]:
+                - /url: https://www.iplt20.com/teams
+            - listitem [ref=e39]:
+              - link "FANTASY" [ref=e40] [cursor=pointer]:
+                - /url: https://fantasy.iplt20.com/
+            - listitem [ref=e41]:
+              - link "MORE" [ref=e42] [cursor=pointer]:
+                - /url: javascript:void(0)
+        - generic [ref=e44]:
+          - link "fan-poll" [ref=e45] [cursor=pointer]:
+            - /url: https://www.iplt20.com/fan-poll
+            - img "fan-poll" [ref=e46]
+          - link "viewers-choice" [ref=e47] [cursor=pointer]:
+            - /url: https://www.iplt20.com/polls/emerging-player
+            - img "viewers-choice" [ref=e48]
+          - button "new-search-icon" [ref=e49] [cursor=pointer]:
+            - img "new-search-icon" [ref=e50]
+        - text: 
+    - generic [ref=e51]:
+      - generic [ref=e53]:
+        - link "Home" [ref=e54] [cursor=pointer]:
+          - /url: https://www.iplt20.com
+        - text: /
+        - link "Teams" [ref=e55] [cursor=pointer]:
+          - /url: https://www.iplt20.com/teams
+        - text: /
+        - link "Rajasthan Royals" [ref=e56] [cursor=pointer]:
+          - /url: https://www.iplt20.com/teams/rajasthan-royals
+      - generic [ref=e57]:
+        - list [ref=e62]:
+          - listitem [ref=e63]:
+            - link [ref=e65] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/chennai-super-kings
+          - listitem [ref=e66]:
+            - link [ref=e68] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/delhi-capitals
+          - listitem [ref=e69]:
+            - link [ref=e71] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/gujarat-titans
+          - listitem [ref=e72]:
+            - link [ref=e74] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/kolkata-knight-riders
+          - listitem [ref=e75]:
+            - link [ref=e77] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/lucknow-super-giants
+          - listitem [ref=e78]:
+            - link [ref=e80] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/mumbai-indians
+          - listitem [ref=e81]:
+            - link [ref=e83] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/punjab-kings
+          - listitem [ref=e84]:
+            - generic [ref=e85]:
+              - generic [ref=e87]: 
+              - link [ref=e88] [cursor=pointer]:
+                - /url: https://www.iplt20.com/teams/rajasthan-royals
+          - listitem [ref=e89]:
+            - link [ref=e91] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/royal-challengers-bengaluru
+          - listitem [ref=e92]:
+            - link [ref=e94] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/sunrisers-hyderabad
+        - generic [ref=e96]:
+          - generic [ref=e100]:
+            - heading "Rajasthan Royals" [level=2] [ref=e101]
+            - generic [ref=e104]: "2008"
+            - generic [ref=e105]:
+              - link "Official Team Site" [ref=e106] [cursor=pointer]:
+                - /url: https://www.rajasthanroyals.com/
+                - generic [ref=e107]: Official Team Site
+              - text:   
+          - generic [ref=e109]:
+            - paragraph [ref=e110]:
+              - generic [ref=e111]: Captain
+              - generic [ref=e112]: "-"
+              - text: Riyan Parag
+            - paragraph [ref=e113]:
+              - generic [ref=e114]: Coach
+              - generic [ref=e115]: "-"
+              - text: Kumar Sangakkara
+            - paragraph [ref=e116]:
+              - generic [ref=e117]: Owner
+              - generic [ref=e118]: "-"
+              - text: Royal Multisport Private Limited
+            - paragraph [ref=e119]:
+              - generic [ref=e120]: Venue
+              - generic [ref=e121]: "-"
+              - text: Sawai Mansingh Stadium
+    - generic [ref=e122]:
+      - link "Squad" [ref=e123] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/squad
+      - link "Fixtures" [ref=e124] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/schedule
+      - link "Results" [ref=e125] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/results
+      - link "Videos" [ref=e126] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/videos
+      - link "News" [ref=e127] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/news
+      - link "Archive" [ref=e128] [cursor=pointer]:
+        - /url: https://www.iplt20.com/teams/rajasthan-royals/archive
+    - generic [ref=e132]:
+      - combobox [ref=e134]:
+        - option "Season 2026" [selected]
+        - option "Season 2025"
+        - option "Season 2024"
+        - option "Season 2023"
+        - option "Season 2022"
+        - option "Season 2021"
+        - option "Season 2020"
+        - option "Season 2019"
+        - option "Season 2018"
+        - option "Season 2015"
+        - option "Season 2014"
+        - option "Season 2013"
+        - option "Season 2012"
+        - option "Season 2011"
+        - option "Season 2010"
+        - option "Season 2009"
+        - option "Season 2008"
+      - generic:
+        - generic [ref=e136]:
+          - heading "Batters" [level=2] [ref=e138]
+          - list [ref=e139]:
+            - listitem [ref=e140]:
+              - link "Shubham Dubey Batter":
+                - /url: "https://www.iplt20.com/players/shubham-dubey/20688 "
+                - generic [ref=e143] [cursor=pointer]:
+                  - heading "Shubham Dubey" [level=2] [ref=e145]
+                  - generic [ref=e146]: Batter
+            - listitem [ref=e147]:
+              - link "Vaibhav Sooryavanshi Batter":
+                - /url: "https://www.iplt20.com/players/vaibhav-sooryavanshi/22203 "
+                - generic [ref=e150] [cursor=pointer]:
+                  - heading "Vaibhav Sooryavanshi" [level=2] [ref=e152]
+                  - generic [ref=e153]: Batter
+            - listitem [ref=e154]:
+              - link "Donovan Ferreira WK-Batter":
+                - /url: "https://www.iplt20.com/players/donovan-ferreira/5652 "
+                - generic [ref=e158] [cursor=pointer]:
+                  - heading "Donovan Ferreira" [level=2] [ref=e160]
+                  - generic [ref=e161]: WK-Batter
+            - listitem [ref=e162]:
+              - link "Lhuan-dre Pretorious WK-Batter":
+                - /url: "https://www.iplt20.com/players/lhuan-dre-pretorious/22383 "
+                - generic [ref=e166] [cursor=pointer]:
+                  - heading "Lhuan-dre Pretorious" [level=2] [ref=e168]
+                  - generic [ref=e169]: WK-Batter
+            - listitem [ref=e170]:
+              - link "Ravi Singh WK-Batter":
+                - /url: "https://www.iplt20.com/players/ravi-singh/23044 "
+                - generic [ref=e173] [cursor=pointer]:
+                  - heading "Ravi Singh" [level=2] [ref=e175]
+                  - generic [ref=e176]: WK-Batter
+            - listitem [ref=e177]:
+              - link "Aman Rao Perala Batter":
+                - /url: "https://www.iplt20.com/players/aman-rao-perala/23034 "
+                - generic [ref=e180] [cursor=pointer]:
+                  - heading "Aman Rao Perala" [level=2] [ref=e182]
+                  - generic [ref=e183]: Batter
+            - listitem [ref=e184]:
+              - link "Shimron Hetmyer Batter":
+                - /url: "https://www.iplt20.com/players/shimron-hetmyer/1705 "
+                - generic [ref=e188] [cursor=pointer]:
+                  - heading "Shimron Hetmyer" [level=2] [ref=e190]
+                  - generic [ref=e191]: Batter
+            - listitem [ref=e192]:
+              - link "Yashasvi Jaiswal Batter":
+                - /url: "https://www.iplt20.com/players/yashasvi-jaiswal/13538 "
+                - generic [ref=e195] [cursor=pointer]:
+                  - heading "Yashasvi Jaiswal" [level=2] [ref=e197]
+                  - generic [ref=e198]: Batter
+            - listitem [ref=e199]:
+              - link "Dhruv Jurel WK-Batter":
+                - /url: "https://www.iplt20.com/players/dhruv-jurel/20620 "
+                - generic [ref=e202] [cursor=pointer]:
+                  - heading "Dhruv Jurel" [level=2] [ref=e204]
+                  - generic [ref=e205]: WK-Batter
+        - generic [ref=e207]:
+          - heading "All Rounders" [level=2] [ref=e209]
+          - list [ref=e210]:
+            - listitem [ref=e211]:
+              - link "Riyan Parag All-Rounder":
+                - /url: "https://www.iplt20.com/players/riyan-parag/4445 "
+                - generic [ref=e215] [cursor=pointer]:
+                  - heading "Riyan Parag" [level=2] [ref=e217]
+                  - generic [ref=e218]: All-Rounder
+            - listitem [ref=e219]:
+              - link "Yudhvir Singh Charak All-Rounder":
+                - /url: "https://www.iplt20.com/players/yudhvir-singh-charak/10842 "
+                - generic [ref=e222] [cursor=pointer]:
+                  - heading "Yudhvir Singh Charak" [level=2] [ref=e224]
+                  - generic [ref=e225]: All-Rounder
+            - listitem [ref=e226]:
+              - link "Ravindra Jadeja All-Rounder":
+                - /url: "https://www.iplt20.com/players/ravindra-jadeja/9 "
+                - generic [ref=e229] [cursor=pointer]:
+                  - heading "Ravindra Jadeja" [level=2] [ref=e231]
+                  - generic [ref=e232]: All-Rounder
+            - listitem [ref=e233]:
+              - link "Dasun Shanaka All-Rounder":
+                - /url: "https://www.iplt20.com/players/dasun-shanaka/1095 "
+                - generic [ref=e237] [cursor=pointer]:
+                  - heading "Dasun Shanaka" [level=2] [ref=e239]
+                  - generic [ref=e240]: All-Rounder
+        - generic [ref=e242]:
+          - heading "Bowlers" [level=2] [ref=e244]
+          - list [ref=e245]:
+            - listitem [ref=e246]:
+              - link "Jofra Archer Bowler":
+                - /url: "https://www.iplt20.com/players/jofra-archer/3502 "
+                - generic [ref=e250] [cursor=pointer]:
+                  - heading "Jofra Archer" [level=2] [ref=e252]
+                  - generic [ref=e253]: Bowler
+            - listitem [ref=e254]:
+              - link "Tushar Deshpande Bowler":
+                - /url: "https://www.iplt20.com/players/tushar-deshpande/3257 "
+                - generic [ref=e257] [cursor=pointer]:
+                  - heading "Tushar Deshpande" [level=2] [ref=e259]
+                  - generic [ref=e260]: Bowler
+            - listitem [ref=e261]:
+              - link "Kwena Maphaka Bowler":
+                - /url: "https://www.iplt20.com/players/kwena-maphaka/20724 "
+                - generic [ref=e265] [cursor=pointer]:
+                  - heading "Kwena Maphaka" [level=2] [ref=e267]
+                  - generic [ref=e268]: Bowler
+            - listitem [ref=e269]:
+              - link "Ravi Bishnoi Bowler":
+                - /url: "https://www.iplt20.com/players/ravi-bishnoi/19351 "
+                - generic [ref=e272] [cursor=pointer]:
+                  - heading "Ravi Bishnoi" [level=2] [ref=e274]
+                  - generic [ref=e275]: Bowler
+            - listitem [ref=e276]:
+              - link "Sushant Mishra Bowler":
+                - /url: "https://www.iplt20.com/players/sushant-mishra/20695 "
+                - generic [ref=e279] [cursor=pointer]:
+                  - heading "Sushant Mishra" [level=2] [ref=e281]
+                  - generic [ref=e282]: Bowler
+            - listitem [ref=e283]:
+              - link "Yash Raj Punja Bowler":
+                - /url: "https://www.iplt20.com/players/yash-raj-punja/23016 "
+                - generic [ref=e286] [cursor=pointer]:
+                  - heading "Yash Raj Punja" [level=2] [ref=e288]
+                  - generic [ref=e289]: Bowler
+            - listitem [ref=e290]:
+              - link "Vignesh Puthur Bowler":
+                - /url: "https://www.iplt20.com/players/vignesh-puthur/22266 "
+                - generic [ref=e293] [cursor=pointer]:
+                  - heading "Vignesh Puthur" [level=2] [ref=e295]
+                  - generic [ref=e296]: Bowler
+            - listitem [ref=e297]:
+              - link "Brijesh Sharma Bowler":
+                - /url: "https://www.iplt20.com/players/brijesh-sharma/23164 "
+                - generic [ref=e300] [cursor=pointer]:
+                  - heading "Brijesh Sharma" [level=2] [ref=e302]
+                  - generic [ref=e303]: Bowler
+            - listitem [ref=e304]:
+              - link "Adam Milne Bowler":
+                - /url: "https://www.iplt20.com/players/adam-milne/434 "
+                - generic [ref=e308] [cursor=pointer]:
+                  - heading "Adam Milne" [level=2] [ref=e310]
+                  - generic [ref=e311]: Bowler
+            - listitem [ref=e312]:
+              - link "Kuldeep Sen Bowler":
+                - /url: "https://www.iplt20.com/players/kuldeep-sen/20616 "
+                - generic [ref=e315] [cursor=pointer]:
+                  - heading "Kuldeep Sen" [level=2] [ref=e317]
+                  - generic [ref=e318]: Bowler
+            - listitem [ref=e319]:
+              - link "Sandeep Sharma Bowler":
+                - /url: "https://www.iplt20.com/players/sandeep-sharma/1112 "
+                - generic [ref=e322] [cursor=pointer]:
+                  - heading "Sandeep Sharma" [level=2] [ref=e324]
+                  - generic [ref=e325]: Bowler
+            - listitem [ref=e326]:
+              - link "Nandre Burger Bowler":
+                - /url: "https://www.iplt20.com/players/nandre-burger/20716 "
+                - generic [ref=e330] [cursor=pointer]:
+                  - heading "Nandre Burger" [level=2] [ref=e332]
+                  - generic [ref=e333]: Bowler
+  - contentinfo [ref=e334]:
+    - generic [ref=e337]:
+      - generic [ref=e339]:
+        - generic [ref=e340]: title sponsor
+        - link "new-sponsor-tata-logo" [ref=e341] [cursor=pointer]:
+          - /url: https://www.tata.com/
+          - img "new-sponsor-tata-logo" [ref=e342]
+      - generic [ref=e343]:
+        - generic [ref=e344]: PREMIER PARTNERS
+        - generic [ref=e345]:
+          - link "new-sponsor-angelone-logo" [ref=e346] [cursor=pointer]:
+            - /url: https://www.angelone.in/
+            - img "new-sponsor-angelone-logo" [ref=e347]
+          - link "new-sponsor-rupay-logo" [ref=e348] [cursor=pointer]:
+            - /url: https://www.rupay.co.in/
+            - img "new-sponsor-rupay-logo" [ref=e349]
+          - link "google-ai-logo" [ref=e350] [cursor=pointer]:
+            - /url: https://www.google.com/search?udm=50&aep=11&authuser=1
+            - img "google-ai-logo" [ref=e351]
+      - generic [ref=e352]:
+        - generic [ref=e353]:
+          - generic [ref=e354]:
+            - text: UMPIRE
+            - text: PARTNER
+          - link "new-partner-wonder-cement" [ref=e355] [cursor=pointer]:
+            - /url: https://www.wondercement.com/
+            - img "new-partner-wonder-cement" [ref=e356]
+        - generic [ref=e357]:
+          - generic [ref=e358]:
+            - text: strategic
+            - text: timeout partner
+          - link "new-sponsor-ceat-logo" [ref=e359] [cursor=pointer]:
+            - /url: https://www.ceat.com/
+            - img "new-sponsor-ceat-logo" [ref=e360]
+        - generic:
+          - generic:
+            - text: GOOD TIMES
+            - text: partner
+          - link "new-sponsor-kingfisher-logo":
+            - /url: https://www.kingfisher.com/
+            - img "new-sponsor-kingfisher-logo"
+        - generic:
+          - generic:
+            - text: official
+            - text: broadcaster
+          - link "new-sponsor-start-sports-logo":
+            - /url: https://www.hotstar.com
+            - img "new-sponsor-start-sports-logo"
+        - generic [ref=e361]:
+          - generic [ref=e362]:
+            - text: official digital
+            - text: streaming partner
+          - link "new-sponsor-jio-hotstar-logo" [ref=e363] [cursor=pointer]:
+            - /url: https://www.hotstar.com/in/sports/cricket/tournaments/indian-premier-league
+            - img "new-sponsor-jio-hotstar-logo" [ref=e364]
+    - generic [ref=e365]:
+      - generic [ref=e366]:
+        - generic [ref=e367]:
+          - heading "TEAM" [level=2] [ref=e368]
+          - generic [ref=e369]:
+            - link "Chennai super kings" [ref=e370] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/chennai-super-kings
+            - link "Delhi Capitals" [ref=e371] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/delhi-capitals
+            - link "Gujarat Titans" [ref=e372] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/gujarat-titans
+            - link "Kolkata Knight Riders" [ref=e373] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/kolkata-knight-riders
+            - link "Lucknow Super Giants" [ref=e374] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/lucknow-super-giants
+            - link "Mumbai Indians" [ref=e375] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/mumbai-indians
+            - link "Punjab Kings" [ref=e376] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/punjab-kings
+            - link "Rajasthan Royals" [ref=e377] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/rajasthan-royals
+            - link "Royal Challengers Bengaluru" [ref=e378] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/royal-challengers-bengaluru
+            - link "Sunrisers Hyderabad" [ref=e379] [cursor=pointer]:
+              - /url: https://www.iplt20.com/teams/sunrisers-hyderabad
+        - generic [ref=e380]:
+          - heading "ABOUT" [level=2] [ref=e381]
+          - generic [ref=e382]:
+            - link "About Us" [ref=e383] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/about-us
+            - link "Anti Corruption Code" [ref=e384] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/anti-corruption-code?id=260
+            - link "Anti Doping Rules" [ref=e385] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/anti-doping-rules?id=261
+            - link "TUE Application Form" [ref=e386] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/tue-application-form?id=265
+            - link "Anti Discrimination Code" [ref=e387] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/anti-discrimination-code?id=266
+            - link "Clothing and Equipment Regulations" [ref=e388] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/clothing-and-equipment-regulations?id=267
+            - link "Code Of Conduct For Players and Teams Officials" [ref=e389] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/code-of-conduct-for-players-and-team-officials?id=268
+            - link "News Access Regulations" [ref=e390] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/news-access-regulations?id=270
+            - link "Image Use Terms" [ref=e391] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/image-use-terms?id=271
+        - generic [ref=e392]:
+          - heading "GUIDELINES" [level=2] [ref=e393]
+          - generic [ref=e394]:
+            - link "IPL Code Of Conduct For Match Officials" [ref=e395] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/code-of-conduct-for-match-officials-and-match-official-support-personnel?id=269
+            - link "Brand And Protection Guidelines" [ref=e396] [cursor=pointer]:
+              - /url: https://documents.iplt20.com/bcci/documents/1680174721009_Brand&ContentProtectionGuidelines.pdf
+            - link "Governing Council" [ref=e397] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/governing-council?id=275
+            - link "Match Playing Conditions" [ref=e398] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/match-playing-conditions?id=272
+            - link "PMOA Minimum Standard" [ref=e399] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/pmoa-minimum-standard?id=273
+            - link "Suspect Action Policy" [ref=e400] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/suspect-action-policy?id=290
+        - generic [ref=e401]:
+          - heading "CONTACT" [level=2] [ref=e402]
+          - generic [ref=e403]:
+            - link "Contact Us" [ref=e404] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/contact-us
+            - link "Sponsorship" [ref=e405] [cursor=pointer]:
+              - /url: https://www.iplt20.com/about/contact-us
+            - link "Privacy Policy" [ref=e406] [cursor=pointer]:
+              - /url: https://www.iplt20.com/privacy-policy
+            - link "Terms & Conditions" [ref=e407] [cursor=pointer]:
+              - /url: https://www.iplt20.com/terms-and-conditions
+      - paragraph [ref=e409]: Copyright © IPL 2026 All Rights Reserved.
+  - generic [ref=e411]:
+    - link "What are cookies?" [ref=e412] [cursor=pointer]:
+      - /url: http://www.allaboutcookies.org/
+    - paragraph [ref=e413]:
+      - text: We and selected third parties use cookies or similar technologies for technical purposes and, with your consent, for other purposes as specified in the
+      - link "cookie policy." [ref=e414] [cursor=pointer]:
+        - /url: https://www.iplt20.com/cookie-policy
+    - button "Accept cookies" [ref=e415] [cursor=pointer]

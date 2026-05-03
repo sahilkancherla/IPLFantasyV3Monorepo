@@ -8,6 +8,7 @@ import { leagueRoutes } from './routes/leagues.js'
 import { playerRoutes } from './routes/players.js'
 import { auctionRoutes } from './routes/auction.js'
 import { teamRoutes } from './routes/teams.js'
+import { iplTeamRoutes } from './routes/ipl-teams.js'
 import { leaderboardRoutes } from './routes/leaderboard.js'
 import { scheduleRoutes } from './routes/schedule.js'
 import { lineupRoutes } from './routes/lineups.js'
@@ -46,6 +47,7 @@ export async function buildApp() {
   await app.register(playerRoutes)
   await app.register(auctionRoutes)
   await app.register(teamRoutes)
+  await app.register(iplTeamRoutes)
   await app.register(leaderboardRoutes)
   await app.register(scheduleRoutes)
   await app.register(lineupRoutes)

@@ -7,6 +7,7 @@ import { QueryClientProvider, focusManager } from '@tanstack/react-query'
 import { queryClient } from '../lib/queryClient'
 import * as SplashScreen from 'expo-splash-screen'
 import { useAuthStore } from '../stores/authStore'
+import { preloadImages } from '../lib/preloadImages'
 import '../global.css'
 
 // Refetch stale queries when the app comes back to the foreground
@@ -26,10 +27,14 @@ export default function RootLayout() {
     restoreSession()
   }, [restoreSession])
 
-  // Hide splash once auth state is known
+  // Hide splash once auth state is known. Kick off player headshot prefetch
+  // in the background — first launch downloads + caches every player image,
+  // subsequent launches are near-instant cache hits. Throttled (concurrency 2,
+  // 3s startup delay) so backend queries on the home screen aren't starved.
   useEffect(() => {
     if (!isLoading) {
       SplashScreen.hideAsync()
+      preloadImages()
     }
   }, [isLoading])
 

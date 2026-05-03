@@ -14,6 +14,7 @@ export interface LineupEntry {
   player_name: string
   player_role: string
   player_ipl_team: string
+  player_image_url: string | null
 }
 
 interface LineupResponse {
@@ -142,6 +143,26 @@ export function useGameBreakdown(leagueId: string, weekNum: number, opponentId: 
     staleTime: isCompleted ? Infinity : 30_000,
     gcTime: 30 * 60_000,
     refetchInterval: isCompleted ? false : 60_000,
+  })
+}
+
+export interface WeeklyTotal {
+  userId: string
+  weekNum: number
+  points: number
+}
+
+/** Runtime-computed weekly totals for every member. Skips the DB-cached
+ *  `weekly_matchups.home_points` so the points table reflects fresh scores. */
+export function useLeagueWeeklyTotals(leagueId: string) {
+  return useQuery({
+    queryKey: ['league-all-totals', leagueId],
+    queryFn: () => api.get<{ totals: WeeklyTotal[] }>(`/lineups/${leagueId}/all-totals`),
+    enabled: !!leagueId,
+    select: (d) => d.totals,
+    staleTime: 30_000,
+    gcTime: 30 * 60_000,
+    refetchInterval: 60_000,
   })
 }
 

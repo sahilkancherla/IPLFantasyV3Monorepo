@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { View, Text, TouchableOpacity } from 'react-native'
 import type { RosterEntry } from '../../hooks/useTeam'
 import { formatCurrency, type Currency } from '../../lib/currency'
+import { Avatar } from '../ui/Avatar'
 import { PlayerDetailModal } from '../league/PlayerDetailModal'
 import {
   TEXT_PRIMARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
@@ -81,11 +82,12 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
                     key={item.id}
                     onPress={() => setSelectedPlayer(item)}
                     style={{
-                      flexDirection: 'row', alignItems: 'center',
-                      paddingLeft: 16, paddingRight: 12,
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      paddingLeft: 12, paddingRight: 12,
                       borderTopWidth: 1, borderTopColor: BORDER_DEFAULT,
                     }}
                   >
+                    <Avatar uri={item.player_image_url} name={item.player_name} size={36} neutralFallback />
                     <View style={{ flex: 1, paddingVertical: 11 }}>
                       <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
                         {item.player_name}
@@ -116,6 +118,7 @@ export function SquadGrid({ roster, currency = 'lakhs', onDrop }: SquadGridProps
           role: selectedPlayer.player_role,
           total_points: selectedPlayer.total_points,
           team_games_played: selectedPlayer.team_games_played,
+          image_url: selectedPlayer.player_image_url,
         } : null}
         playerId={selectedPlayer?.player_id}
         currency={currency}

@@ -6,7 +6,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatCurrency } from '../../../lib/currency'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER, TEXT_DISABLED,
   BORDER_DEFAULT, BORDER_MEDIUM,
@@ -35,12 +35,11 @@ import { Avatar } from '../../../components/ui/Avatar'
 import { useAuthStore } from '../../../stores/authStore'
 import { PlayerRow, roleColors, roleLabels } from '../../../components/league/PlayerRow'
 import { NavButton } from '../../../components/ui/NavButton'
-import { GameCard } from '../../../components/league/MatchupView'
 import { SearchBar } from '../../../components/ui/SearchBar'
 import { SegmentedControl } from '../../../components/ui/SegmentedControl'
 import { api } from '../../../lib/api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAdminSetLineup, useUserLineup } from '../../../hooks/useLineup'
+import { useAdminSetLineup, useUserLineup, useLeagueWeeklyTotals } from '../../../hooks/useLineup'
 
 
 interface PlayerRow {
@@ -50,14 +49,7 @@ interface PlayerRow {
   role: string
   base_price: number
   nationality: string
-}
-
-
-const ROLE_ORDER: Record<string, number> = {
-  batsman: 0, wicket_keeper: 1, all_rounder: 2, bowler: 3, flex: 4,
-}
-function sortByRole<T extends { playerRole?: string }>(arr: T[]): T[] {
-  return [...arr].sort((a, b) => (ROLE_ORDER[a.playerRole ?? ''] ?? 5) - (ROLE_ORDER[b.playerRole ?? ''] ?? 5))
+  image_url?: string | null
 }
 
 
@@ -101,7 +93,7 @@ export default function LeagueScreen() {
   const [interestedCollapsed, setInterestedCollapsed] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
   const [wishlistY, setWishlistY] = useState(0)
-  const [activeLeagueTab, setActiveLeagueTab] = useState('home')
+  const [activeLeagueTab, setActiveLeagueTab] = useState('matchups')
   const [scheduleSubTab, setScheduleSubTab] = useState<'upcoming' | 'results'>('upcoming')
 
   // Team name state
@@ -189,6 +181,7 @@ export default function LeagueScreen() {
   const deleteOverride = useDeleteOverride(id!)
   const { data: homeData, refetch: refetchHome } = useLeagueHome(id!)
   const { data: scheduleMatchups, isLoading: matchupsLoading, refetch: refetchSchedule } = useLeagueSchedule((isActive || isComplete) ? id! : '')
+  const { data: weeklyTotals } = useLeagueWeeklyTotals((isActive || isComplete) ? id! : '')
   const { data: allWeeks, isLoading: weeksLoading } = useAllWeeks()
   const { data: interestData } = usePlayerInterests(isDraftPending ? id! : '')
   const toggleInterest = useToggleInterest(id!)
@@ -334,6 +327,7 @@ export default function LeagueScreen() {
             {isInterested ? '★' : '☆'}
           </Text>
         </View>
+        <Avatar uri={item.image_url} name={item.name} size={36} neutralFallback />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: TEXT_PRIMARY, fontWeight: '600', fontSize: 14 }}>{item.name}</Text>
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -513,10 +507,9 @@ export default function LeagueScreen() {
 
   if (isActive || isComplete) {
     const leagueTabs = [
-      { key: 'home',     label: 'Home' },
       { key: 'matchups', label: 'Matchups' },
-      { key: 'players',  label: 'Players' },
       { key: 'teams',    label: 'Teams' },
+      { key: 'players',  label: 'Players' },
       { key: 'schedule', label: 'Schedule' },
       { key: 'settings', label: 'Settings' },
       ...(isAdmin ? [{ key: 'admin', label: 'Admin' }] : []),
@@ -524,9 +517,6 @@ export default function LeagueScreen() {
 
     return (
       <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
-        <Stack.Screen options={{
-          headerShown: false,
-        }} />
         {/* Fully custom header — avoids native UIBarButtonItem circle on iOS */}
         <View style={{
           backgroundColor: BG_CARD,
@@ -695,7 +685,7 @@ export default function LeagueScreen() {
                         key={item.player_id}
                         onPress={() => setLpSelectedPlayer(item)}
                         activeOpacity={0.7}
-                        style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: BORDER_DEFAULT }}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, gap: 8, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: BORDER_DEFAULT }}
                       >
                         {/* Role badge — fixed width */}
                         <View style={{ width: 54, alignItems: 'center', justifyContent: 'center', paddingVertical: 11 }}>
@@ -703,6 +693,7 @@ export default function LeagueScreen() {
                             <Text style={{ color: roleColor, fontSize: 10, fontWeight: '700' }}>{adRoleLabels[item.role] ?? item.role}</Text>
                           </View>
                         </View>
+                        <Avatar uri={item.image_url} name={item.name} size={36} neutralFallback />
                         {/* Name + team */}
                         <View style={{ flex: 1, paddingVertical: 11 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -740,105 +731,6 @@ export default function LeagueScreen() {
           contentContainerStyle={{ padding: 16, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchHome() }} tintColor={PRIMARY_SOFT} />}
         >
-          {activeLeagueTab === 'home' && (() => {
-            const { currentMatch, matchup, roster, currentWeekNum, myPlayers: rawMyPlayers = [], oppPlayers: rawOppPlayers = [], myWeekPoints = 0, oppWeekPoints = 0 } = homeData ?? {}
-            const myPlayers = sortByRole(rawMyPlayers)
-            const oppPlayers = sortByRole(rawOppPlayers)
-            const currency = league.currency
-
-            // Determine opponent in matchup
-            const isHome = matchup?.home_user === user?.id
-            const myName = matchup
-              ? (isHome
-                  ? (matchup.home_team_name || matchup.home_full_name || matchup.home_username)
-                  : (matchup.away_team_name || matchup.away_full_name || matchup.away_username))
-              : null
-            const oppName = matchup
-              ? (isHome
-                  ? (matchup.away_team_name || matchup.away_full_name || matchup.away_username)
-                  : (matchup.home_team_name || matchup.home_full_name || matchup.home_username))
-              : null
-            const myPoints = myWeekPoints || 0
-            const oppPoints = oppWeekPoints || 0
-
-            return (
-              <View style={{ gap: 16 }}>
-                {/* ── Combined Matchup + Current Match card ── */}
-                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_DEFAULT, overflow: 'hidden' }}>
-                  <View style={{ backgroundColor: BG_DARK_HEADER, paddingHorizontal: 16, paddingVertical: 10 }}>
-                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>
-                      {currentWeekNum ? `Week ${currentWeekNum}` : 'This Week'}
-                    </Text>
-                  </View>
-
-                  {/* Matchup section */}
-                  {matchup ? (
-                    <View style={{ padding: 16 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                          <Avatar uri={user?.avatar_url ?? null} name={user?.display_name ?? user?.username} size={44} />
-                          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
-                            {user?.display_name ?? user?.username}
-                          </Text>
-                          <Text style={{ color: PRIMARY, fontWeight: '800', fontSize: 28 }}>{Math.round(Number(myPoints || 0))}</Text>
-                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
-                        </View>
-
-                        <View style={{ alignItems: 'center', paddingHorizontal: 16 }}>
-                          <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 16 }}>VS</Text>
-                          {matchup.is_final && (
-                            <View style={{ marginTop: 6, backgroundColor: matchup.winner_id === user?.id ? SUCCESS_SUBTLE : matchup.winner_id ? PRIMARY_SUBTLE : BORDER_DEFAULT, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: matchup.winner_id === user?.id ? SUCCESS : matchup.winner_id ? PRIMARY : TEXT_MUTED }}>
-                                {matchup.winner_id === user?.id ? 'WIN' : matchup.winner_id ? 'LOSS' : 'TIE'}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-
-                        <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                          <Avatar uri={null} name={oppName ?? ''} size={44} />
-                          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={1}>
-                            {oppName}
-                          </Text>
-                          <Text style={{ color: TEXT_SECONDARY, fontWeight: '800', fontSize: 28 }}>{Math.round(Number(oppPoints || 0))}</Text>
-                          <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11 }}>pts</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={{ padding: 20, alignItems: 'center' }}>
-                      <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No matchup scheduled yet</Text>
-                    </View>
-                  )}
-
-                  {/* Current match section — inside same card */}
-                  {currentMatch && (
-                    <View style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT, paddingTop: 14, paddingHorizontal: 14, paddingBottom: 14 }}>
-                      <GameCard
-                        item={{ ...currentMatch, match_date: currentMatch.match_date ?? '' } as any}
-                        myName={myName ?? 'You'}
-                        oppName={oppName ?? 'Opponent'}
-                        myPlayers={myPlayers as any}
-                        oppPlayers={oppPlayers as any}
-                      />
-                    </View>
-                  )}
-                </View>
-
-                {/* ── My Squad ── */}
-                <View style={{ gap: 10 }}>
-                  {roster && roster.length > 0
-                    ? <SquadGrid roster={roster} currency={currency} />
-                    : <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: BORDER_DEFAULT }}>
-                        <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 14 }}>No players acquired yet</Text>
-                      </View>
-                  }
-                </View>
-              </View>
-            )
-          })()}
-
-
           {activeLeagueTab === 'teams' && (() => {
             const rostersByUser = (allRosters ?? []).reduce<Record<string, typeof allRosters>>((acc, e) => {
               if (!acc[e!.user_id]) acc[e!.user_id] = []
@@ -848,20 +740,30 @@ export default function LeagueScreen() {
             const pointsMap = (leaderboard ?? []).reduce<Record<string, number>>((acc, e) => {
               acc[e.user_id] = e.total_points; return acc
             }, {})
-            // Per-user record derived from final matchups: wins/losses/ties + summed fantasy points.
+            // Per-user record computed at runtime from live weekly totals.
+            // Avoids the stale `weekly_matchups.home_points` cache by pulling
+            // fresh sums from /lineups/:leagueId/all-totals and re-deriving
+            // wins/losses/ties from the comparison instead of `winner_id`.
             type TeamRecord = { wins: number; losses: number; ties: number; points: number }
             const records: globalThis.Record<string, TeamRecord> = {}
+            const totalsByKey = new Map<string, number>()
+            for (const t of (weeklyTotals ?? [])) {
+              totalsByKey.set(`${t.userId}:${t.weekNum}`, t.points)
+            }
+            const ptsFor = (uid: string, week: number) => totalsByKey.get(`${uid}:${week}`) ?? 0
             for (const m of (scheduleMatchups ?? [])) {
               if (!m.is_final) continue
               for (const uid of [m.home_user, m.away_user]) {
                 if (!records[uid]) records[uid] = { wins: 0, losses: 0, ties: 0, points: 0 }
               }
-              records[m.home_user]!.points += parseFloat(String(m.home_points)) || 0
-              records[m.away_user]!.points += parseFloat(String(m.away_points)) || 0
-              if (m.winner_id === m.home_user) {
+              const homePts = ptsFor(m.home_user, m.week_num)
+              const awayPts = ptsFor(m.away_user, m.week_num)
+              records[m.home_user]!.points += homePts
+              records[m.away_user]!.points += awayPts
+              if (homePts > awayPts) {
                 records[m.home_user]!.wins++
                 records[m.away_user]!.losses++
-              } else if (m.winner_id === m.away_user) {
+              } else if (awayPts > homePts) {
                 records[m.away_user]!.wins++
                 records[m.home_user]!.losses++
               } else {
@@ -2106,6 +2008,7 @@ export default function LeagueScreen() {
             base_price: lpSelectedPlayer.base_price,
             total_points: lpSelectedPlayer.total_points,
             team_games_played: lpSelectedPlayer.team_games_played,
+            image_url: lpSelectedPlayer.image_url,
           } : null}
           playerId={lpSelectedPlayer?.player_id}
           currency={league.currency}
@@ -2266,8 +2169,9 @@ export default function LeagueScreen() {
                                 return (
                                   <View
                                     key={item.player_id}
-                                    style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 12, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 12, gap: 10, borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}
                                   >
+                                    <Avatar uri={item.player_image_url} name={item.player_name} size={32} neutralFallback />
                                     <View style={{ flex: 1, paddingVertical: 11 }}>
                                       <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{item.player_name}</Text>
                                       <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, marginTop: 1 }}>{item.player_ipl_team}</Text>
@@ -2325,6 +2229,7 @@ export default function LeagueScreen() {
                             role={selectedFreeAgent.role}
                             name={selectedFreeAgent.name}
                             iplTeam={selectedFreeAgent.ipl_team}
+                            imageUrl={selectedFreeAgent.image_url}
                             backgroundColor={SUCCESS_BG}
                             borderColor="#bbf7d0"
                           />
@@ -2338,6 +2243,7 @@ export default function LeagueScreen() {
                           role={item.player_role}
                           name={item.player_name}
                           iplTeam={item.player_ipl_team}
+                          imageUrl={item.player_image_url}
                           avgPts={item.team_games_played > 0 ? item.total_points / item.team_games_played : null}
                           backgroundColor={PRIMARY_BG}
                           borderColor={PRIMARY_BORDER}

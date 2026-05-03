@@ -3,7 +3,9 @@
 // Data fetching stays in the parent (MatchupSlide / OtherMatchupDetail).
 
 import { useRef, useState, useCallback, useEffect, ReactNode } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator, Image, NativeSyntheticEvent, NativeScrollEvent } from 'react-native'
+import { useIplTeams } from '../../hooks/useIplTeams'
+import { teamLogoUrlForName } from '../../constants/teams'
 import type { IplMatch, IplWeek } from '../../hooks/useMatchup'
 import type { LineupEntry, GameBreakdownData, GamePlayer } from '../../hooks/useLineup'
 import { DualLineupCard, statLine, ROLE_ORDER } from './LineupCard'
@@ -109,6 +111,9 @@ interface GameCardProps {
 }
 
 export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameCardProps) {
+  const { data: iplTeams } = useIplTeams()
+  const homeLogo = teamLogoUrlForName(iplTeams, item.home_team)
+  const awayLogo = teamLogoUrlForName(iplTeams, item.away_team)
   const matchStatus = item.status
   const { bg: statusBg, text: statusColor } = matchStatusColors(matchStatus)
   const sLabel = matchStatus === 'live' ? 'LIVE'
@@ -135,13 +140,19 @@ export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameC
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-          {item.home_team}
-        </Text>
+        <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+          {homeLogo && <Image source={{ uri: homeLogo }} style={{ width: 36, height: 36 }} resizeMode="contain" />}
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+            {item.home_team}
+          </Text>
+        </View>
         <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 12 }}>vs</Text>
-        <Text style={{ flex: 1, color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
-          {item.away_team}
-        </Text>
+        <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+          {awayLogo && <Image source={{ uri: awayLogo }} style={{ width: 36, height: 36 }} resizeMode="contain" />}
+          <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
+            {item.away_team}
+          </Text>
+        </View>
       </View>
       <View style={{ gap: 2 }}>
         <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 11, textAlign: 'center' }}>{dateStr}</Text>
@@ -182,33 +193,31 @@ export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameC
             const ptsLabel = pts > 0 ? `+${Math.round(pts)}` : pts < 0 ? String(Math.round(pts)) : '0'
             return (
               <View style={{ gap: 2 }}>
-                <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={{ backgroundColor: roleColor + '20', borderRadius: 3, paddingHorizontal: 3, paddingVertical: 0 }}>
+                    <Text style={{ color: roleColor, fontSize: 8, fontWeight: '700' }}>{roleLabel}</Text>
+                  </View>
                   <Text style={{ flex: 1, color: TEXT_PRIMARY, fontSize: 12, fontWeight: '600', textAlign: isRight ? 'right' : 'left' }} numberOfLines={1}>
                     {p.playerName}
                   </Text>
                   {hasStarted && (
-                    <View style={{ backgroundColor: ptsBg, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+                    <View style={{ backgroundColor: ptsBg, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 0 }}>
                       <PointsValue
                         value={pts}
                         stats={{ ...p, playerRole: p.playerRole }}
                         playerName={p.playerName}
-                        style={{ color: ptsColor, fontSize: 10, fontWeight: '700' }}
+                        style={{ color: ptsColor, fontSize: 9, fontWeight: '700' }}
                       >
                         {ptsLabel}
                       </PointsValue>
                     </View>
                   )}
                 </View>
-                <View style={{ flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ backgroundColor: roleColor + '20', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                    <Text style={{ color: roleColor, fontSize: 9, fontWeight: '700' }}>{roleLabel}</Text>
-                  </View>
-                  {showStat && (
-                    <Text style={{ flex: 1, color: TEXT_PLACEHOLDER, fontSize: 10, textAlign: isRight ? 'right' : 'left' }} numberOfLines={1}>
-                      {statStr}
-                    </Text>
-                  )}
-                </View>
+                {showStat && (
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 10, textAlign: isRight ? 'right' : 'left' }} numberOfLines={1}>
+                    {statStr}
+                  </Text>
+                )}
               </View>
             )
           }
@@ -239,9 +248,7 @@ export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameC
               <View style={{ flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
                 <View style={{ flex: 1, gap: 8 }}>
                   {myEmpty ? (
-                    <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 4 }}>
-                      <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic' }}>No players</Text>
-                    </View>
+                    <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic' }}>No players</Text>
                   ) : (
                     Array.from({ length: myPlayers.length }).map((_, i) => (
                       <View key={i}>{renderPlayer(myPlayers[i], 'left')}</View>
@@ -251,9 +258,7 @@ export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameC
                 <View style={{ width: 1, backgroundColor: BORDER_DEFAULT, alignSelf: 'stretch' }} />
                 <View style={{ flex: 1, gap: 8 }}>
                   {oppEmpty ? (
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-end', paddingVertical: 4 }}>
-                      <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic' }}>No players</Text>
-                    </View>
+                    <Text style={{ color: TEXT_DISABLED, fontSize: 11, fontStyle: 'italic', textAlign: 'right' }}>No players</Text>
                   ) : (
                     Array.from({ length: oppPlayers.length }).map((_, i) => (
                       <View key={i}>{renderPlayer(oppPlayers[i], 'right')}</View>
@@ -590,8 +595,7 @@ export function MatchupView({
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
-                  scrollEventThrottle={16}
-                  onScroll={onGameScroll}
+                  onMomentumScrollEnd={onGameScroll}
                   style={{ width: width - 64 }}
                   contentContainerStyle={{ alignItems: 'flex-start' }}
                   contentOffset={{ x: activeGameIndex * (width - 64), y: 0 }}

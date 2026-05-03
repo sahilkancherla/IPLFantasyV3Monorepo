@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Animated, type TextStyle } from 'react-native'
+import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Animated, Image, type TextStyle } from 'react-native'
 import { NavButton } from './NavButton'
+import { Avatar } from './Avatar'
+import { useIplTeams } from '../../hooks/useIplTeams'
+import { teamLogoUrlForName } from '../../constants/teams'
 import {
   TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_PLACEHOLDER,
   BORDER_DEFAULT,
@@ -154,10 +157,17 @@ interface BreakdownContentProps {
   stats: BreakdownStats
   total: number
   playerName?: string
+  /** Player's headshot URL — shown next to the name */
+  playerImageUrl?: string | null
+  /** Opponent IPL team display name — its logo is shown after a "vs" */
+  opponentTeam?: string | null
+  /** Free-form line shown below — used when opponentTeam isn't available */
   subtitle?: string
 }
 
-export function PointsBreakdownContent({ stats, total, playerName, subtitle }: BreakdownContentProps) {
+export function PointsBreakdownContent({ stats, total, playerName, playerImageUrl, opponentTeam, subtitle }: BreakdownContentProps) {
+  const { data: iplTeams } = useIplTeams()
+  const oppLogo = teamLogoUrlForName(iplTeams, opponentTeam)
   const items = calcBreakdown(stats)
   const sections = SECTIONS.filter(sec => items.some(i => i.section === sec))
   const hasAny = items.length > 0
@@ -166,8 +176,25 @@ export function PointsBreakdownContent({ stats, total, playerName, subtitle }: B
     <>
       <View style={{ marginBottom: 16 }}>
         <Text style={s.title}>Points Breakdown</Text>
-        {playerName ? <Text style={s.subtitle}>{playerName}</Text> : null}
-        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+        {playerName && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <Avatar uri={playerImageUrl} name={playerName} size={36} neutralFallback />
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={[s.subtitle, { marginTop: 0 }]} numberOfLines={1}>{playerName}</Text>
+              {opponentTeam && (
+                <>
+                  <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '600' }}>vs</Text>
+                  {oppLogo ? (
+                    <Image source={{ uri: oppLogo }} style={{ width: 22, height: 22 }} resizeMode="contain" />
+                  ) : (
+                    <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: '600' }}>{opponentTeam}</Text>
+                  )}
+                </>
+              )}
+            </View>
+          </View>
+        )}
+        {!playerName && subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
       </View>
       {!hasAny ? (
         <View style={{ paddingVertical: 32, alignItems: 'center' }}>

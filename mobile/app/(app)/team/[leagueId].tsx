@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator } from 'react-native'
 import { SearchBar } from '../../../components/ui/SearchBar'
 import { SegmentedControl } from '../../../components/ui/SegmentedControl'
+import { Avatar } from '../../../components/ui/Avatar'
 import { useLocalSearchParams } from 'expo-router'
 import { SquadGrid } from '../../../components/team/SquadGrid'
 import { useMyTeam, useAllTeams, useDropPlayer, useAddPlayer, type RosterEntry } from '../../../hooks/useTeam'
@@ -268,12 +269,13 @@ export default function TeamScreen() {
                   <TouchableOpacity
                     onPress={() => handleSelectFreeAgent(item)}
                     style={{
-                      flexDirection: 'row', alignItems: 'center',
-                      paddingHorizontal: 16, paddingVertical: 14,
+                      flexDirection: 'row', alignItems: 'center', gap: 12,
+                      paddingHorizontal: 16, paddingVertical: 12,
                       borderBottomWidth: 1, borderBottomColor: '#f9fafb',
                     }}
                   >
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: roleColor, marginRight: 12 }} />
+                    <Avatar uri={item.image_url} name={item.name} size={36} neutralFallback />
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: roleColor }} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: '#111827', fontWeight: '600', fontSize: 15 }}>{item.name}</Text>
                       <Text style={{ color: '#9ca3af', fontSize: 13 }}>{item.ipl_team}</Text>
@@ -324,14 +326,15 @@ export default function TeamScreen() {
                 <TouchableOpacity
                   onPress={() => handleDropAndAdd(item)}
                   style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    paddingHorizontal: 16, paddingVertical: 14,
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    paddingHorizontal: 16, paddingVertical: 12,
                     borderBottomWidth: 1, borderBottomColor: '#f9fafb',
                   }}
                 >
+                  <Avatar uri={item.player_image_url} name={item.player_name} size={36} neutralFallback />
                   <View style={{
                     backgroundColor: roleColor + '18', borderRadius: 6,
-                    paddingHorizontal: 8, paddingVertical: 3, marginRight: 12, flexShrink: 0,
+                    paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0,
                   }}>
                     <Text style={{ color: roleColor, fontSize: 11, fontWeight: '700' }}>{roleLabel}</Text>
                   </View>

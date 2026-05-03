@@ -3,6 +3,7 @@ import { NavButton } from '../ui/NavButton'
 import { View, Text, TouchableOpacity, Modal, ScrollView, Pressable, Dimensions, Animated } from 'react-native'
 import { type BreakdownStats, PointsBreakdownContent } from '../ui/PointsBreakdown'
 import { PointsValue } from '../ui/PointsBreakdown'
+import { Avatar } from '../ui/Avatar'
 import { PlayerDetailModal } from './PlayerDetailModal'
 import type { PlayerDetailInfo } from './PlayerDetailModal'
 import type { LineupEntry, GamePlayer, GameBreakdownData } from '../../hooks/useLineup'
@@ -181,10 +182,11 @@ export function LineupCard({
 
                 return (
                   <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: BORDER_DEFAULT }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 8 }}>
+                      <Avatar uri={entry.player_image_url} name={entry.player_name} size={32} neutralFallback />
                       <TouchableOpacity
-                        onPress={() => setSelectedPlayer({ id: entry.player_id, info: { name: entry.player_name, ipl_team: entry.player_ipl_team, role: entry.player_role } })}
-                        style={{ flex: 1, paddingVertical: 11, paddingLeft: 4 }}
+                        onPress={() => setSelectedPlayer({ id: entry.player_id, info: { name: entry.player_name, ipl_team: entry.player_ipl_team, role: entry.player_role, image_url: entry.player_image_url } })}
+                        style={{ flex: 1, paddingVertical: 11, paddingLeft: 10 }}
                       >
                         <Text style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
                           {entry.player_name}
@@ -279,6 +281,7 @@ export interface BenchEntry {
   player_name: string
   player_ipl_team: string
   player_role: string
+  player_image_url?: string | null
 }
 
 interface DualLineupCardProps {
@@ -314,7 +317,7 @@ export function DualLineupCard({
   const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
   type WeekModal = { entry: BenchEntry; getStats: (matchId: string, playerId: string) => GamePlayer | undefined; isBench?: boolean }
   const [weekModal, setWeekModal] = useState<WeekModal | null>(null)
-  const [breakdown, setBreakdown] = useState<{ stats: BreakdownStats; total: number; matchDesc: string } | null>(null)
+  const [breakdown, setBreakdown] = useState<{ stats: BreakdownStats; total: number; matchDesc: string; opponentTeam: string | null; playerImageUrl: string | null } | null>(null)
   const [activePage, setActivePage] = useState<'games' | 'breakdown'>('games')
   const sheetTranslateY = useRef(new Animated.Value(500)).current
 
@@ -327,8 +330,8 @@ export function DualLineupCard({
     }
   }, [weekModal])
 
-  function openBreakdown(stats: BreakdownStats, total: number, matchDesc: string) {
-    setBreakdown({ stats, total, matchDesc })
+  function openBreakdown(stats: BreakdownStats, total: number, matchDesc: string, opponentTeam: string | null, playerImageUrl: string | null) {
+    setBreakdown({ stats, total, matchDesc, opponentTeam, playerImageUrl })
     setActivePage('breakdown')
   }
   function closeBreakdown() {
@@ -407,8 +410,9 @@ export function DualLineupCard({
     return (
       <TouchableOpacity
         onPress={() => setWeekModal({ entry, getStats, isBench })}
-        style={{ flex: 1, flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 8, gap: 6 }}
+        style={{ flex: 1, flexDirection: isRight ? 'row-reverse' : 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 8, gap: 8 }}
       >
+        <Avatar uri={entry.player_image_url} name={entry.player_name} size={28} neutralFallback />
         {nameBlock}
         {badges}
       </TouchableOpacity>
@@ -610,11 +614,14 @@ export function DualLineupCard({
                 const games = weekMatches.filter(m => m.home_team === entry.player_ipl_team || m.away_team === entry.player_ipl_team)
                 return (
                   <View style={{ padding: 16, gap: 12 }}>
-                    <View>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_PRIMARY }}>{entry.player_name}</Text>
-                      <Text style={{ fontSize: 12, color: TEXT_PLACEHOLDER, marginTop: 2 }}>
-                        {TEAM_ABBREV[entry.player_ipl_team] ?? entry.player_ipl_team} · This week
-                      </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Avatar uri={entry.player_image_url} name={entry.player_name} size={48} neutralFallback />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_PRIMARY }}>{entry.player_name}</Text>
+                        <Text style={{ fontSize: 12, color: TEXT_PLACEHOLDER, marginTop: 2 }}>
+                          {TEAM_ABBREV[entry.player_ipl_team] ?? entry.player_ipl_team} · This week
+                        </Text>
+                      </View>
                     </View>
                     {games.length === 0 ? (
                       <Text style={{ color: TEXT_DISABLED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No games this week</Text>
@@ -635,7 +642,7 @@ export function DualLineupCard({
                               {isHome ? 'vs' : '@'} {opp}
                             </Text>
                             {hasStats ? (
-                              <TouchableOpacity onPress={() => openBreakdown({ ...playerStats, playerRole: entry.player_role }, playerStats.points, `${isHome ? 'vs' : '@'} ${opp}`)}>
+                              <TouchableOpacity onPress={() => openBreakdown({ ...playerStats, playerRole: entry.player_role }, playerStats.points, `${isHome ? 'vs' : '@'} ${opp}`, opp, entry.player_image_url ?? null)}>
                                 <Text style={{ color: playerStats.points > 0 ? SUCCESS : playerStats.points < 0 ? PRIMARY : TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '700' }}>
                                   {playerStats.points > 0 ? `+${Math.round(playerStats.points)}` : String(Math.round(playerStats.points))} ›
                                 </Text>
@@ -666,6 +673,8 @@ export function DualLineupCard({
                       stats={breakdown.stats}
                       total={breakdown.total}
                       playerName={weekModal?.entry.player_name}
+                      playerImageUrl={breakdown.playerImageUrl}
+                      opponentTeam={breakdown.opponentTeam}
                       subtitle={breakdown.matchDesc}
                     />
                   </ScrollView>
