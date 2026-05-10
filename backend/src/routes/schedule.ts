@@ -150,7 +150,7 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
                COALESCE(ms.stumpings,         0)     AS stumpings,
                COALESCE(ms.run_outs_direct,   0)     AS run_outs_direct,
                COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect,
-               COALESCE(ms.is_in_xi,          true)  AS is_in_xi
+               COALESCE(ms.is_in_xi,          false) AS is_in_xi
              FROM weekly_lineups wl
              JOIN players p ON p.id = wl.player_id
              LEFT JOIN match_scores ms ON ms.player_id = p.id AND ms.match_id = $1
@@ -316,7 +316,7 @@ export async function scheduleRoutes(app: FastifyInstance): Promise<void> {
            COALESCE(ms.stumpings,         0)     AS stumpings,
            COALESCE(ms.run_outs_direct,   0)     AS run_outs_direct,
            COALESCE(ms.run_outs_indirect, 0)     AS run_outs_indirect,
-           COALESCE(ms.is_in_xi,          true)  AS is_in_xi
+           COALESCE(ms.is_in_xi,          false) AS is_in_xi
          FROM weekly_lineups wl
          JOIN players p ON p.id = wl.player_id
          LEFT JOIN match_scores ms ON ms.player_id = p.id AND ms.match_id = $1

@@ -44,10 +44,14 @@ export function OtherMatchupDetail({ matchup, week, leagueId, width }: Props) {
   const { data: allRosters } = useAllTeams(leagueId)
   const homeStartingIds = new Set(homeLineup.map(e => e.player_id))
   const awayStartingIds = new Set(awayLineup.map(e => e.player_id))
-  const homeBench = (allRosters ?? [])
+  // Bench shown only for live/upcoming weeks — see MatchupSlide for the
+  // rationale (no historical roster snapshot, so past weeks would mix
+  // current bench with then-current starters and confuse the user).
+  const showBench = !isCompleted
+  const homeBench = !showBench ? [] : (allRosters ?? [])
     .filter(r => r.user_id === matchup.home_user && !homeStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
-  const awayBench = (allRosters ?? [])
+  const awayBench = !showBench ? [] : (allRosters ?? [])
     .filter(r => r.user_id === matchup.away_user && !awayStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
 

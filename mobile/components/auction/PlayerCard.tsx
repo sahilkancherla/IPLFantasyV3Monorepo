@@ -2,6 +2,7 @@ import { View, Text, Image, StyleSheet } from 'react-native'
 import { Badge } from '../ui/Badge'
 import type { Player } from '../../stores/auctionStore'
 import { formatCurrency, type Currency } from '../../lib/currency'
+import { useImagesEnabled } from '../../hooks/useAppSettings'
 
 interface PlayerCardProps {
   player: Player | null
@@ -31,18 +32,22 @@ export function PlayerCard({ player, currency = 'lakhs' }: PlayerCardProps) {
     )
   }
 
+  const imagesEnabled = useImagesEnabled()
+
   return (
     <View style={styles.card}>
-      {player.image_url ? (
-        <Image
-          source={{ uri: player.image_url }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.imagePlaceholderText}>🏏</Text>
-        </View>
+      {imagesEnabled && (
+        player.image_url ? (
+          <Image
+            source={{ uri: player.image_url }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.imagePlaceholderText}>🏏</Text>
+          </View>
+        )
       )}
 
       <View style={styles.body}>

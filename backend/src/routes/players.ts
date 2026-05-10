@@ -44,7 +44,7 @@ export async function playerRoutes(app: FastifyInstance): Promise<void> {
          ms.stumpings,
          ms.run_outs_direct,
          ms.run_outs_indirect,
-         COALESCE(ms.is_in_xi, true)             AS is_in_xi,
+         COALESCE(ms.is_in_xi, false)            AS is_in_xi,
          COALESCE(im.match_number, ms.ipl_week)  AS match_number,
          im.home_team,
          im.away_team,

@@ -6,6 +6,7 @@ import { useRef, useState, useCallback, useEffect, ReactNode } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Animated, Easing, ActivityIndicator, Image, NativeSyntheticEvent, NativeScrollEvent } from 'react-native'
 import { useIplTeams } from '../../hooks/useIplTeams'
 import { teamLogoUrlForName } from '../../constants/teams'
+import { TeamLogo } from '../ui/TeamLogo'
 import type { IplMatch, IplWeek } from '../../hooks/useMatchup'
 import type { LineupEntry, GameBreakdownData, GamePlayer } from '../../hooks/useLineup'
 import { DualLineupCard, statLine, ROLE_ORDER } from './LineupCard'
@@ -141,14 +142,14 @@ export function GameCard({ item, myName, oppName, myPlayers, oppPlayers }: GameC
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-          {homeLogo && <Image source={{ uri: homeLogo }} style={{ width: 36, height: 36 }} resizeMode="contain" />}
+          <TeamLogo uri={homeLogo} size={36} />
           <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
             {item.home_team}
           </Text>
         </View>
         <Text style={{ color: TEXT_DISABLED, fontWeight: '700', fontSize: 12 }}>vs</Text>
         <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-          {awayLogo && <Image source={{ uri: awayLogo }} style={{ width: 36, height: 36 }} resizeMode="contain" />}
+          <TeamLogo uri={awayLogo} size={36} />
           <Text style={{ color: TEXT_PRIMARY, fontWeight: '700', fontSize: 13, textAlign: 'center' }} numberOfLines={2}>
             {item.away_team}
           </Text>

@@ -1,4 +1,5 @@
 import { View, Text, Image } from 'react-native'
+import { useImagesEnabled } from '../../hooks/useAppSettings'
 
 interface AvatarProps {
   uri?: string | null
@@ -9,6 +10,11 @@ interface AvatarProps {
 }
 
 export function Avatar({ uri, name, size = 40, neutralFallback = false }: AvatarProps) {
+  // Super admin global kill switch — when off, render nothing at all (not
+  // even an empty placeholder) so the surrounding layout fully collapses.
+  const imagesEnabled = useImagesEnabled()
+  if (!imagesEnabled) return null
+
   const initials = name
     ? name
         .split(' ')

@@ -11,6 +11,7 @@ import {
   type AdminMatch, type AdminPlayer, type PlayerStatPayload,
 } from '../../hooks/useAdminOps'
 import type { AdminStatRow } from '../../hooks/useAdminOps'
+import { useAppSettings, useUpdateAppSetting } from '../../hooks/useAppSettings'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -579,8 +580,11 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 
 export default function SuperAdminScreen() {
   const { data: matches, isLoading, refetch, isRefetching } = useAdminMatches()
+  const { data: appSettings } = useAppSettings()
+  const updateSetting = useUpdateAppSetting()
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
+  const imagesEnabled = appSettings?.images_enabled !== false
 
   const filtered = (matches ?? []).filter(m => !statusFilter || m.status === statusFilter)
 
@@ -602,6 +606,24 @@ export default function SuperAdminScreen() {
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
         ListHeaderComponent={
           <View style={{ marginBottom: 8 }}>
+            {/* Global toggles — affect every client immediately on next refetch */}
+            <View style={{
+              backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 16,
+              borderWidth: 1, borderColor: '#e5e7eb',
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={{ color: '#111827', fontWeight: '700', fontSize: 14 }}>Show player & team images</Text>
+                <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                  When off, all avatars and logos are hidden across the app.
+                </Text>
+              </View>
+              <Switch
+                value={imagesEnabled}
+                disabled={updateSetting.isPending}
+                onValueChange={(v) => updateSetting.mutate({ key: 'images_enabled', value: v })}
+              />
+            </View>
             <Text style={{ color: '#111827', fontWeight: '800', fontSize: 20, marginBottom: 12 }}>Matches</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row' }}>

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { View, Text, TouchableOpacity, Modal, ScrollView, ActivityIndicator, Image } from 'react-native'
 import { NavButton } from '../ui/NavButton'
 import { Avatar } from '../ui/Avatar'
+import { TeamLogo } from '../ui/TeamLogo'
+import { useImagesEnabled } from '../../hooks/useAppSettings'
 import { useIplTeams } from '../../hooks/useIplTeams'
 import { teamLogoUrlForName } from '../../constants/teams'
 import { PointsValue } from '../ui/PointsBreakdown'
@@ -174,13 +176,15 @@ function UpcomingGames({ playerId }: { playerId: string }) {
 }
 
 function OpponentLogo({ iplTeams, oppName, size = 28 }: { iplTeams: ReturnType<typeof useIplTeams>['data']; oppName: string | null | undefined; size?: number }) {
+  const imagesEnabled = useImagesEnabled()
+  if (!imagesEnabled) return null
   const url = teamLogoUrlForName(iplTeams, oppName)
   if (!url) {
     return (
       <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: BG_SUBTLE }} />
     )
   }
-  return <Image source={{ uri: url }} style={{ width: size, height: size }} resizeMode="contain" />
+  return <TeamLogo uri={url} size={size} />
 }
 
 function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
@@ -300,7 +304,8 @@ export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, 
   const roleColor = ROLE_COLORS[player.role] ?? TEXT_MUTED
   const roleShort = ROLE_SHORT[player.role] ?? player.role
   const roleFull  = ROLE_FULL[player.role]  ?? player.role
-  const teamLogo = teamLogoUrlForName(iplTeams, player.ipl_team)
+  const imagesEnabled = useImagesEnabled()
+  const teamLogo = imagesEnabled ? teamLogoUrlForName(iplTeams, player.ipl_team) : null
   const isSold    = player.status === 'sold'
 
   const totalPts = player.total_points != null ? Number(player.total_points) : null

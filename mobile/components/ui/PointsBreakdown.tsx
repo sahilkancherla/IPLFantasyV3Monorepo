@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, Animated, Image, type TextStyle } from 'react-native'
 import { NavButton } from './NavButton'
 import { Avatar } from './Avatar'
+import { TeamLogo } from './TeamLogo'
 import { useIplTeams } from '../../hooks/useIplTeams'
 import { teamLogoUrlForName } from '../../constants/teams'
 import {
@@ -28,7 +29,8 @@ export interface BreakdownStats {
   runOutsDirect: number
   runOutsIndirect: number
   playerRole?: string
-  /** Whether the player was in the playing XI (defaults true if absent) */
+  /** Whether the player was confirmed in the playing XI. Only `true` grants
+   *  the +4 bonus — undefined/missing is treated as "not yet confirmed". */
   isInXI?: boolean
 }
 
@@ -46,7 +48,10 @@ export function calcBreakdown(s: BreakdownStats): BreakdownItem[] {
   const hasBowling = s.ballsBowled > 0 || s.wicketsTaken > 0
 
   // ── GENERAL ──────────────────────────────────────────────────────────────
-  if (s.isInXI !== false) {
+  // Strict `=== true` so missing/undefined doesn't grant the +4 bonus.
+  // Previously this defaulted to true, causing every starter to show +4 even
+  // when the upstream score sync hadn't actually flagged them as in the XI.
+  if (s.isInXI === true) {
     items.push({ section: 'General', label: 'Playing XI', detail: 'in the starting lineup', pts: 4 })
   }
 
@@ -185,7 +190,7 @@ export function PointsBreakdownContent({ stats, total, playerName, playerImageUr
                 <>
                   <Text style={{ color: TEXT_PLACEHOLDER, fontSize: 13, fontWeight: '600' }}>vs</Text>
                   {oppLogo ? (
-                    <Image source={{ uri: oppLogo }} style={{ width: 22, height: 22 }} resizeMode="contain" />
+                    <TeamLogo uri={oppLogo} size={22} />
                   ) : (
                     <Text style={{ color: TEXT_MUTED, fontSize: 13, fontWeight: '600' }}>{opponentTeam}</Text>
                   )}

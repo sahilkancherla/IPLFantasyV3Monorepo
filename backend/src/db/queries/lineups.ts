@@ -231,7 +231,7 @@ export async function getGameBreakdown(
        COALESCE(ms.run_outs_direct,      0)     AS run_outs_direct,
        COALESCE(ms.run_outs_indirect,    0)     AS run_outs_indirect,
        COALESCE(ms.lbw_bowled_wickets,   0)     AS lbw_bowled_wickets,
-       COALESCE(ms.is_in_xi,             true)  AS is_in_xi`
+       COALESCE(ms.is_in_xi,             false) AS is_in_xi`
 
   // Starting lineup + bench players for both users in a single query
   const { rows: allRows } = await pool.query(

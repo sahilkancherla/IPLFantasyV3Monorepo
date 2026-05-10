@@ -67,6 +67,14 @@ export function preloadImages(): Promise<void> {
     // saturating connections with image requests.
     await new Promise((r) => setTimeout(r, STARTUP_DELAY_MS))
 
+    // Respect the global images toggle — skip all CDN egress when off.
+    try {
+      const { settings } = await api.get<{ settings: Record<string, unknown> }>('/app-settings')
+      if (settings?.images_enabled === false) return
+    } catch {
+      // If the settings endpoint fails, fall through and preload as before.
+    }
+
     // 1) Team logos first — tiny set, used everywhere
     try {
       const { teams } = await api.get<{ teams: IplTeamLite[] }>('/ipl-teams')

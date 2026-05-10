@@ -91,10 +91,16 @@ export function MatchupSlide({ matchup, week, leagueId, userId, width, overrides
   const { data: allRosters } = useAllTeams(leagueId)
   const myStartingIds = new Set(myLineup.map(e => e.player_id))
   const oppStartingIds = new Set(oppLineup.map(e => e.player_id))
-  const myBench = myLineup.length === 0 ? [] : (allRosters ?? [])
+  // Bench is computed from the *current* roster — we don't keep a historical
+  // snapshot of who was on the team at week N. So for completed weeks we hide
+  // the bench rather than showing whatever the team looks like today (which
+  // would include later add/drops). Lineups themselves are preserved per week
+  // in `weekly_lineups`, so starters always show correctly.
+  const showBench = !isCompleted
+  const myBench = !showBench || myLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === userId && !myStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
-  const oppBench = oppLineup.length === 0 ? [] : (allRosters ?? [])
+  const oppBench = !showBench || oppLineup.length === 0 ? [] : (allRosters ?? [])
     .filter(r => r.user_id === (oppId ?? '') && !oppStartingIds.has(r.player_id))
     .map(r => ({ player_id: r.player_id, player_name: r.player_name, player_ipl_team: r.player_ipl_team, player_role: r.player_role, player_image_url: r.player_image_url }))
 
