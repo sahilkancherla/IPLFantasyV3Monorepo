@@ -48,6 +48,7 @@ export function useDropPlayer(leagueId: string) {
       queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
     },
   })
 }
@@ -62,6 +63,7 @@ export function useAddPlayer(leagueId: string) {
       queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
     },
   })
 }
@@ -75,6 +77,7 @@ export function useAdminDropPlayer(leagueId: string) {
       queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
     },
   })
 }
@@ -88,6 +91,7 @@ export function useAdminAddPlayer(leagueId: string) {
       queryClient.invalidateQueries({ queryKey: ['teams-all', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['freeAgents', leagueId] })
       queryClient.invalidateQueries({ queryKey: ['available-players', leagueId] })
+      queryClient.invalidateQueries({ queryKey: ['lineup', leagueId] })
     },
   })
 }

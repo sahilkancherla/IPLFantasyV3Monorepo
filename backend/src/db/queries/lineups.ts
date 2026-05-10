@@ -126,18 +126,19 @@ export async function setLineup(
       [leagueId, userId, weekNum]
     )
 
-    // Build a single multi-row insert
-    const valuePlaceholders = entries.map(
-      (_, i) => `($1, $2, $3, $${4 + i * 2}, $${5 + i * 2})`
-    ).join(', ')
-    const values: unknown[] = [leagueId, userId, weekNum]
-    for (const e of entries) values.push(e.playerId, e.slotRole)
+    if (entries.length > 0) {
+      const valuePlaceholders = entries.map(
+        (_, i) => `($1, $2, $3, $${4 + i * 2}, $${5 + i * 2})`
+      ).join(', ')
+      const values: unknown[] = [leagueId, userId, weekNum]
+      for (const e of entries) values.push(e.playerId, e.slotRole)
 
-    await client.query(
-      `INSERT INTO weekly_lineups (league_id, user_id, week_num, player_id, slot_role)
-       VALUES ${valuePlaceholders}`,
-      values
-    )
+      await client.query(
+        `INSERT INTO weekly_lineups (league_id, user_id, week_num, player_id, slot_role)
+         VALUES ${valuePlaceholders}`,
+        values
+      )
+    }
 
     await client.query('COMMIT')
   } catch (err) {

@@ -37,7 +37,7 @@ export function calcFantasyPoints(s: RawMatchStats): number {
   else if (s.runs >= 50)  pts += 8    // half-century
   else if (s.runs >= 30)  pts += 4    // 30-run bonus
 
-  if (s.isOut && s.runs === 0)  pts -= 2   // duck
+  if (s.isOut && s.runs === 0 && s.role !== 'bowler')  pts -= 2   // duck (bowlers exempt)
 
   // ── Bowling ──────────────────────────────────────────────
   pts += s.wickets * 25                // 25 pts per wicket

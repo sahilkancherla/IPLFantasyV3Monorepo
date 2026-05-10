@@ -45,7 +45,7 @@ function parseDismissal(batterName: string, t: string): DismissalInfo {
     return { batterName, type: 'not_out', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: null }
   if (/^did\s+not\s+bat/i.test(t))
     return { batterName, type: 'did_not_bat', fielder1Name: null, fielder2Name: null, lbwBowledBowlerName: null }
-  const cAndB = t.match(/^c\s*&\s*b\s+(.+)$/i)
+  const cAndB = t.match(/^c\s*(?:&|and)\s*b\s+(.+)$/i)
   if (cAndB) return { batterName, type: 'caught_and_bowled', fielder1Name: cAndB[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }
   const caught = t.match(/^c\s+(.+?)\s+b\s+\S/i)
   if (caught) return { batterName, type: 'caught', fielder1Name: caught[1].trim(), fielder2Name: null, lbwBowledBowlerName: null }

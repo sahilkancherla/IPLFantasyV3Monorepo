@@ -125,6 +125,30 @@ export default function LineupScreen() {
     }
   }
 
+  const handleClear = () => {
+    if (!weekNum) return
+    Alert.alert(
+      'Clear Lineup',
+      'Remove all players from this week\'s lineup? You can re-set it afterwards.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await setLineup.mutateAsync({ weekNum, entries: [] })
+              setDraftEntries([])
+              setIsDirty(false)
+            } catch (err: unknown) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Failed to clear lineup')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   // Players eligible for picker role
   const eligiblePlayers = roster.filter((r: any) => {
     const mappedRole = ROLE_MAP[r.player_role]
@@ -181,6 +205,14 @@ export default function LineupScreen() {
                 onPress={handleAutoSet}
                 loading={autoSet.isPending}
               />
+              {lineup.length > 0 && (
+                <Button
+                  label="Clear Lineup"
+                  variant="secondary"
+                  onPress={handleClear}
+                  loading={setLineup.isPending}
+                />
+              )}
             </View>
           )}
         </View>

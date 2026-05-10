@@ -150,7 +150,7 @@ export function LineupCard({
     return weekMatches.filter(m => m.home_team === iplTeam || m.away_team === iplTeam)
   }
   function gamesRemainingForTeam(iplTeam: string) {
-    return weekMatches.filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
+    return weekMatches.filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed' && m.status !== 'live')
   }
 
   return (
@@ -345,7 +345,7 @@ export function DualLineupCard({
   }
 
   function gamesRemainingForTeam(iplTeam: string) {
-    return weekMatches.filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed')
+    return weekMatches.filter(m => (m.home_team === iplTeam || m.away_team === iplTeam) && m.status !== 'completed' && m.status !== 'live')
   }
 
   function weekPts(entry: BenchEntry, getStats: (matchId: string, playerId: string) => GamePlayer | undefined) {

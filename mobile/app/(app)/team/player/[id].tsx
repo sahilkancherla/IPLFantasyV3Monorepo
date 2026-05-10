@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../../lib/api'
 import { Badge } from '../../../../components/ui/Badge'
 import { formatCurrency, type Currency } from '../../../../lib/currency'
+import { useImagesEnabled } from '../../../../hooks/useAppSettings'
 
 interface PlayerDetail {
   id: string
@@ -24,6 +25,7 @@ const roleColors: Record<string, 'green' | 'blue' | 'yellow' | 'red'> = {
 
 export default function PlayerDetailScreen() {
   const { id, currency } = useLocalSearchParams<{ id: string; currency?: Currency }>()
+  const imagesEnabled = useImagesEnabled()
 
   const { data, isLoading } = useQuery({
     queryKey: ['player', id],
@@ -51,16 +53,18 @@ export default function PlayerDetailScreen() {
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
-      {player.image_url ? (
-        <Image
-          source={{ uri: player.image_url }}
-          className="w-full h-64 bg-gray-100"
-          resizeMode="cover"
-        />
-      ) : (
-        <View className="w-full h-64 bg-white items-center justify-center border border-gray-100 shadow-sm">
-          <Text className="text-8xl">🏏</Text>
-        </View>
+      {imagesEnabled && (
+        player.image_url ? (
+          <Image
+            source={{ uri: player.image_url }}
+            className="w-full h-64 bg-gray-100"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="w-full h-64 bg-white items-center justify-center border border-gray-100 shadow-sm">
+            <Text className="text-8xl">🏏</Text>
+          </View>
+        )
       )}
 
       <View className="p-4 gap-4">

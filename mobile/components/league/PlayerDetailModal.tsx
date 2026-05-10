@@ -299,12 +299,12 @@ function MatchHistory({ playerId, role }: { playerId: string; role: string }) {
 
 export function PlayerDetailModal({ visible, player, currency = 'INR', onClose, playerId, onDrop, onAdd, addLabel = 'Add to Squad', alreadyOnTeam }: Props) {
   const { data: iplTeams } = useIplTeams()
+  const imagesEnabled = useImagesEnabled()
   if (!player) return null
 
   const roleColor = ROLE_COLORS[player.role] ?? TEXT_MUTED
   const roleShort = ROLE_SHORT[player.role] ?? player.role
   const roleFull  = ROLE_FULL[player.role]  ?? player.role
-  const imagesEnabled = useImagesEnabled()
   const teamLogo = imagesEnabled ? teamLogoUrlForName(iplTeams, player.ipl_team) : null
   const isSold    = player.status === 'sold'
 

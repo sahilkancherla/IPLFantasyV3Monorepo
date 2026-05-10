@@ -24,6 +24,7 @@ const roleLabels: Record<string, string> = {
 }
 
 export function PlayerCard({ player, currency = 'lakhs' }: PlayerCardProps) {
+  const imagesEnabled = useImagesEnabled()
   if (!player) {
     return (
       <View style={styles.empty}>
@@ -31,8 +32,6 @@ export function PlayerCard({ player, currency = 'lakhs' }: PlayerCardProps) {
       </View>
     )
   }
-
-  const imagesEnabled = useImagesEnabled()
 
   return (
     <View style={styles.card}>
